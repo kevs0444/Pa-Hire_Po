@@ -26,8 +26,8 @@
 
 ### 3. LinkedIn Profile & Dynamic `Resume Studio` (`AI`) (`My Profile` & `Resume Studio [AI]`)
 - **2-Way Synced LinkedIn-Style Profile**: Add/edit Experience, Projects, Certifications, Education, Skills, and Career Journey — synced automatically to **Resume Studio (`AI`)** and the job scorer.
-- **Dynamic Resume Page Size (Default A4)**: Preview and export **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, or **Dynamic Auto-Fit**, with `Compact` / `Standard` / `Comfortable` density controls and synchronized `@page` print CSS.
-- **Personal Gemini AI Integration**: Automatically uses your personal server-side `GEMINI_API_KEY` from `.env` (`gemini-3.1-flash-lite` primary model with `gemini-flash-lite-latest` and deterministic local Smart Career Journey fallback), displaying a **Personal AI Active** status badge across the workspace.
+- **Dynamic Resume Page Size (Default A4) & Top 5 AI-ATS Fonts**: Preview and export **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, or **Dynamic Auto-Fit**, with `Compact` / `Standard` / `Comfortable` density controls and **Top 5 AI-ATS & Researcher Fonts** (**Calibri**, **Helvetica**, **Garamond**, **Arial**, **Georgia**) using ligature-safe (`font-variant-ligatures: none`) `@page` print CSS.
+- **Personal Gemini AI Integration & Side-by-Side Change Highlighting**: Automatically uses your personal server-side `GEMINI_API_KEY` from `.env` (`gemini-3.1-flash-lite` primary model with `gemini-flash-lite-latest` and deterministic local Smart Career Journey fallback), displaying a **Personal AI Active** status badge plus **Side-by-Side Compare** (`Base CV` vs. `AI Tailored CV`) and live **Highlight AI Changes** overlays.
 - **Native Top-Layer `<dialog>` Application Flow**: Semantic `<dialog>` workflow (`showModal()`, `closedby="any"` + backdrop light-dismiss) lets you tailor your resume before opening the job link and marking it applied.
 
 ---

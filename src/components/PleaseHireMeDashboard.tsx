@@ -476,6 +476,8 @@ export function PleaseHireMeDashboard({
           ...nextTailored,
           pageSize: currentResume.pageSize || nextTailored.pageSize || 'a4',
           density: currentResume.density || nextTailored.density || 'standard',
+          fontFamily:
+            currentResume.fontFamily || nextTailored.fontFamily || 'calibri',
         });
       }
     } finally {
@@ -1364,7 +1366,7 @@ export function PleaseHireMeDashboard({
 
         {/* TAB 4: RESUME STUDIO (AI) */}
         {activeTab === 'resume' && (
-          <div className="mx-auto max-w-4xl">
+          <div className="mx-auto max-w-[1400px]">
             <A4ResumePreview
               profile={activeProfile}
               activeResume={tailoredResume || activeProfile.structuredResume}
@@ -1393,6 +1395,7 @@ export function PleaseHireMeDashboard({
                         ...activeProfile.structuredResume,
                         pageSize: nextResume.pageSize || 'a4',
                         density: nextResume.density || 'standard',
+                        fontFamily: nextResume.fontFamily || 'calibri',
                       },
                     },
                     false

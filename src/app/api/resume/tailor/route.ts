@@ -154,6 +154,7 @@ STRICT GROUNDING RULES:
     ...base,
     pageSize: base.pageSize || pageSize || 'a4',
     density: base.density || 'standard',
+    fontFamily: base.fontFamily || 'calibri',
     targetHeadline: parsed.targetHeadline || base.targetHeadline,
     tailoredSummary: parsed.tailoredSummary || null,
     experience:
@@ -219,6 +220,7 @@ export async function POST(request: NextRequest) {
             ...fallback,
             pageSize: profile.structuredResume?.pageSize || pageSize,
             density: profile.structuredResume?.density || 'standard',
+            fontFamily: profile.structuredResume?.fontFamily || 'calibri',
             tailorNotes: [
               ...(fallback.tailorNotes || []),
               `Gemini AI fallback triggered (${
@@ -242,6 +244,7 @@ export async function POST(request: NextRequest) {
         ...tailored,
         pageSize: profile.structuredResume?.pageSize || pageSize,
         density: profile.structuredResume?.density || 'standard',
+        fontFamily: profile.structuredResume?.fontFamily || 'calibri',
       },
       method: 'smart-engine',
       personalApiUsed: false,

@@ -80,12 +80,14 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Uses native HTML `<dialog>` (`showModal()`, `closedby="any"` + pointer light-dismiss fallback, `aria-labelledby`, `overscroll-behavior: contain` backdrop containment).
   - **Step 1:** Offers direct board application or 1-click AI tailoring in **Resume Studio (`AI`)**.
   - **Step 2:** Renders live tailored resume preview with dynamic sizing, **Print / Save PDF**, and **Continue to [Board] & Mark Applied**.
-- **Sub-Feature 4.2 — Personal Gemini API (`gemini-3.1-flash-lite`) + Smart Local Fallback:**
+- **Sub-Feature 4.2 — Personal Gemini API (`gemini-3.1-flash-lite`) + Smart Local Fallback + Side-by-Side Diff:**
   - Automatically prioritizes server-side personal `process.env.GEMINI_API_KEY` from `.env` (`GET /api/state` and `GET /api/resume/tailor` expose `personalApiConfigured` without ever leaking the secret to client bundles).
   - Calls `gemini-3.1-flash-lite` (fallback `gemini-flash-lite-latest` → `gemini-2.5-flash` → deterministic `tailorResumeLocally`) with strict anti-hallucination grounding rules. Displays **Personal AI Active** badge in the studio toolbar.
-- **Sub-Feature 4.3 — Dynamic Resume Paper Sizing (Default A4 `210 × 297 mm`):**
+  - **Side-by-Side Comparison & AI Change Highlighting:** When tailored by AI, toggle **Side-by-Side Compare** (`Base Profile CV` vs. `AI Tailored CV`) and **Highlight AI Changes** (color-coded indicators + `✓ AI Tailored` / `↑ Reordered` tags on modified headlines, tailored summaries, rewritten bullets, skill updates, and bolded keywords, stripped cleanly during PDF printing).
+- **Sub-Feature 4.3 — Dynamic Resume Paper Sizing (Default A4 `210 × 297 mm`) & Top 5 AI-ATS / Researcher Fonts:**
   - Supports **A4 (Default • `210 × 297 mm`)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic (`Auto Fit Content`)**, plus **Density** (`Compact`, `Standard`, `Comfortable`).
-  - Dynamic `@media print { @page { size: ...; margin: 8mm; } }` and print-isolated `#a4-resume-sheet` export clean PDFs without app chrome or dialog clipping.
+  - Includes live **ATS Font** selector grounded for AI/LLM parsers and research/technical roles: **Calibri** (Default • #1 AI ATS Standard), **Helvetica** (#2 Tech & Engineering), **Garamond** (#3 Researcher & Academic), **Arial** (#4 Universal Legacy ATS), and **Georgia** (#5 High-Contrast Research Serif).
+  - Enforces `font-variant-ligatures: none` and dynamic `@media print { @page { size: ...; margin: 8mm; } }` on `#a4-resume-sheet` so exported PDFs avoid ligature corruption in Workday/Greenhouse/Lever/PDFBox parsers.
 
 ---
 

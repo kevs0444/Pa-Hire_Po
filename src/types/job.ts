@@ -14,6 +14,13 @@ export type ResumePageSize = 'a4' | 'letter' | 'legal' | 'auto';
 
 export type ResumeDensity = 'compact' | 'standard' | 'comfortable';
 
+export type ResumeFontFamily =
+  | 'calibri'
+  | 'helvetica'
+  | 'garamond'
+  | 'arial'
+  | 'georgia';
+
 export interface ResumeExperienceItem {
   id: string;
   role: string;
@@ -64,6 +71,7 @@ export interface StructuredResume {
   tailorNotes?: string[];
   pageSize?: ResumePageSize;
   density?: ResumeDensity;
+  fontFamily?: ResumeFontFamily;
 }
 
 export interface UserProfile {
