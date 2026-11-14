@@ -1,5 +1,5 @@
 {
-  "name": "temp-app",
+  "name": "please-hire-me",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "cheerio": "^1.2.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.73.0",
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^3.7.0",
+    "ts-jobspy": "^3.0.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",

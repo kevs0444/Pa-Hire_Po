@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  serverExternalPackages: ["ts-jobspy"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
