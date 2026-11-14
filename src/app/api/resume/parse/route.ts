@@ -3,7 +3,7 @@ import {
   extractSkillsFromResume,
   extractSummaryFromResume,
   inferDynamicRoles,
-} from '@/lib/resume-analyzer';
+} from '@/features/resume/lib/resume-analyzer';
 
 function extractReadableTextFromPdfBuffer(buffer: Buffer): string {
   const raw = buffer.toString('latin1');

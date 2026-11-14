@@ -8,7 +8,60 @@ export type WorkType = 'any' | 'remote' | 'hybrid' | 'onsite';
 
 export type ExperienceLevel = 'any' | 'entry' | 'mid' | 'senior';
 
+export type MonochromeTheme = 'dark' | 'light';
+
+export interface ResumeExperienceItem {
+  id: string;
+  role: string;
+  company: string;
+  location: string;
+  period: string;
+  bullets: string[];
+}
+
+export interface ResumeProjectItem {
+  id: string;
+  name: string;
+  subtitle: string;
+  period: string;
+  bullets: string[];
+}
+
+export interface ResumeSkillCategory {
+  category: string;
+  items: string;
+}
+
+export interface ResumeEducationItem {
+  degree: string;
+  school: string;
+  period: string;
+  honors: string;
+}
+
+export interface StructuredResume {
+  fullName: string;
+  targetHeadline: string;
+  tailoredSummary: string | null;
+  email: string;
+  phones: string[];
+  location: string;
+  linkedin: string;
+  github: string;
+  portfolio: string;
+  experience: ResumeExperienceItem[];
+  projects: ResumeProjectItem[];
+  skillCategories: ResumeSkillCategory[];
+  certifications: string[];
+  education: ResumeEducationItem[];
+  tailoredForJobTitle?: string | null;
+  tailoredForCompany?: string | null;
+  tailorMethod?: 'base' | 'smart-engine' | 'gemini-ai';
+  tailorNotes?: string[];
+}
+
 export interface UserProfile {
+  id: string;
   name: string;
   title: string;
   summary: string;
@@ -16,14 +69,18 @@ export interface UserProfile {
   resumeFileName: string | null;
   skills: string[];
   primaryRole: string;
+  preferredRoles: string[];
   customRoles: string[];
   autoPivotRoles: boolean;
-  pivotFrequency: number; // percentage of scan dedicated to adjacent/pivot roles (e.g. 25)
+  pivotFrequency: number;
   experienceLevel: ExperienceLevel;
   country: CountryCode;
   location: string;
   workType: WorkType;
+  salaryExpectation: string;
   autoScanIntervalMinutes: number;
+  careerJourneyMarkdown: string;
+  structuredResume: StructuredResume;
 }
 
 export interface DynamicRoleSuggestion {
@@ -64,6 +121,8 @@ export interface JobListing {
   searchedRole: string;
   isPivotSuggestion: boolean;
   isFallback?: boolean;
+  experienceRequired: string;
+  experienceFit: 'fit' | 'stretch' | 'senior-warning';
   matchScore: number;
   matchedSkills: string[];
   missingSkills: string[];
@@ -90,9 +149,23 @@ export interface ScanHistoryEntry {
   meta: ScanSourceMeta[];
 }
 
+export interface AutoApplyConfig {
+  expectedSalary: string;
+  noticePeriod: string;
+  workAuthorization: string;
+  willingToRelocate: string;
+  autoTailorResume: boolean;
+  humanReviewBeforeSubmit: boolean;
+}
+
 export interface AppStoreState {
-  profile: UserProfile;
+  users: UserProfile[];
+  activeUserId: string;
+  theme: MonochromeTheme;
+  geminiApiKey?: string;
   jobs: JobListing[];
+  queuedJobIds?: string[];
+  autoApplyConfig?: AutoApplyConfig;
   scanHistory: ScanHistoryEntry[];
   lastScannedAt: string | null;
 }
@@ -112,7 +185,7 @@ export const COUNTRY_CONFIGS: Record<CountryCode, CountryConfig> = {
   ph: {
     code: 'ph',
     label: 'Philippines',
-    defaultLocation: 'Manila, Philippines',
+    defaultLocation: 'Taguig City, Metro Manila',
     linkedInLocation: 'Philippines',
     indeedDomain: 'https://ph.indeed.com',
     jobspyCountry: 'philippines',
@@ -169,56 +242,4 @@ export const COUNTRY_CONFIGS: Record<CountryCode, CountryConfig> = {
     jobstreetDomain: 'https://ph.jobstreet.com',
     jobstreetSiteKey: 'PH-Main',
   },
-};
-
-export const DEFAULT_USER_PROFILE: UserProfile = {
-  name: 'Alex Rivera',
-  title: 'Data Analyst',
-  summary:
-    'Analytical problem-solver experienced in turning messy datasets into clear business dashboards, SQL pipelines, and executive insights. Open to Data Analyst roles and adjacent analytics/product opportunities.',
-  resumeText: `ALEX RIVERA
-Data Analyst | SQL • Python • Power BI • Tableau • Excel
-
-SUMMARY
-Data Analyst with 3+ years of experience cleaning datasets, building automated reporting pipelines, writing complex SQL queries, and designing KPI dashboards that drive revenue and operational decisions.
-
-CORE SKILLS
-- Languages & Querying: SQL (PostgreSQL, BigQuery, MySQL), Python (Pandas, NumPy, Matplotlib), R
-- BI & Visualization: Power BI, Tableau, Looker Studio, Google Sheets, Advanced Excel (Pivot Tables, XLOOKUP, Power Query)
-- Analytics & Methods: A/B Testing, Funnel Analysis, Cohort Analysis, Forecasting, Data Cleaning, ETL, Data Modeling
-- Collaboration & Tools: Git, Jira, Notion, Stakeholder Presentation, KPI Reporting
-
-EXPERIENCE
-Data Analyst — Retail & E-Commerce Operations (2023–Present)
-• Automated weekly executive KPI dashboards in Power BI & SQL, cutting manual reporting time by 65%.
-• Analyzed customer retention cohorts and marketing attribution using Python (Pandas) and BigQuery.
-• Partnered with Product & Operations teams to run A/B experiments and optimize checkout conversion by 11%.
-
-Junior Business & Data Analyst (2021–2023)
-• Built automated Excel & SQL reconciliation trackers across 120K+ monthly transactions.
-• Standardized data dictionaries and ETL validation checks across CRM and finance tables.`,
-  resumeFileName: 'sample-data-analyst-resume.txt',
-  skills: [
-    'SQL',
-    'Python',
-    'Power BI',
-    'Tableau',
-    'Excel',
-    'Pandas',
-    'BigQuery',
-    'Data Cleaning',
-    'A/B Testing',
-    'ETL',
-    'KPI Reporting',
-    'Data Modeling',
-  ],
-  primaryRole: 'Data Analyst',
-  customRoles: ['Business Intelligence Analyst', 'Product Analyst'],
-  autoPivotRoles: true,
-  pivotFrequency: 25,
-  experienceLevel: 'mid',
-  country: 'ph',
-  location: 'Manila, Philippines',
-  workType: 'any',
-  autoScanIntervalMinutes: 30,
 };

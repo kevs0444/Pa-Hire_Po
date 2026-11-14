@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  DEFAULT_USER_PROFILE,
   JobListing,
   JobSource,
   RawScrapedJob,
   ScanSourceMeta,
   UserProfile,
 } from '@/types/job';
+import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
 import {
   inferDynamicRoles,
   scoreJobAgainstProfile,
   selectRolesForScan,
-} from '@/lib/resume-analyzer';
-import { BoardScrapeResult, scrapeLinkedInJobs } from '@/lib/scrapers/linkedin';
-import { scrapeJobStreetJobs } from '@/lib/scrapers/jobstreet';
-import { scrapeIndeedJobs } from '@/lib/scrapers/indeed';
+} from '@/features/resume/lib/resume-analyzer';
+import { BoardScrapeResult, scrapeLinkedInJobs } from '@/server/scrapers/linkedin';
+import { scrapeJobStreetJobs } from '@/server/scrapers/jobstreet';
+import { scrapeIndeedJobs } from '@/server/scrapers/indeed';
 
 export const maxDuration = 30;
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as SearchRequestBody;
     const profile: UserProfile = {
-      ...DEFAULT_USER_PROFILE,
+      ...MAR_KEVIN_PROFILE,
       ...(body.profile || {}),
     };
 

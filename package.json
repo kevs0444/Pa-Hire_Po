@@ -2,11 +2,14 @@
   "name": "please-hire-me",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "desktop": "node electron/launch-dev.cjs",
+    "desktop:install": "npm install --save-dev electron"
   },
   "dependencies": {
     "cheerio": "^1.2.0",

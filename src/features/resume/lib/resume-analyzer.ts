@@ -1,5 +1,6 @@
 import {
   DynamicRoleSuggestion,
+  ExperienceLevel,
   JobListing,
   RawScrapedJob,
   UserProfile,
@@ -55,11 +56,18 @@ export const ROLE_BLUEPRINTS: RoleBlueprint[] = [
     aliases: ['data scientist', 'applied scientist', 'ml analyst'],
   },
   {
-    role: 'Data Engineer',
+    role: 'Junior Data Engineer',
     category: 'Data & Engineering',
-    coreSkills: ['Python', 'SQL', 'ETL', 'Airflow', 'BigQuery', 'Spark', 'PostgreSQL'],
-    bonusSkills: ['AWS', 'GCP', 'Docker', 'Kafka', 'Snowflake', 'dbt'],
-    aliases: ['data engineer', 'etl developer', 'pipeline engineer'],
+    coreSkills: ['Python', 'SQL', 'ETL', 'MySQL', 'Data Integration', 'REST APIs'],
+    bonusSkills: ['Docker', 'Git', 'Azure', 'Data Warehousing', 'SQLAlchemy'],
+    aliases: ['junior data engineer', 'data engineer', 'etl developer', 'pipeline engineer'],
+  },
+  {
+    role: 'AI Engineer',
+    category: 'Data & AI',
+    coreSkills: ['Python', 'TensorFlow', 'XGBoost', 'REST APIs', 'FastAPI', 'Git'],
+    bonusSkills: ['YOLOv8', 'OpenCV', 'Docker', 'Next.js', 'SQL', 'Deep Learning'],
+    aliases: ['ai engineer', 'ai developer', 'ml engineer', 'machine learning engineer'],
   },
   {
     role: 'Operations Analyst',
@@ -178,7 +186,18 @@ export const KNOWN_SKILLS: string[] = Array.from(
     'Pivot Tables',
     'XLOOKUP',
     'VBA',
+    'Excel VBA',
+    'Google Apps Script',
+    'Power Apps',
     'MySQL',
+    'MS SQL',
+    'MariaDB',
+    'SQLite',
+    'DBeaver',
+    'OpenVINO',
+    'Deep Learning',
+    'Computer Vision',
+    'Jupyter',
     'SQL Server',
     'Oracle',
     'MongoDB',
@@ -444,6 +463,94 @@ function inferRequirementsFromTitle(title: string): string[] {
   return [];
 }
 
+export function extractExperienceRequirement(
+  title: string,
+  description: string,
+  userLevel: ExperienceLevel
+): {
+  experienceRequired: string;
+  experienceFit: 'fit' | 'stretch' | 'senior-warning';
+} {
+  const combined = `${title}\n${description}`;
+  const lowerTitle = title.toLowerCase();
+
+  // Check explicit year ranges e.g. "1-3 years", "2 to 4 yrs"
+  const rangeMatch = combined.match(
+    /\b(\d{1,2})\s*(?:-|to|–)\s*(\d{1,2})\s*\+?\s*(?:years?|yrs?)\b/i
+  );
+  if (rangeMatch) {
+    const minYrs = Number(rangeMatch[1]);
+    const maxYrs = Number(rangeMatch[2]);
+    const label = `${minYrs}–${maxYrs} yrs experience`;
+    if (userLevel === 'entry') {
+      return {
+        experienceRequired: label,
+        experienceFit: minYrs <= 1 ? 'fit' : minYrs <= 2 ? 'stretch' : 'senior-warning',
+      };
+    }
+    if (userLevel === 'mid') {
+      return {
+        experienceRequired: label,
+        experienceFit: minYrs <= 4 ? 'fit' : 'stretch',
+      };
+    }
+    return { experienceRequired: label, experienceFit: 'fit' };
+  }
+
+  // Check minimum years e.g. "3+ years", "at least 2 years"
+  const minMatch = combined.match(
+    /(?:at\s+least|minimum(?:\s+of)?|min\.?)?\s*(\d{1,2})\s*\+?\s*(?:years?|yrs?)(?:\s+of)?\s*(?:relevant|related|work|working|experience|exp)/i
+  );
+  if (minMatch) {
+    const yrs = Number(minMatch[1]);
+    const label = yrs === 0 ? 'Fresh Grad / 0 yrs' : `${yrs}+ yrs experience`;
+    if (userLevel === 'entry') {
+      return {
+        experienceRequired: label,
+        experienceFit: yrs <= 1 ? 'fit' : yrs <= 2 ? 'stretch' : 'senior-warning',
+      };
+    }
+    if (userLevel === 'mid') {
+      return {
+        experienceRequired: label,
+        experienceFit: yrs <= 4 ? 'fit' : 'stretch',
+      };
+    }
+    return { experienceRequired: label, experienceFit: 'fit' };
+  }
+
+  // Check entry / fresh grad signals
+  if (
+    /\b(fresh\s*grad\w*|entry[\s-]level|junior|jr\.?|intern|internship|ojt|trainee|associate|no\s*experience)\b/i.test(
+      combined
+    )
+  ) {
+    const isIntern = /\b(intern|internship|ojt)\b/i.test(lowerTitle);
+    const label = isIntern ? 'Internship / Student' : 'Fresh Grad / Entry Level';
+    return {
+      experienceRequired: label,
+      experienceFit: userLevel === 'senior' ? 'stretch' : 'fit',
+    };
+  }
+
+  // Check senior title signals
+  if (
+    /\b(senior|sr\.?|lead|principal|staff|director|vp|head\s+of|manager|architect)\b/i.test(
+      lowerTitle
+    )
+  ) {
+    return {
+      experienceRequired: 'Senior / Lead (3–5+ yrs)',
+      experienceFit: userLevel === 'entry' ? 'senior-warning' : 'fit',
+    };
+  }
+
+  return {
+    experienceRequired: 'Open / Not Specified',
+    experienceFit: 'fit',
+  };
+}
+
 /**
  * Scores a scraped job listing (0-100) against the user's resume, skills, and target role.
  */
@@ -517,23 +624,25 @@ export function scoreJobAgainstProfile(
     preferenceBonus += 4;
   }
 
-  // Experience check penalty for severe mismatch (e.g. entry profile vs Director/VP)
+  // Experience extraction & alignment
+  const { experienceRequired, experienceFit } = extractExperienceRequirement(
+    raw.title,
+    raw.description,
+    profile.experienceLevel
+  );
+
   let experienceAdjustment = 0;
-  if (
-    profile.experienceLevel === 'entry' &&
-    /\b(senior|sr\.?|lead|principal|staff|director|vp|head of)\b/i.test(raw.title)
-  ) {
-    experienceAdjustment = -14;
-  } else if (
-    profile.experienceLevel === 'senior' &&
-    /\b(intern|internship|ojt|trainee|fresh grad)\b/i.test(raw.title)
-  ) {
+  if (experienceFit === 'fit') {
+    experienceAdjustment = 5;
+  } else if (experienceFit === 'senior-warning') {
     experienceAdjustment = -15;
+  } else if (experienceFit === 'stretch') {
+    experienceAdjustment = -4;
   }
 
   let matchScore = titleScore + skillScore + contextScore + preferenceBonus + experienceAdjustment;
   if (raw.isFallback) {
-    matchScore = Math.min(matchScore, 84);
+    matchScore = Math.min(matchScore, 82);
   }
   matchScore = Math.max(28, Math.min(98, Math.round(matchScore)));
 
@@ -597,6 +706,8 @@ export function scoreJobAgainstProfile(
     searchedRole: raw.searchedRole,
     isPivotSuggestion: raw.isPivotSuggestion,
     isFallback: raw.isFallback,
+    experienceRequired,
+    experienceFit,
     matchScore,
     matchedSkills,
     missingSkills,

@@ -13,18 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PleaseHireMe — Automated Dynamic Job Finder',
+  title: 'PleaseHireMe — Monochrome Studio & Automated Job Finder',
   description:
-    'Automated multi-board job discovery across LinkedIn, JobStreet, and Indeed powered by your resume, skills, and dynamic role matching.',
+    'Automated multi-board job discovery across LinkedIn, JobStreet, and Indeed with live A4 HTML resume tailoring.',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-slate-950 text-slate-100 font-sans">
+      <body className="min-h-full bg-black text-white font-sans">
         {children}
       </body>
     </html>

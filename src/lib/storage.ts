@@ -1,13 +1,65 @@
-import { AppStoreState, DEFAULT_USER_PROFILE } from '@/types/job';
+import { AppStoreState, UserProfile } from '@/types/job';
+import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
 
-const STORAGE_KEY = 'pleasehireme_state_v1';
+const STORAGE_KEY = 'pleasehireme_state_v2';
 
 export function getDefaultStoreState(): AppStoreState {
   return {
-    profile: DEFAULT_USER_PROFILE,
+    users: [MAR_KEVIN_PROFILE],
+    activeUserId: MAR_KEVIN_PROFILE.id,
+    theme: 'dark',
+    geminiApiKey: '',
     jobs: [],
+    queuedJobIds: [],
     scanHistory: [],
     lastScannedAt: null,
+  };
+}
+
+export function getActiveUser(state: AppStoreState): UserProfile {
+  return (
+    state.users.find((u) => u.id === state.activeUserId) ||
+    state.users[0] ||
+    MAR_KEVIN_PROFILE
+  );
+}
+
+export function normalizeStoreState(
+  raw: Partial<AppStoreState> & { profile?: Partial<UserProfile> }
+): AppStoreState {
+  const defaults = getDefaultStoreState();
+  const users: UserProfile[] =
+    Array.isArray(raw.users) && raw.users.length > 0
+      ? raw.users.map((u) => ({
+          ...MAR_KEVIN_PROFILE,
+          ...u,
+          structuredResume: {
+            ...MAR_KEVIN_PROFILE.structuredResume,
+            ...(u.structuredResume || {}),
+          },
+        }))
+      : [MAR_KEVIN_PROFILE];
+
+  const activeUserId = users.some((u) => u.id === raw.activeUserId)
+    ? (raw.activeUserId as string)
+    : users[0].id;
+
+  return {
+    users,
+    activeUserId,
+    theme: raw.theme === 'light' ? 'light' : 'dark',
+    geminiApiKey: raw.geminiApiKey ?? defaults.geminiApiKey,
+    jobs: Array.isArray(raw.jobs)
+      ? raw.jobs.map((j) => ({
+          ...j,
+          experienceRequired: j.experienceRequired || 'Open / Not Specified',
+          experienceFit: j.experienceFit || 'fit',
+        }))
+      : [],
+    queuedJobIds: Array.isArray(raw.queuedJobIds) ? raw.queuedJobIds : [],
+    autoApplyConfig: raw.autoApplyConfig,
+    scanHistory: Array.isArray(raw.scanHistory) ? raw.scanHistory : [],
+    lastScannedAt: raw.lastScannedAt ?? null,
   };
 }
 
@@ -20,15 +72,7 @@ export function loadLocalState(): AppStoreState {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return getDefaultStoreState();
     const parsed = JSON.parse(raw) as Partial<AppStoreState>;
-    return {
-      profile: {
-        ...DEFAULT_USER_PROFILE,
-        ...(parsed.profile || {}),
-      },
-      jobs: Array.isArray(parsed.jobs) ? parsed.jobs : [],
-      scanHistory: Array.isArray(parsed.scanHistory) ? parsed.scanHistory : [],
-      lastScannedAt: parsed.lastScannedAt ?? null,
-    };
+    return normalizeStoreState(parsed);
   } catch {
     return getDefaultStoreState();
   }
@@ -52,11 +96,11 @@ export async function fetchServerState(): Promise<{
     if (!res.ok) return { state: null, storageMode: 'browser-only' };
     const data = (await res.json()) as {
       exists?: boolean;
-      state?: AppStoreState | null;
+      state?: Partial<AppStoreState> | null;
       storageMode?: string;
     };
     return {
-      state: data.exists && data.state ? data.state : null,
+      state: data.exists && data.state ? normalizeStoreState(data.state) : null,
       storageMode: data.storageMode || 'browser-only',
     };
   } catch {

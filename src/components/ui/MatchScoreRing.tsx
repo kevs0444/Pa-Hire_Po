@@ -1,32 +1,41 @@
 'use client';
 
+import { MonochromeTheme } from '@/types/job';
 import { cn } from '@/lib/utils';
 
 interface MatchScoreRingProps {
   score: number;
   size?: number;
+  theme?: MonochromeTheme;
 }
 
-export function MatchScoreRing({ score, size = 58 }: MatchScoreRingProps) {
+export function MatchScoreRing({
+  score,
+  size = 56,
+  theme = 'dark',
+}: MatchScoreRingProps) {
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
-  const strokeWidth = 5;
+  const strokeWidth = 4.5;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
 
-  const colorClass =
-    clamped >= 78
-      ? 'text-emerald-400'
-      : clamped >= 58
-        ? 'text-amber-400'
-        : 'text-slate-400';
+  const isDark = theme === 'dark';
 
-  const textClass =
-    clamped >= 78
-      ? 'text-emerald-300'
-      : clamped >= 58
-        ? 'text-amber-300'
-        : 'text-slate-300';
+  const ringColor = isDark
+    ? clamped >= 75
+      ? 'text-white'
+      : clamped >= 55
+        ? 'text-neutral-400'
+        : 'text-neutral-600'
+    : clamped >= 75
+      ? 'text-black'
+      : clamped >= 55
+        ? 'text-neutral-600'
+        : 'text-neutral-400';
+
+  const trackColor = isDark ? 'text-neutral-800' : 'text-neutral-200';
+  const labelColor = isDark ? 'text-white' : 'text-black';
 
   return (
     <div
@@ -42,7 +51,7 @@ export function MatchScoreRing({ score, size = 58 }: MatchScoreRingProps) {
           fill="transparent"
           stroke="currentColor"
           strokeWidth={strokeWidth}
-          className="text-slate-800"
+          className={trackColor}
         />
         <circle
           cx={size / 2}
@@ -54,10 +63,10 @@ export function MatchScoreRing({ score, size = 58 }: MatchScoreRingProps) {
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className={cn('transition-all duration-500', colorClass)}
+          className={cn('transition-all duration-500', ringColor)}
         />
       </svg>
-      <span className={cn('absolute text-xs font-bold tabular-nums', textClass)}>
+      <span className={cn('absolute text-xs font-bold tabular-nums', labelColor)}>
         {clamped}%
       </span>
     </div>

@@ -3,53 +3,66 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
+  Award,
+  BarChart3,
   Briefcase,
-  CheckCircle2,
   Compass,
-  FileUser,
+  FileText,
   Filter,
-  Globe,
-  Pause,
-  Play,
-  Plus,
+  HelpCircle,
+  Moon,
   RefreshCw,
   Rocket,
   Search,
   Sparkles,
+  Sun,
   Trash2,
-  TrendingUp,
-  Zap,
+  UserCheck,
+  UserCircle2,
+  Wallet,
 } from 'lucide-react';
 import {
   AppStoreState,
+  AutoApplyConfig,
   COUNTRY_CONFIGS,
-  DynamicRoleSuggestion,
   JobListing,
   JobSource,
   JobStatus,
   ScanSourceMeta,
+  StructuredResume,
   UserProfile,
 } from '@/types/job';
 import {
-  inferDynamicRoles,
-  scoreJobAgainstProfile,
-} from '@/lib/resume-analyzer';
+  createBlankUserProfile,
+  resumeToPlainText,
+} from '@/lib/default-profile';
+import { scoreJobAgainstProfile } from '@/features/resume/lib/resume-analyzer';
 import {
   fetchServerState,
+  getActiveUser,
   getDefaultStoreState,
   loadLocalState,
   saveLocalState,
   syncStateToServer,
 } from '@/lib/storage';
-import { JobCard } from '@/components/JobCard';
-import { ProfilePanel } from '@/components/ProfilePanel';
+import { A4ResumePreview } from '@/features/resume/components/A4ResumePreview';
+import { createDefaultAutoApplyConfig } from '@/features/auto-apply/types';
+import { JobAnalyticsView } from '@/features/analytics/components/JobAnalyticsView';
+import { ApplyFlowModal } from '@/features/jobs/components/ApplyFlowModal';
+import { HowItWorksModal } from '@/features/jobs/components/HowItWorksModal';
+import { JobDetailPane } from '@/features/jobs/components/JobDetailPane';
+import { TopChoicesSpotlight } from '@/features/jobs/components/TopChoicesSpotlight';
+import { LinkedInProfileView } from '@/features/profile/components/LinkedInProfileView';
+import { BoardLogo } from '@/components/ui/BrandLogos';
 import { cn } from '@/lib/utils';
 
-const WITTY_TAGLINES = [
-  'Because manually refreshing LinkedIn, JobStreet & Indeed is a full-time job.',
-  'Rejecting the null hypothesis of unemployment.',
-  'Automated job hunting for humans who have better things to analyze.',
-  'Querying SELECT * FROM dream_jobs WHERE ghosting = FALSE.',
+export type ActiveTab = 'jobs' | 'analytics' | 'profile' | 'resume';
+
+const REFRESH_OPTIONS = [
+  { label: 'Off', seconds: 0 },
+  { label: '5s Live', seconds: 5 },
+  { label: '15s', seconds: 15 },
+  { label: '30s', seconds: 30 },
 ];
 
 function rescoreJobsWithProfile(
@@ -85,10 +98,17 @@ function rescoreJobsWithProfile(
   });
 }
 
-export function PleaseHireMeDashboard() {
+export function PleaseHireMeDashboard({
+  initialTab = 'jobs',
+}: {
+  initialTab?: ActiveTab;
+}) {
   const [hydrated, setHydrated] = useState(false);
+  const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [store, setStore] = useState<AppStoreState>(getDefaultStoreState);
   const [storageMode, setStorageMode] = useState<string>('browser-only');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
+
   const [enabledSources, setEnabledSources] = useState<JobSource[]>([
     'linkedin',
     'jobstreet',
@@ -101,23 +121,44 @@ export function PleaseHireMeDashboard() {
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [autoPilot, setAutoPilot] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(0);
+  const [autoRefreshSeconds, setAutoRefreshSeconds] = useState<number>(0);
+  const [countdown, setCountdown] = useState<number>(5);
+
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [applyModalJob, setApplyModalJob] = useState<JobListing | null>(null);
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
+
+  // Resume Studio state
+  const [tailoredResume, setTailoredResume] = useState<StructuredResume | null>(
+    null
+  );
+  const [tailoring, setTailoring] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<'active' | JobStatus>('active');
   const [sourceFilter, setSourceFilter] = useState<'all' | JobSource>('all');
-  const [roleTypeFilter, setRoleTypeFilter] = useState<'all' | 'primary' | 'pivot'>('all');
-  const [minScore, setMinScore] = useState<number>(30);
+  const [fitFilter, setFitFilter] = useState<'all' | 'applicable'>('all');
+  const [minScore, setMinScore] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Dynamic role controls
   const [roleDraft, setRoleDraft] = useState('Data Analyst');
-  const [newCustomRole, setNewCustomRole] = useState('');
-  const [taglineIndex, setTaglineIndex] = useState(0);
 
   const initialAutoScanRan = useRef(false);
+  const scanInFlightRef = useRef(false);
+
+  const activeProfile = useMemo(() => getActiveUser(store), [store]);
+  const theme = store.theme;
+  const isDark = theme === 'dark';
+
+  const queuedJobIds = useMemo(
+    () => store.queuedJobIds || [],
+    [store.queuedJobIds]
+  );
+
+  const autoApplyConfig = useMemo<AutoApplyConfig>(
+    () =>
+      store.autoApplyConfig || createDefaultAutoApplyConfig(activeProfile),
+    [activeProfile, store.autoApplyConfig]
+  );
 
   const persistStore = useCallback((next: AppStoreState) => {
     setStore(next);
@@ -127,14 +168,41 @@ export function PleaseHireMeDashboard() {
     });
   }, []);
 
+  const updateActiveUserProfile = useCallback(
+    (nextProfile: UserProfile, rescore = true) => {
+      setRoleDraft(nextProfile.primaryRole);
+      setStore((prev) => {
+        const nextUsers = prev.users.map((u) =>
+          u.id === nextProfile.id ? nextProfile : u
+        );
+        const nextJobs = rescore
+          ? rescoreJobsWithProfile(prev.jobs, nextProfile)
+          : prev.jobs;
+        const nextState: AppStoreState = {
+          ...prev,
+          users: nextUsers,
+          jobs: nextJobs,
+        };
+        saveLocalState(nextState);
+        void syncStateToServer(nextState);
+        return nextState;
+      });
+    },
+    []
+  );
+
   const runJobScan = useCallback(
     async (overrideProfile?: UserProfile, explicitRoles?: string[]) => {
-      const activeProfile = overrideProfile || store.profile;
+      if (scanInFlightRef.current) return;
+      const targetProfile = overrideProfile || activeProfile;
       if (enabledSources.length === 0) {
-        setScanError('Select at least one job board (LinkedIn, JobStreet, or Indeed).');
+        setScanError(
+          'Enable at least one board (LinkedIn, JobStreet, or Indeed).'
+        );
         return;
       }
 
+      scanInFlightRef.current = true;
       setScanning(true);
       setScanError(null);
 
@@ -143,7 +211,7 @@ export function PleaseHireMeDashboard() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            profile: activeProfile,
+            profile: targetProfile,
             explicitRoles,
             sources: enabledSources,
           }),
@@ -180,7 +248,6 @@ export function PleaseHireMeDashboard() {
             }
           }
 
-          // Drop stale fallback placeholders once live jobs exist for that board
           const liveBoards = new Set(
             Array.from(existingById.values())
               .filter((j) => !j.isFallback)
@@ -198,7 +265,9 @@ export function PleaseHireMeDashboard() {
           const scannedAt = data.scannedAt || new Date().toISOString();
           const nextState: AppStoreState = {
             ...prev,
-            profile: activeProfile,
+            users: prev.users.map((u) =>
+              u.id === targetProfile.id ? targetProfile : u
+            ),
             jobs: mergedJobs,
             lastScannedAt: scannedAt,
             scanHistory: [
@@ -223,13 +292,14 @@ export function PleaseHireMeDashboard() {
           err instanceof Error ? err.message : 'Unable to complete job scan.'
         );
       } finally {
+        scanInFlightRef.current = false;
         setScanning(false);
       }
     },
-    [enabledSources, store.profile]
+    [activeProfile, enabledSources]
   );
 
-  // Hydrate from localStorage + local server state
+  // Hydrate initial state + detect Electron Desktop host
   useEffect(() => {
     let active = true;
 
@@ -238,20 +308,26 @@ export function PleaseHireMeDashboard() {
       const server = await fetchServerState();
       if (!active) return;
 
+      setIsDesktopApp(
+        Boolean(
+          (window as unknown as { electronAPI?: { isDesktop?: boolean } })
+            .electronAPI?.isDesktop
+        )
+      );
       setStorageMode(server.storageMode);
       const chosen =
         server.state && server.state.jobs.length >= local.jobs.length
           ? server.state
           : local;
 
+      const user = getActiveUser(chosen);
       setStore(chosen);
-      setRoleDraft(chosen.profile.primaryRole);
-      setSecondsLeft(chosen.profile.autoScanIntervalMinutes * 60);
+      setRoleDraft(user.primaryRole);
       setHydrated(true);
 
       if (chosen.jobs.length === 0 && !initialAutoScanRan.current) {
         initialAutoScanRan.current = true;
-        void runJobScan(chosen.profile);
+        void runJobScan(user);
       }
     }
 
@@ -262,89 +338,67 @@ export function PleaseHireMeDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Rotate witty tagline gently on client only
+  // Non-overlapping 5s / 15s / 30s Live Auto-Refresh Loop
   useEffect(() => {
+    if (autoRefreshSeconds <= 0) return;
+
     const timer = setInterval(() => {
-      setTaglineIndex((i) => (i + 1) % WITTY_TAGLINES.length);
-    }, 9000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Auto-Pilot background countdown & automated refresh
-  useEffect(() => {
-    if (!autoPilot) return;
-
-    const tick = setInterval(() => {
-      setSecondsLeft((prev) => {
+      if (scanInFlightRef.current) return;
+      setCountdown((prev) => {
         if (prev <= 1) {
           void runJobScan();
-          return store.profile.autoScanIntervalMinutes * 60;
+          return autoRefreshSeconds;
         }
         return prev - 1;
       });
     }, 1000);
 
-    return () => clearInterval(tick);
-  }, [autoPilot, runJobScan, store.profile.autoScanIntervalMinutes]);
+    return () => clearInterval(timer);
+  }, [autoRefreshSeconds, runJobScan]);
 
-  const dynamicSuggestions: DynamicRoleSuggestion[] = useMemo(() => {
-    return inferDynamicRoles(
-      store.profile.resumeText,
-      store.profile.skills,
-      store.profile.primaryRole
-    ).slice(0, 7);
-  }, [store.profile.primaryRole, store.profile.resumeText, store.profile.skills]);
-
-  const handleUpdateProfile = (nextProfile: UserProfile) => {
-    setRoleDraft(nextProfile.primaryRole);
-    const rescored = rescoreJobsWithProfile(store.jobs, nextProfile);
-    persistStore({
-      ...store,
-      profile: nextProfile,
-      jobs: rescored,
-    });
-  };
-
-  const handleApplyPrimaryRole = (role: string, triggerScan = false) => {
+  const handleApplyPrimaryRole = (role: string, triggerScan = true) => {
     const clean = role.trim();
     if (!clean) return;
     const nextProfile: UserProfile = {
-      ...store.profile,
+      ...activeProfile,
       primaryRole: clean,
       title: clean,
     };
-    setRoleDraft(clean);
-    const rescored = rescoreJobsWithProfile(store.jobs, nextProfile);
-    persistStore({
-      ...store,
-      profile: nextProfile,
-      jobs: rescored,
-    });
+    updateActiveUserProfile(nextProfile, true);
     if (triggerScan) {
       void runJobScan(nextProfile);
     }
   };
 
-  const handleAddCustomRole = () => {
-    const clean = newCustomRole.trim();
-    if (!clean) return;
-    if (
-      !store.profile.customRoles.some(
-        (r) => r.toLowerCase() === clean.toLowerCase()
-      )
-    ) {
-      handleUpdateProfile({
-        ...store.profile,
-        customRoles: [...store.profile.customRoles, clean],
-      });
-    }
-    setNewCustomRole('');
+  const handleSelectUser = (userId: string) => {
+    const target = store.users.find((u) => u.id === userId);
+    if (!target) return;
+    setTailoredResume(null);
+    setRoleDraft(target.primaryRole);
+    const rescored = rescoreJobsWithProfile(store.jobs, target);
+    persistStore({
+      ...store,
+      activeUserId: target.id,
+      jobs: rescored,
+    });
   };
 
-  const handleRemoveCustomRole = (roleToRemove: string) => {
-    handleUpdateProfile({
-      ...store.profile,
-      customRoles: store.profile.customRoles.filter((r) => r !== roleToRemove),
+  const handleCreateUser = (payload: {
+    name: string;
+    email?: string;
+    primaryRole: string;
+    preferredRoles?: string[];
+    location?: string;
+  }) => {
+    const created = createBlankUserProfile(payload);
+    setTailoredResume(null);
+    setRoleDraft(created.primaryRole);
+    const rescored = rescoreJobsWithProfile(store.jobs, created);
+    persistStore({
+      ...store,
+      users: [...store.users, created],
+      activeUserId: created.id,
+      jobs: rescored,
     });
   };
 
@@ -355,11 +409,70 @@ export function PleaseHireMeDashboard() {
     persistStore({ ...store, jobs: nextJobs });
   };
 
-  const handleClearSuggested = () => {
-    const kept = store.jobs.filter(
-      (j) => j.status === 'saved' || j.status === 'applied'
+  const handleToggleQueueJob = (jobId: string) => {
+    const exists = queuedJobIds.includes(jobId);
+    const nextQueue = exists
+      ? queuedJobIds.filter((id) => id !== jobId)
+      : [...queuedJobIds, jobId];
+    persistStore({ ...store, queuedJobIds: nextQueue });
+  };
+
+  const handleAddSkillToProfile = (skill: string) => {
+    const clean = skill.trim();
+    if (!clean) return;
+    const exists = activeProfile.skills.some(
+      (s) => s.toLowerCase() === clean.toLowerCase()
     );
-    persistStore({ ...store, jobs: kept });
+    if (exists) return;
+
+    const nextSkills = [...activeProfile.skills, clean];
+    const existingCats = activeProfile.structuredResume.skillCategories;
+    const updatedCats =
+      existingCats.length > 0
+        ? existingCats.map((c, idx) =>
+            idx === 0 ? { ...c, items: `${c.items}, ${clean}` } : c
+          )
+        : [{ category: 'Technical Skills', items: clean }];
+
+    const nextStructured: StructuredResume = {
+      ...activeProfile.structuredResume,
+      skillCategories: updatedCats,
+    };
+
+    updateActiveUserProfile(
+      {
+        ...activeProfile,
+        skills: nextSkills,
+        structuredResume: nextStructured,
+        resumeText: resumeToPlainText(nextStructured),
+      },
+      true
+    );
+  };
+
+  const handleTailorInStudio = async (
+    targetJob: JobListing | null,
+    targetRole?: string
+  ) => {
+    setTailoring(true);
+    try {
+      const res = await fetch('/api/resume/tailor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: activeProfile,
+          targetJob,
+          targetRole: targetRole || activeProfile.primaryRole,
+          geminiApiKey: store.geminiApiKey || '',
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.resume) {
+        setTailoredResume(data.resume as StructuredResume);
+      }
+    } finally {
+      setTailoring(false);
+    }
   };
 
   const toggleSource = (source: JobSource) => {
@@ -380,639 +493,809 @@ export function PleaseHireMeDashboard() {
       }
 
       if (sourceFilter !== 'all' && job.source !== sourceFilter) return false;
-      if (roleTypeFilter === 'primary' && job.isPivotSuggestion) return false;
-      if (roleTypeFilter === 'pivot' && !job.isPivotSuggestion) return false;
+      if (fitFilter === 'applicable' && job.experienceFit === 'senior-warning') {
+        return false;
+      }
       if (job.matchScore < minScore) return false;
 
       if (q) {
-        const hay = `${job.title} ${job.company} ${job.location} ${job.searchedRole} ${job.matchedSkills.join(' ')}`.toLowerCase();
+        const hay = `${job.title} ${job.company} ${job.location} ${job.searchedRole} ${job.experienceRequired} ${job.matchedSkills.join(' ')}`.toLowerCase();
         if (!hay.includes(q)) return false;
       }
 
       return true;
     });
   }, [
+    fitFilter,
     minScore,
-    roleTypeFilter,
     searchQuery,
     sourceFilter,
     statusFilter,
     store.jobs,
   ]);
 
-  const stats = useMemo(() => {
-    const visible = store.jobs.filter((j) => j.status !== 'hidden');
-    return {
-      total: visible.length,
-      topMatches: visible.filter((j) => j.matchScore >= 75 && !j.isFallback).length,
-      pivots: visible.filter((j) => j.isPivotSuggestion).length,
-      savedOrApplied: store.jobs.filter(
-        (j) => j.status === 'saved' || j.status === 'applied'
-      ).length,
-    };
+  // Top 3 Applicable Choices for the current user
+  const top3Choices = useMemo(() => {
+    const applicable = store.jobs.filter(
+      (j) =>
+        !j.isFallback &&
+        j.status !== 'hidden' &&
+        j.experienceFit !== 'senior-warning'
+    );
+    const pool =
+      applicable.length >= 3
+        ? applicable
+        : store.jobs.filter((j) => !j.isFallback && j.status !== 'hidden');
+    return pool.slice(0, 3);
   }, [store.jobs]);
 
-  const formatCountdown = (sec: number) => {
-    const m = Math.floor(sec / 60);
-    const s = sec % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  const handleQueueTopChoices = () => {
+    const topIds = top3Choices.map((j) => j.id);
+    const merged = Array.from(new Set([...queuedJobIds, ...topIds]));
+    persistStore({ ...store, queuedJobIds: merged });
   };
 
+  const selectedJob = useMemo(() => {
+    if (filteredJobs.length === 0) return null;
+    return (
+      filteredJobs.find((j) => j.id === selectedJobId) || filteredJobs[0]
+    );
+  }, [filteredJobs, selectedJobId]);
+
+  const activeJobsCount = useMemo(
+    () => store.jobs.filter((j) => j.status !== 'hidden').length,
+    [store.jobs]
+  );
+
+  // Monochrome Black & White Theme tokens
+  const pageBg = isDark ? 'bg-black text-white' : 'bg-neutral-50 text-black';
+  const navBg = isDark
+    ? 'border-neutral-800 bg-black/95'
+    : 'border-neutral-200 bg-white/95';
+  const cardSurface = isDark
+    ? 'border-neutral-800 bg-neutral-950'
+    : 'border-neutral-200 bg-white';
+  const subSurface = isDark
+    ? 'border-neutral-800 bg-black'
+    : 'border-neutral-200 bg-neutral-50';
+  const inputSurface = isDark
+    ? 'border-neutral-800 bg-black text-white focus:border-white'
+    : 'border-neutral-300 bg-white text-black focus:border-black';
+  const primaryBtn = isDark
+    ? 'bg-white text-black hover:bg-neutral-200'
+    : 'bg-black text-white hover:bg-neutral-800';
+  const secondaryBtn = isDark
+    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
+    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
+  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className={cn('min-h-screen transition-colors', pageBg)}>
       {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-slate-800/90 bg-slate-950/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
+      <header className={cn('no-print sticky top-0 z-30 border-b backdrop-blur-md', navBg)}>
+        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 shadow-lg shadow-emerald-500/20">
-              <Rocket className="h-5 w-5" />
+            <div
+              className={cn(
+                'flex h-9 w-9 items-center justify-center rounded-xl border',
+                primaryBtn
+              )}
+            >
+              <Rocket className="h-4 w-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold tracking-tight text-white">
+                <h1 className="text-base font-extrabold tracking-tight">
                   PleaseHireMe
                 </h1>
-                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-300">
-                  Vercel Ready
+                <span
+                  className={cn(
+                    'hidden sm:inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                    secondaryBtn
+                  )}
+                >
+                  JobStreet × LinkedIn
+                </span>
+                <span
+                  className={cn(
+                    'hidden xl:inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                    secondaryBtn
+                  )}
+                >
+                  {isDesktopApp ? 'Electron Desktop' : 'Web + Desktop Ready'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
-                {WITTY_TAGLINES[taglineIndex]}
+              <p className={cn('hidden md:block text-[11px]', mutedText)}>
+                {activeProfile.name} • {activeProfile.primaryRole}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Auto-Pilot Toggle */}
+          {/* Primary Navigation Tabs */}
+          <nav
+            className={cn(
+              'inline-flex flex-wrap rounded-xl border p-0.5',
+              isDark
+                ? 'border-neutral-800 bg-neutral-950'
+                : 'border-neutral-300 bg-neutral-100'
+            )}
+          >
             <button
               type="button"
-              onClick={() => {
-                const next = !autoPilot;
-                setAutoPilot(next);
-                if (next) {
-                  setSecondsLeft(store.profile.autoScanIntervalMinutes * 60);
-                }
-              }}
+              onClick={() => setActiveTab('jobs')}
               className={cn(
-                'inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition',
-                autoPilot
-                  ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                  : 'border-slate-800 bg-slate-900 text-slate-300 hover:border-slate-700'
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
+                activeTab === 'jobs' ? primaryBtn : mutedText
               )}
-              title="Automatically scan LinkedIn, JobStreet, and Indeed on a timer"
             >
-              {autoPilot ? (
-                <>
-                  <Pause className="h-3.5 w-3.5" />
-                  Auto-Pilot ON ({formatCountdown(secondsLeft)})
-                </>
-              ) : (
-                <>
-                  <Play className="h-3.5 w-3.5" />
-                  Auto-Pilot OFF
-                </>
+              <Briefcase className="h-3.5 w-3.5" />
+              Find Jobs
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('analytics')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
+                activeTab === 'analytics' ? primaryBtn : mutedText
+              )}
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Analytics
+              {hydrated && activeJobsCount > 0 && (
+                <span className="rounded px-1 text-[10px] font-extrabold opacity-80">
+                  ({activeJobsCount})
+                </span>
               )}
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
+                activeTab === 'profile' ? primaryBtn : mutedText
+              )}
+            >
+              <UserCircle2 className="h-3.5 w-3.5" />
+              My Profile
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('resume')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
+                activeTab === 'resume' ? primaryBtn : mutedText
+              )}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              A4 Resume
+            </button>
+          </nav>
+
+          {/* Utility Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setHowItWorksOpen(true)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-semibold',
+                secondaryBtn
+              )}
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">How It Works</span>
+            </button>
+
+            <div className="flex items-center gap-1">
+              <UserCheck className={cn('h-3.5 w-3.5', mutedText)} />
+              <select
+                value={activeProfile.id}
+                onChange={(e) => handleSelectUser(e.target.value)}
+                aria-label="Switch user profile"
+                className={cn(
+                  'rounded-xl border px-2.5 py-1.5 text-xs font-semibold focus:outline-none',
+                  inputSurface
+                )}
+              >
+                {store.users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <button
               type="button"
-              onClick={() => setProfileOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white"
+              onClick={() =>
+                persistStore({
+                  ...store,
+                  theme: isDark ? 'light' : 'dark',
+                })
+              }
+              className={cn(
+                'inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-semibold',
+                secondaryBtn
+              )}
+              title="Toggle Monochrome Black / White Theme"
             >
-              <FileUser className="h-3.5 w-3.5 text-emerald-400" />
-              Resume & Skills ({store.profile.skills.length})
-            </button>
-
-            <button
-              type="button"
-              disabled={scanning}
-              onClick={() => void runJobScan()}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400 disabled:opacity-60"
-            >
-              <RefreshCw
-                className={cn('h-3.5 w-3.5', scanning && 'animate-spin')}
-              />
-              {scanning ? 'Scanning 3 Boards...' : 'Find Jobs Now'}
+              {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6">
-        {/* Stats Row */}
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-2xl border border-slate-800/90 bg-slate-900/60 p-4">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Discovered Jobs</span>
-              <Briefcase className="h-4 w-4 text-sky-400" />
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-white tabular-nums">
-              {stats.total}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              Across LinkedIn, JobStreet & Indeed
-            </p>
-          </div>
+      <main className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6">
+        {/* TAB 1: JOBSTREET-INSPIRED FIND JOBS VIEW */}
+        {activeTab === 'jobs' && (
+          <div className="no-print space-y-5">
+            {/* JobStreet-Style Search Banner */}
+            <section className={cn('space-y-3.5 rounded-3xl border p-4 sm:p-5', cardSurface)}>
+              <div className="grid gap-2.5 lg:grid-cols-12">
+                {/* WHAT */}
+                <div className="lg:col-span-5">
+                  <label className={cn('mb-1 block text-[11px] font-bold uppercase tracking-wider', mutedText)}>
+                    What role are you looking for?
+                  </label>
+                  <div className="relative">
+                    <Search className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
+                    <input
+                      type="text"
+                      value={roleDraft}
+                      onChange={(e) => setRoleDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleApplyPrimaryRole(roleDraft, true);
+                        }
+                      }}
+                      placeholder="Data Analyst, BI Analyst, Junior Data Engineer..."
+                      className={cn('w-full rounded-xl border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
+                    />
+                  </div>
+                </div>
 
-          <div className="rounded-2xl border border-slate-800/90 bg-slate-900/60 p-4">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Top Matches (75%+)</span>
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-emerald-300 tabular-nums">
-              {stats.topMatches}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              Strong skill overlap with {store.profile.name}
-            </p>
-          </div>
+                {/* WHERE */}
+                <div className="lg:col-span-4">
+                  <label className={cn('mb-1 block text-[11px] font-bold uppercase tracking-wider', mutedText)}>
+                    Where
+                  </label>
+                  <div className="flex gap-2">
+                    <select
+                      value={activeProfile.country}
+                      onChange={(e) => {
+                        const code = e.target.value as keyof typeof COUNTRY_CONFIGS;
+                        updateActiveUserProfile({
+                          ...activeProfile,
+                          country: code,
+                          location: COUNTRY_CONFIGS[code].defaultLocation,
+                        });
+                      }}
+                      className={cn('rounded-xl border px-2.5 py-2 text-xs font-medium focus:outline-none', inputSurface)}
+                    >
+                      {Object.values(COUNTRY_CONFIGS).map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      value={activeProfile.location}
+                      onChange={(e) =>
+                        updateActiveUserProfile({
+                          ...activeProfile,
+                          location: e.target.value,
+                        })
+                      }
+                      placeholder="Taguig City, Metro Manila"
+                      className={cn('min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs focus:outline-none', inputSurface)}
+                    />
+                  </div>
+                </div>
 
-          <div className="rounded-2xl border border-slate-800/90 bg-slate-900/60 p-4">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Dynamic Role Pivots</span>
-              <Compass className="h-4 w-4 text-violet-400" />
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-violet-300 tabular-nums">
-              {stats.pivots}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              Adjacent opportunities outside {store.profile.primaryRole}
-            </p>
-          </div>
+                {/* MANUAL + 5s AUTO-REFRESH CONTROLS */}
+                <div className="flex flex-col justify-end lg:col-span-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={scanning}
+                      onClick={() => handleApplyPrimaryRole(roleDraft, true)}
+                      className={cn(
+                        'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition disabled:opacity-60',
+                        primaryBtn
+                      )}
+                    >
+                      <RefreshCw className={cn('h-3.5 w-3.5', scanning && 'animate-spin')} />
+                      {scanning ? 'Finding...' : 'Find Jobs Now'}
+                    </button>
 
-          <div className="rounded-2xl border border-slate-800/90 bg-slate-900/60 p-4">
-            <div className="flex items-center justify-between text-xs text-slate-400">
-              <span>Saved & Applied</span>
-              <CheckCircle2 className="h-4 w-4 text-amber-400" />
-            </div>
-            <p className="mt-1.5 text-2xl font-bold text-white tabular-nums">
-              {stats.savedOrApplied}
-            </p>
-            <p className="mt-0.5 text-[11px] text-slate-500">
-              Storage: {storageMode === 'local-file' ? 'Local Disk + Browser' : 'Browser Sync'}
-            </p>
-          </div>
-        </section>
+                    <div className={cn('inline-flex items-center rounded-xl border p-0.5', subSurface)}>
+                      {REFRESH_OPTIONS.map((opt) => {
+                        const active = autoRefreshSeconds === opt.seconds;
+                        return (
+                          <button
+                            key={opt.seconds}
+                            type="button"
+                            onClick={() => {
+                              setAutoRefreshSeconds(opt.seconds);
+                              setCountdown(opt.seconds || 5);
+                            }}
+                            className={cn(
+                              'rounded-lg px-2 py-1.5 text-[10px] font-bold transition',
+                              active ? primaryBtn : mutedText
+                            )}
+                            title={
+                              opt.seconds === 0
+                                ? 'Manual refresh only'
+                                : `Auto-refresh every ${opt.seconds} seconds`
+                            }
+                          >
+                            {opt.seconds > 0 && active
+                              ? `${countdown}s`
+                              : opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-        {/* Dynamic Role Switcher & Pivot Explorer */}
-        <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-emerald-400" />
-                <h2 className="text-sm font-semibold text-white">
-                  Dynamic Role Engine (Currently targeting:{' '}
-                  <span className="text-emerald-300">
-                    {store.profile.primaryRole}
+              {/* Desired Role Quick Chips + Board Logo Statuses */}
+              <div className="flex flex-col gap-3 border-t border-neutral-800/30 pt-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className={cn('mr-1 text-[11px] font-bold uppercase tracking-wider', mutedText)}>
+                    Your Role Choices:
                   </span>
-                  )
-                </h2>
-              </div>
-              <p className="text-xs text-slate-400">
-                Starts with Data Analyst by default, but switch to any profession anytime or let Dynamic Pivot suggest adjacent roles from your resume.
-              </p>
-            </div>
+                  {activeProfile.preferredRoles.map((role) => {
+                    const isCurrent =
+                      role.toLowerCase() === activeProfile.primaryRole.toLowerCase();
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => handleApplyPrimaryRole(role, true)}
+                        className={cn(
+                          'rounded-full border px-3 py-1 text-xs font-semibold transition',
+                          isCurrent ? primaryBtn : secondaryBtn
+                        )}
+                      >
+                        {role}
+                      </button>
+                    );
+                  })}
 
-            {/* Dynamic Role Pivot Toggle */}
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3.5 py-2">
-              <input
-                type="checkbox"
-                checked={store.profile.autoPivotRoles}
-                onChange={(e) =>
-                  handleUpdateProfile({
-                    ...store.profile,
-                    autoPivotRoles: e.target.checked,
-                  })
-                }
-                className="h-4 w-4 accent-violet-500"
-              />
-              <div>
-                <div className="text-xs font-semibold text-violet-200">
-                  Dynamic Role Pivot Mode
+                  <label className={cn('ml-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px]', mutedText)}>
+                    <input
+                      type="checkbox"
+                      checked={activeProfile.autoPivotRoles}
+                      onChange={(e) =>
+                        updateActiveUserProfile({
+                          ...activeProfile,
+                          autoPivotRoles: e.target.checked,
+                        })
+                      }
+                      className="h-3.5 w-3.5 accent-black dark:accent-white"
+                    />
+                    Pivot Mode
+                  </label>
                 </div>
-                <div className="text-[11px] text-violet-300/80">
-                  Occasionally mix in high-overlap adjacent roles
+
+                {/* Official Board Logos + Live Counts */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((board) => {
+                    const enabled = enabledSources.includes(board);
+                    const meta = boardMeta.find((m) => m.source === board);
+                    return (
+                      <button
+                        key={board}
+                        type="button"
+                        onClick={() => toggleSource(board)}
+                        className={cn(
+                          'inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 text-xs transition',
+                          enabled ? secondaryBtn : 'border-neutral-800 opacity-45'
+                        )}
+                        title="Toggle searching this board"
+                      >
+                        <BoardLogo source={board} theme={theme} size="sm" />
+                        {meta && (
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.5 text-[10px] font-bold',
+                              meta.status === 'live' ? primaryBtn : subSurface
+                            )}
+                          >
+                            {meta.count} {meta.status}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            </label>
-          </div>
 
-          {/* Primary Role Input + Quick Country/Location + Add Custom Role */}
-          <div className="grid gap-3 md:grid-cols-12">
-            <div className="flex gap-2 md:col-span-5">
-              <input
-                type="text"
-                value={roleDraft}
-                onChange={(e) => setRoleDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleApplyPrimaryRole(roleDraft, true);
-                  }
-                }}
-                placeholder="Type ANY target role (e.g. Data Analyst, Product Manager, React Dev)..."
-                className="flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={() => handleApplyPrimaryRole(roleDraft, true)}
-                className="rounded-xl bg-slate-800 px-3.5 py-2 text-xs font-semibold text-emerald-300 hover:bg-slate-700"
-              >
-                Switch & Scan
-              </button>
-            </div>
+              {(lastSearchedRoles.length > 0 || autoRefreshSeconds > 0) && (
+                <div className={cn('flex flex-wrap items-center justify-between gap-2 text-[11px]', mutedText)}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5" />
+                    Last queried:{' '}
+                    {lastSearchedRoles
+                      .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
+                      .join(' • ')}
+                    {autoRefreshSeconds > 0 && (
+                      <strong className="ml-2">
+                        • Auto-refreshing every {autoRefreshSeconds}s (next in {countdown}s)
+                      </strong>
+                    )}
+                  </span>
+                  {store.lastScannedAt && hydrated && (
+                    <span>
+                      Updated {new Date(store.lastScannedAt).toLocaleTimeString()} • {storageMode === 'local-file' ? 'Local + Browser' : 'Browser'}
+                    </span>
+                  )}
+                </div>
+              )}
 
-            <div className="flex items-center gap-2 md:col-span-4">
-              <Globe className="h-4 w-4 shrink-0 text-slate-400" />
-              <select
-                value={store.profile.country}
-                onChange={(e) => {
-                  const code = e.target.value as keyof typeof COUNTRY_CONFIGS;
-                  handleUpdateProfile({
-                    ...store.profile,
-                    country: code,
-                    location: COUNTRY_CONFIGS[code].defaultLocation,
-                  });
-                }}
-                className="rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-              >
-                {Object.values(COUNTRY_CONFIGS).map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.label}
-                  </option>
+              {scanError && (
+                <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                  {scanError}
+                </p>
+              )}
+            </section>
+
+            {/* TOP 3 APPLICABLE CHOICES SPOTLIGHT */}
+            <TopChoicesSpotlight
+              choices={top3Choices}
+              selectedJobId={selectedJob?.id || null}
+              activeProfileName={activeProfile.name}
+              experienceLevel={activeProfile.experienceLevel}
+              theme={theme}
+              queuedJobIds={queuedJobIds}
+              onSelectJob={(id) => setSelectedJobId(id)}
+              onOpenApplyModal={(job) => setApplyModalJob(job)}
+              onToggleQueueJob={handleToggleQueueJob}
+            />
+
+            {/* FILTER BAR */}
+            <section className={cn('flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border p-3', cardSurface)}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(
+                  [
+                    { key: 'active', label: 'All Active' },
+                    { key: 'saved', label: 'Saved' },
+                    { key: 'applied', label: 'Applied' },
+                    { key: 'hidden', label: 'Hidden' },
+                  ] as const
+                ).map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setStatusFilter(t.key)}
+                    className={cn(
+                      'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                      statusFilter === t.key ? primaryBtn : secondaryBtn
+                    )}
+                  >
+                    {t.label}
+                  </button>
                 ))}
-              </select>
-              <input
-                type="text"
-                value={store.profile.location}
-                onChange={(e) =>
-                  handleUpdateProfile({
-                    ...store.profile,
-                    location: e.target.value,
-                  })
-                }
-                placeholder="City / Location"
-                className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-2.5 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
-              />
-            </div>
 
-            <div className="flex gap-2 md:col-span-3">
-              <input
-                type="text"
-                value={newCustomRole}
-                onChange={(e) => setNewCustomRole(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddCustomRole();
-                  }
-                }}
-                placeholder="+ Add pivot role..."
-                className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-white focus:border-violet-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddCustomRole}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-700"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add
-              </button>
-            </div>
-          </div>
+                <div className="mx-1 h-4 w-px bg-neutral-700/40" />
 
-          {/* Resume-Inferred & Custom Role Pills */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-              Inferred from your resume:
-            </span>
-            {dynamicSuggestions.map((item) => {
-              const isCurrent =
-                item.role.toLowerCase() ===
-                store.profile.primaryRole.toLowerCase();
-              return (
                 <button
-                  key={item.role}
                   type="button"
-                  onClick={() => handleApplyPrimaryRole(item.role, true)}
-                  title={`${item.rationale} — click to make this your Primary Role and scan`}
+                  onClick={() => setSourceFilter('all')}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition',
-                    isCurrent
-                      ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-200'
-                      : 'border-slate-700 bg-slate-950 text-slate-300 hover:border-emerald-500/40 hover:text-white'
+                    'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                    sourceFilter === 'all' ? primaryBtn : secondaryBtn
                   )}
                 >
-                  <span>{item.role}</span>
-                  <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[10px] text-emerald-300">
-                    {item.overlapPercent}%
-                  </span>
+                  All Sites ({store.jobs.length})
                 </button>
-              );
-            })}
+                {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setSourceFilter(src)}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                      sourceFilter === src ? primaryBtn : secondaryBtn
+                    )}
+                  >
+                    <BoardLogo source={src} theme={theme} size="sm" />
+                  </button>
+                ))}
 
-            {store.profile.customRoles.map((role) => (
-              <span
-                key={`custom-${role}`}
-                className="inline-flex items-center gap-1 rounded-full border border-violet-500/35 bg-violet-500/15 px-2.5 py-1 text-xs font-medium text-violet-200"
-              >
                 <button
                   type="button"
-                  onClick={() => handleApplyPrimaryRole(role, true)}
-                  className="hover:underline"
-                  title="Switch to this role and scan"
+                  onClick={() =>
+                    setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
+                  }
+                  className={cn(
+                    'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                    fitFilter === 'applicable' ? primaryBtn : secondaryBtn
+                  )}
                 >
-                  Pivot: {role}
+                  {fitFilter === 'applicable'
+                    ? '✓ Applicable Exp Only'
+                    : 'Filter: Entry/Applicable Exp'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveCustomRole(role)}
-                  className="ml-0.5 text-violet-300/70 hover:text-white"
-                  aria-label={`Remove ${role}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        </section>
+              </div>
 
-        {/* 3-Board Scraper Status Strip */}
-        <section className="grid gap-3 md:grid-cols-3">
-          {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((board) => {
-            const active = enabledSources.includes(board);
-            const meta = boardMeta.find((m) => m.source === board);
-            const label =
-              board === 'linkedin'
-                ? 'LinkedIn'
-                : board === 'jobstreet'
-                  ? 'JobStreet'
-                  : 'Indeed';
-
-            return (
-              <div
-                key={board}
-                className={cn(
-                  'flex items-center justify-between rounded-2xl border p-3.5 transition',
-                  active
-                    ? 'border-slate-800 bg-slate-900/70'
-                    : 'border-slate-900 bg-slate-950 opacity-60'
-                )}
-              >
-                <label className="flex cursor-pointer items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <div className="relative">
+                  <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
                   <input
-                    type="checkbox"
-                    checked={active}
-                    onChange={() => toggleSource(board)}
-                    className="h-4 w-4 accent-emerald-500"
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Filter results..."
+                    className={cn('w-44 rounded-xl border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
                   />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-semibold text-white">
-                        {label}
-                      </span>
-                      {meta && (
-                        <span
-                          className={cn(
-                            'rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase',
-                            meta.status === 'live'
-                              ? 'bg-emerald-500/15 text-emerald-300'
-                              : meta.status === 'fallback'
-                                ? 'bg-amber-500/15 text-amber-300'
-                                : 'bg-rose-500/15 text-rose-300'
-                          )}
-                        >
-                          {meta.status === 'live'
-                            ? `${meta.count} live`
-                            : meta.status === 'fallback'
-                              ? 'direct link'
-                              : 'error'}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400 line-clamp-1">
-                      {scanning && active
-                        ? 'Scanning live listings...'
-                        : meta?.message || 'Ready to scan'}
-                    </p>
-                  </div>
+                </div>
+
+                <label className={cn('flex items-center gap-1.5 text-xs', mutedText)}>
+                  <Filter className="h-3.5 w-3.5" />
+                  <span>Min {minScore}%</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    step={5}
+                    value={minScore}
+                    onChange={(e) => setMinScore(Number(e.target.value))}
+                    className="w-20 accent-black dark:accent-white"
+                  />
                 </label>
 
-                {meta && (
-                  <span className="text-[11px] font-mono text-slate-500">
-                    {(meta.durationMs / 1000).toFixed(1)}s
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </section>
-
-        {/* Active Scan Roles Summary */}
-        {lastSearchedRoles.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-800/80 bg-slate-900/40 px-4 py-2.5 text-xs text-slate-300">
-            <div className="flex flex-wrap items-center gap-2">
-              <Activity className="h-3.5 w-3.5 text-emerald-400" />
-              <span>Last scan queried:</span>
-              {lastSearchedRoles.map((r) => (
-                <span
-                  key={`${r.role}-${r.isPivot}`}
-                  className={cn(
-                    'rounded-md px-2 py-0.5 text-[11px] font-medium',
-                    r.isPivot
-                      ? 'bg-violet-500/15 text-violet-300'
-                      : 'bg-emerald-500/15 text-emerald-300'
-                  )}
-                >
-                  {r.role} {r.isPivot ? '(Dynamic Pivot)' : '(Primary)'}
-                </span>
-              ))}
-            </div>
-            {store.lastScannedAt && hydrated && (
-              <span className="text-[11px] text-slate-500">
-                Updated {new Date(store.lastScannedAt).toLocaleTimeString()}
-              </span>
-            )}
-          </div>
-        )}
-
-        {scanError && (
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-            {scanError}
-          </div>
-        )}
-
-        {/* Filter & Search Toolbar */}
-        <section className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900/50 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                { key: 'active', label: 'Inbox' },
-                { key: 'saved', label: 'Saved' },
-                { key: 'applied', label: 'Applied' },
-                { key: 'hidden', label: 'Hidden' },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setStatusFilter(tab.key)}
-                className={cn(
-                  'rounded-xl px-3 py-1.5 text-xs font-semibold transition',
-                  statusFilter === tab.key
-                    ? 'bg-white text-slate-950'
-                    : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-
-            <div className="mx-1 h-5 w-px bg-slate-800" />
-
-            {(
-              [
-                { key: 'all', label: 'All Boards' },
-                { key: 'linkedin', label: 'LinkedIn' },
-                { key: 'jobstreet', label: 'JobStreet' },
-                { key: 'indeed', label: 'Indeed' },
-              ] as const
-            ).map((src) => (
-              <button
-                key={src.key}
-                type="button"
-                onClick={() => setSourceFilter(src.key)}
-                className={cn(
-                  'rounded-xl border px-2.5 py-1.5 text-xs font-medium transition',
-                  sourceFilter === src.key
-                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
-                    : 'border-slate-800 bg-slate-950 text-slate-400 hover:text-slate-200'
-                )}
-              >
-                {src.label}
-              </button>
-            ))}
-
-            <select
-              value={roleTypeFilter}
-              onChange={(e) =>
-                setRoleTypeFilter(e.target.value as 'all' | 'primary' | 'pivot')
-              }
-              className="rounded-xl border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none"
-            >
-              <option value="all">Primary + Pivot Roles</option>
-              <option value="primary">Primary Role Only</option>
-              <option value="pivot">Role Pivots Only</option>
-            </select>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-500" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by title, company, skill..."
-                className="w-full rounded-xl border border-slate-800 bg-slate-950 py-2 pl-8 pr-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
-              />
-            </div>
-
-            <label className="flex items-center gap-2 text-xs text-slate-400">
-              <Filter className="h-3.5 w-3.5" />
-              <span>Min {minScore}%</span>
-              <input
-                type="range"
-                min={0}
-                max={85}
-                step={5}
-                value={minScore}
-                onChange={(e) => setMinScore(Number(e.target.value))}
-                className="w-20 accent-emerald-500"
-              />
-            </label>
-
-            {store.jobs.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearSuggested}
-                className="inline-flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-950 px-2.5 py-1.5 text-xs text-slate-400 hover:text-rose-300"
-                title="Clear unsaved job inbox"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Clear Inbox
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* Job Results Feed */}
-        <section className="space-y-3">
-          {scanning && store.jobs.length === 0 ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={n}
-                  className="h-40 animate-pulse rounded-2xl border border-slate-800 bg-slate-900/50 p-5"
-                />
-              ))}
-            </div>
-          ) : filteredJobs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-900/30 px-6 py-14 text-center">
-              <Sparkles className="mx-auto h-8 w-8 text-emerald-400" />
-              <h3 className="mt-3 text-base font-semibold text-white">
-                {store.jobs.length === 0
-                  ? 'Ready to unleash PleaseHireMe'
-                  : 'No jobs match your current filters'}
-              </h3>
-              <p className="mx-auto mt-1 max-w-md text-xs text-slate-400">
-                {store.jobs.length === 0
-                  ? `Click "Find Jobs Now" to scrape LinkedIn, JobStreet, and Indeed for ${store.profile.primaryRole} + dynamic skill-matched pivots.`
-                  : 'Try lowering the minimum match score slider, switching status back to Inbox, or running a fresh scan.'}
-              </p>
-              <div className="mt-4 flex justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => void runJobScan()}
-                  className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-400"
-                >
-                  Scan LinkedIn, JobStreet & Indeed
-                </button>
-                {minScore > 0 && store.jobs.length > 0 && (
+                {store.jobs.length > 0 && (
                   <button
                     type="button"
-                    onClick={() => setMinScore(0)}
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-200"
+                    onClick={() => {
+                      const kept = store.jobs.filter(
+                        (j) => j.status === 'saved' || j.status === 'applied'
+                      );
+                      persistStore({ ...store, jobs: kept });
+                    }}
+                    className={cn('inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs', secondaryBtn)}
                   >
-                    Reset Min Score
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Clear
                   </button>
                 )}
               </div>
-            </div>
-          ) : (
-            filteredJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                onUpdateStatus={handleUpdateJobStatus}
-              />
-            ))
-          )}
-        </section>
+            </section>
+
+            {/* JOBSTREET 2-COLUMN MASTER-DETAIL EXPLORER */}
+            <section className="grid items-start gap-5 lg:grid-cols-12">
+              {/* LEFT COLUMN: JOB LIST */}
+              <div className="space-y-2.5 lg:col-span-5">
+                {scanning && store.jobs.length === 0 ? (
+                  <div className="space-y-2.5">
+                    {[1, 2, 3, 4].map((n) => (
+                      <div
+                        key={n}
+                        className={cn('h-32 animate-pulse rounded-2xl border p-4', cardSurface)}
+                      />
+                    ))}
+                  </div>
+                ) : filteredJobs.length === 0 ? (
+                  <div className={cn('space-y-3 rounded-2xl border border-dashed p-10 text-center', cardSurface)}>
+                    <Sparkles className="mx-auto h-7 w-7" />
+                    <p className="text-sm font-bold">No matching jobs yet</p>
+                    <p className={cn('text-xs', mutedText)}>
+                      Click &ldquo;Find Jobs Now&rdquo; to scrape LinkedIn, JobStreet, and Indeed.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => void runJobScan()}
+                      className={cn('rounded-xl px-4 py-2 text-xs font-bold', primaryBtn)}
+                    >
+                      Find Jobs Now
+                    </button>
+                  </div>
+                ) : (
+                  filteredJobs.map((job) => {
+                    const isSelected = selectedJob?.id === job.id;
+                    return (
+                      <article
+                        key={job.id}
+                        onClick={() => setSelectedJobId(job.id)}
+                        className={cn(
+                          'cursor-pointer space-y-2.5 rounded-2xl border p-4 transition-all',
+                          isSelected
+                            ? isDark
+                              ? 'border-white bg-neutral-950 shadow-[0_0_0_1px_#ffffff]'
+                              : 'border-black bg-white shadow-[0_0_0_1px_#000000]'
+                            : cardSurface
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <BoardLogo source={job.source} theme={theme} size="sm" />
+                            {job.isPivotSuggestion && (
+                              <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold', secondaryBtn)}>
+                                <Compass className="h-2.5 w-2.5" />
+                                Pivot
+                              </span>
+                            )}
+                            {job.status === 'applied' && (
+                              <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold uppercase', primaryBtn)}>
+                                Applied
+                              </span>
+                            )}
+                          </div>
+                          <span className={cn('rounded-md px-2 py-0.5 text-xs font-extrabold tabular-nums', primaryBtn)}>
+                            {job.matchScore}%
+                          </span>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-bold leading-snug">{job.title}</h3>
+                          <p className={cn('mt-0.5 text-xs font-medium', mutedText)}>
+                            {job.company} • {job.location}
+                          </p>
+                        </div>
+
+                        {/* Emphasized Experience Needed Pill */}
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-bold',
+                              job.experienceFit === 'senior-warning'
+                                ? 'border-dashed border-neutral-500 opacity-75'
+                                : secondaryBtn
+                            )}
+                          >
+                            <Award className="h-3 w-3" />
+                            Exp Needed: {job.experienceRequired}
+                          </span>
+                          {job.salary && (
+                            <span className={cn('inline-flex items-center gap-1 text-[11px] font-semibold', mutedText)}>
+                              <Wallet className="h-3 w-3" />
+                              {job.salary}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                          <div className="flex flex-wrap gap-1">
+                            {job.matchedSkills.slice(0, 3).map((s) => (
+                              <span
+                                key={s}
+                                className={cn('rounded border px-1.5 py-0.5 text-[10px] font-semibold', subSurface)}
+                              >
+                                ✓ {s}
+                              </span>
+                            ))}
+                          </div>
+                          <span className={cn('text-[10px]', mutedText)}>
+                            {job.postedAt}
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* RIGHT COLUMN: STICKY JOBSTREET-STYLE JOB DETAILS PANE */}
+              <div className="lg:sticky lg:top-20 lg:col-span-7">
+                <JobDetailPane
+                  job={selectedJob}
+                  activeProfileName={activeProfile.name}
+                  theme={theme}
+                  isQueued={
+                    selectedJob ? queuedJobIds.includes(selectedJob.id) : false
+                  }
+                  onOpenApplyModal={(job) => setApplyModalJob(job)}
+                  onToggleQueueJob={handleToggleQueueJob}
+                  onUpdateStatus={handleUpdateJobStatus}
+                />
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* TAB 2: JOB BOARD ANALYTICS & AUTO-APPLY BLUEPRINT */}
+        {activeTab === 'analytics' && (
+          <JobAnalyticsView
+            jobs={store.jobs}
+            boardMeta={boardMeta}
+            activeProfile={activeProfile}
+            theme={theme}
+            queuedJobIds={queuedJobIds}
+            autoApplyConfig={autoApplyConfig}
+            isDesktopApp={isDesktopApp}
+            scanning={scanning}
+            onTriggerScan={() => void runJobScan()}
+            onUpdateAutoApplyConfig={(next) =>
+              persistStore({ ...store, autoApplyConfig: next })
+            }
+            onToggleQueueJob={handleToggleQueueJob}
+            onQueueTopChoices={handleQueueTopChoices}
+            onSelectBoardFilter={(board) => {
+              setSourceFilter(board);
+              setStatusFilter('active');
+              setActiveTab('jobs');
+            }}
+            onOpenJobInExplorer={(jobId) => {
+              setSelectedJobId(jobId);
+              setSourceFilter('all');
+              setStatusFilter('active');
+              setActiveTab('jobs');
+            }}
+            onOpenApplyModal={(job) => setApplyModalJob(job)}
+            onAddSkillToProfile={handleAddSkillToProfile}
+          />
+        )}
+
+        {/* TAB 3: LINKEDIN-STYLE PROFILE VIEW (SYNCED 2-WAY WITH A4 RESUME) */}
+        {activeTab === 'profile' && (
+          <LinkedInProfileView
+            users={store.users}
+            profile={activeProfile}
+            theme={store.theme}
+            geminiApiKey={store.geminiApiKey || ''}
+            onSelectUser={handleSelectUser}
+            onCreateUser={handleCreateUser}
+            onUpdateGeminiKey={(key) =>
+              persistStore({ ...store, geminiApiKey: key })
+            }
+            onUpdateProfile={(next) => updateActiveUserProfile(next, true)}
+            onOpenA4Studio={() => setActiveTab('resume')}
+          />
+        )}
+
+        {/* TAB 4: FULL A4 RESUME STUDIO */}
+        {activeTab === 'resume' && (
+          <div className="mx-auto max-w-4xl">
+            <A4ResumePreview
+              profile={activeProfile}
+              activeResume={tailoredResume || activeProfile.structuredResume}
+              activeTailorJob={selectedJob}
+              theme={store.theme}
+              geminiApiKey={store.geminiApiKey || ''}
+              tailoring={tailoring}
+              onUpdateGeminiKey={(key) =>
+                persistStore({ ...store, geminiApiKey: key })
+              }
+              onTailorResume={(job, role) => void handleTailorInStudio(job, role)}
+              onUpdateResume={(nextResume) => {
+                setTailoredResume(nextResume);
+                if (nextResume.tailorMethod === 'base') {
+                  updateActiveUserProfile({
+                    ...activeProfile,
+                    structuredResume: nextResume,
+                    resumeText: resumeToPlainText(nextResume),
+                  });
+                }
+              }}
+              onResetResume={() => setTailoredResume(null)}
+            />
+          </div>
+        )}
       </main>
 
-      <ProfilePanel
-        isOpen={profileOpen}
-        profile={store.profile}
-        suggestedRoles={dynamicSuggestions}
-        onClose={() => setProfileOpen(false)}
-        onUpdateProfile={handleUpdateProfile}
-        onApplyParsedResume={(nextProfile, roles) => {
-          handleUpdateProfile(nextProfile);
-          if (roles.length > 0 && !nextProfile.primaryRole) {
-            handleApplyPrimaryRole(roles[0].role, false);
-          }
-        }}
+      {/* STEP-BY-STEP APPLY & A4 RESUME TAILOR MODAL */}
+      <ApplyFlowModal
+        key={applyModalJob?.id || 'closed'}
+        job={applyModalJob}
+        profile={activeProfile}
+        theme={store.theme}
+        geminiApiKey={store.geminiApiKey || ''}
+        onClose={() => setApplyModalJob(null)}
+        onMarkApplied={(id) => handleUpdateJobStatus(id, 'applied')}
+        onUpdateGeminiKey={(key) =>
+          persistStore({ ...store, geminiApiKey: key })
+        }
+      />
+
+      {/* HOW JOB FINDING WORKS MODAL */}
+      <HowItWorksModal
+        isOpen={howItWorksOpen}
+        theme={store.theme}
+        onClose={() => setHowItWorksOpen(false)}
       />
     </div>
   );
