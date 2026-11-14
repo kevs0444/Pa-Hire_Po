@@ -13,9 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'PleaseHireMe — Monochrome Studio & Automated Job Finder',
+  title: 'Pa-Hire Po — Smart Job Finder & A4 Resume Studio',
   description:
-    'Automated multi-board job discovery across LinkedIn, JobStreet, and Indeed with live A4 HTML resume tailoring.',
+    'Pa-Hire Po: Automated multi-board job discovery across LinkedIn, JobStreet, and Indeed with live A4 HTML resume tailoring.',
+  icons: {
+    icon: '/pa-hire-po-logo.jpg',
+    shortcut: '/pa-hire-po-logo.jpg',
+    apple: '/pa-hire-po-logo.jpg',
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {

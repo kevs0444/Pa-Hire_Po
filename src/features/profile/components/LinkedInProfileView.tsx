@@ -32,6 +32,7 @@ import {
   WorkType,
 } from '@/types/job';
 import { resumeToPlainText } from '@/lib/default-profile';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface LinkedInProfileViewProps {
@@ -63,7 +64,9 @@ export function LinkedInProfileView({
   onUpdateProfile,
   onOpenA4Studio,
 }: LinkedInProfileViewProps) {
-  const isDark = theme === 'dark';
+  const tokens = getThemeTokens(theme);
+  const isDark = tokens.isDark;
+  const isOrange = tokens.isOrange;
   const resume = profile.structuredResume;
 
   // Toggleable inline forms
@@ -110,22 +113,12 @@ export function LinkedInProfileView({
     location: 'Metro Manila, Philippines',
   });
 
-  const cardClass = isDark
-    ? 'border-neutral-800 bg-neutral-950 text-white'
-    : 'border-neutral-200 bg-white text-black';
-  const subBoxClass = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const inputClass = isDark
-    ? 'border-neutral-800 bg-black text-white focus:border-white'
-    : 'border-neutral-300 bg-white text-black focus:border-black';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-700 bg-black text-neutral-200 hover:border-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const cardClass = tokens.cardSurface;
+  const subBoxClass = tokens.subSurface;
+  const inputClass = tokens.inputSurface;
+  const primaryBtn = tokens.primaryBtn;
+  const secondaryBtn = tokens.secondaryBtn;
+  const mutedText = tokens.mutedText;
 
   const initials = profile.name
     .split(/\s+/)
@@ -394,13 +387,15 @@ export function LinkedInProfileView({
 
       {/* LINKEDIN HERO BANNER CARD */}
       <section className={cn('overflow-hidden rounded-3xl border', cardClass)}>
-        {/* Monochrome Geometric Cover */}
+        {/* Cover Banner (Dark / Light / Orange Studio) */}
         <div
           className={cn(
             'relative h-32 w-full border-b',
-            isDark
-              ? 'border-neutral-800 bg-gradient-to-r from-neutral-900 via-black to-neutral-900'
-              : 'border-neutral-200 bg-gradient-to-r from-neutral-200 via-neutral-100 to-neutral-200'
+            isOrange
+              ? 'border-orange-500/35 bg-gradient-to-r from-[#240d04] via-orange-600/30 to-[#240d04]'
+              : isDark
+                ? 'border-neutral-800 bg-gradient-to-r from-neutral-900 via-orange-950/35 to-neutral-900'
+                : 'border-neutral-200 bg-gradient-to-r from-orange-100/70 via-neutral-100 to-orange-100/70'
           )}
         >
           <div className="absolute right-4 top-4 flex items-center gap-2">
@@ -420,9 +415,11 @@ export function LinkedInProfileView({
             <div
               className={cn(
                 'flex h-24 w-24 items-center justify-center rounded-full border-4 text-2xl font-extrabold shadow-lg',
-                isDark
-                  ? 'border-black bg-white text-black'
-                  : 'border-white bg-black text-white'
+                isOrange
+                  ? 'border-[#160a04] bg-orange-500 text-black'
+                  : isDark
+                    ? 'border-black bg-orange-500 text-black'
+                    : 'border-white bg-black text-white ring-2 ring-orange-500'
               )}
             >
               {initials}

@@ -1,7 +1,8 @@
 import { AppStoreState, UserProfile } from '@/types/job';
 import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
 
-const STORAGE_KEY = 'pleasehireme_state_v2';
+const STORAGE_KEY = 'pahirepo_state_v1';
+const LEGACY_STORAGE_KEY = 'pleasehireme_state_v2';
 
 export function getDefaultStoreState(): AppStoreState {
   return {
@@ -47,7 +48,10 @@ export function normalizeStoreState(
   return {
     users,
     activeUserId,
-    theme: raw.theme === 'light' ? 'light' : 'dark',
+    theme:
+      raw.theme === 'light' || raw.theme === 'orange' || raw.theme === 'dark'
+        ? raw.theme
+        : 'dark',
     geminiApiKey: raw.geminiApiKey ?? defaults.geminiApiKey,
     jobs: Array.isArray(raw.jobs)
       ? raw.jobs.map((j) => ({
@@ -69,7 +73,9 @@ export function loadLocalState(): AppStoreState {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw =
+      window.localStorage.getItem(STORAGE_KEY) ||
+      window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return getDefaultStoreState();
     const parsed = JSON.parse(raw) as Partial<AppStoreState>;
     return normalizeStoreState(parsed);

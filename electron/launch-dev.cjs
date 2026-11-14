@@ -31,12 +31,13 @@ if (isCheckOnly) {
 }
 
 if (!electronBinary) {
-  console.log('\n[PleaseHireMe Desktop] Electron binary is not installed yet.');
+  console.log('\n[Pa-Hire Po Desktop] Electron binary is not installed yet.');
   console.log('1. Install Electron locally (devDependency only, skipped by Vercel):');
   console.log('   npm run desktop:install');
   console.log('2. Start the local server in Terminal 1: npm run dev');
   console.log('3. Launch the desktop window in Terminal 2: npm run desktop');
-  console.log('\nNote: Everything can also be tested directly in your web browser at http://localhost:3000.\n');
+  console.log('\nOr run everything with one command: npm run desktop:open');
+  console.log('Note: Everything can also be tested directly in your web browser at http://localhost:3000.\n');
   process.exit(0);
 }
 

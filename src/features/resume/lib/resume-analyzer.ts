@@ -15,7 +15,7 @@ interface RoleBlueprint {
 }
 
 /**
- * Broad cross-industry catalog so PleaseHireMe adapts dynamically to any profession,
+ * Broad cross-industry catalog so Pa-Hire Po adapts dynamically to any profession,
  * starting with Data Analyst by default while supporting tech, product, design, finance,
  * marketing, operations, and custom user-entered roles.
  */

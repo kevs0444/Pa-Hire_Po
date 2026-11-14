@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import {
   Activity,
   Award,
@@ -9,10 +10,11 @@ import {
   Compass,
   FileText,
   Filter,
+  Flame,
   HelpCircle,
+  Home,
   Moon,
   RefreshCw,
-  Rocket,
   Search,
   Sparkles,
   Sun,
@@ -53,10 +55,12 @@ import { HowItWorksModal } from '@/features/jobs/components/HowItWorksModal';
 import { JobDetailPane } from '@/features/jobs/components/JobDetailPane';
 import { TopChoicesSpotlight } from '@/features/jobs/components/TopChoicesSpotlight';
 import { LinkedInProfileView } from '@/features/profile/components/LinkedInProfileView';
+import { LandingPageView } from '@/components/LandingPageView';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-export type ActiveTab = 'jobs' | 'analytics' | 'profile' | 'resume';
+export type ActiveTab = 'home' | 'jobs' | 'analytics' | 'profile' | 'resume';
 
 const REFRESH_OPTIONS = [
   { label: 'Off', seconds: 0 },
@@ -99,7 +103,7 @@ function rescoreJobsWithProfile(
 }
 
 export function PleaseHireMeDashboard({
-  initialTab = 'jobs',
+  initialTab = 'home',
 }: {
   initialTab?: ActiveTab;
 }) {
@@ -147,7 +151,6 @@ export function PleaseHireMeDashboard({
 
   const activeProfile = useMemo(() => getActiveUser(store), [store]);
   const theme = store.theme;
-  const isDark = theme === 'dark';
 
   const queuedJobIds = useMemo(
     () => store.queuedJobIds || [],
@@ -547,51 +550,60 @@ export function PleaseHireMeDashboard({
     [store.jobs]
   );
 
-  // Monochrome Black & White Theme tokens
-  const pageBg = isDark ? 'bg-black text-white' : 'bg-neutral-50 text-black';
-  const navBg = isDark
-    ? 'border-neutral-800 bg-black/95'
-    : 'border-neutral-200 bg-white/95';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-white';
-  const subSurface = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const inputSurface = isDark
-    ? 'border-neutral-800 bg-black text-white focus:border-white'
-    : 'border-neutral-300 bg-white text-black focus:border-black';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const applicableJobsCount = useMemo(
+    () =>
+      store.jobs.filter(
+        (j) => j.status !== 'hidden' && j.experienceFit !== 'senior-warning'
+      ).length,
+    [store.jobs]
+  );
+
+  // 3-Color Theme Tokens (Black / White / Orange #f97316)
+  const {
+    pageBg,
+    navBg,
+    cardSurface,
+    subSurface,
+    inputSurface,
+    primaryBtn,
+    secondaryBtn,
+    orangeBadge,
+    selectedCard,
+    mutedText,
+    navTrack,
+    borderSubtle,
+  } = getThemeTokens(theme);
 
   return (
     <div className={cn('min-h-screen transition-colors', pageBg)}>
       {/* Top Navbar */}
       <header className={cn('no-print sticky top-0 z-30 border-b backdrop-blur-md', navBg)}>
         <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div
-              className={cn(
-                'flex h-9 w-9 items-center justify-center rounded-xl border',
-                primaryBtn
-              )}
-            >
-              <Rocket className="h-4 w-4" />
+          <button
+            type="button"
+            onClick={() => setActiveTab('home')}
+            className="flex items-center gap-3 text-left transition hover:opacity-90"
+            title="Go to Pa-Hire Po Landing Page"
+          >
+            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-orange-500/50 bg-white shadow-sm">
+              <Image
+                src="/pa-hire-po-logo.jpg"
+                alt="Pa-Hire Po Logo"
+                fill
+                sizes="40px"
+                className="object-cover"
+                priority
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-extrabold tracking-tight">
-                  PleaseHireMe
+                  Pa-Hire <span className="text-orange-500">Po</span>
                 </h1>
                 <span
                   className={cn(
                     'hidden sm:inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                    secondaryBtn
+                    orangeBadge
                   )}
                 >
                   JobStreet × LinkedIn
@@ -609,17 +621,26 @@ export function PleaseHireMeDashboard({
                 {activeProfile.name} • {activeProfile.primaryRole}
               </p>
             </div>
-          </div>
+          </button>
 
           {/* Primary Navigation Tabs */}
           <nav
             className={cn(
               'inline-flex flex-wrap rounded-xl border p-0.5',
-              isDark
-                ? 'border-neutral-800 bg-neutral-950'
-                : 'border-neutral-300 bg-neutral-100'
+              navTrack
             )}
           >
+            <button
+              type="button"
+              onClick={() => setActiveTab('home')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
+                activeTab === 'home' ? primaryBtn : mutedText
+              )}
+            >
+              <Home className="h-3.5 w-3.5" />
+              Home
+            </button>
             <button
               type="button"
               onClick={() => setActiveTab('jobs')}
@@ -704,27 +725,72 @@ export function PleaseHireMeDashboard({
               </select>
             </div>
 
-            <button
-              type="button"
-              onClick={() =>
-                persistStore({
-                  ...store,
-                  theme: isDark ? 'light' : 'dark',
-                })
-              }
-              className={cn(
-                'inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-semibold',
-                secondaryBtn
-              )}
-              title="Toggle Monochrome Black / White Theme"
+            {/* 3-Color Theme Variant Switcher (Dark | Light | Orange) */}
+            <div
+              className={cn('inline-flex items-center rounded-xl border p-0.5', navTrack)}
+              role="group"
+              aria-label="Theme color variant switcher"
             >
-              {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </button>
+              {(
+                [
+                  { id: 'dark', label: 'Dark', icon: Moon, title: 'Black + Orange Theme' },
+                  { id: 'light', label: 'Light', icon: Sun, title: 'White + Orange Theme' },
+                  { id: 'orange', label: 'Orange', icon: Flame, title: 'Warm Orange Studio Theme' },
+                ] as const
+              ).map((opt) => {
+                const Icon = opt.icon;
+                const active = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() =>
+                      persistStore({
+                        ...store,
+                        theme: opt.id,
+                      })
+                    }
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition',
+                      active ? primaryBtn : mutedText
+                    )}
+                    title={opt.title}
+                  >
+                    <Icon className="h-3 w-3" />
+                    <span className="hidden sm:inline">{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6">
+        {/* TAB 0: WEB & DESKTOP APP LANDING PAGE */}
+        {activeTab === 'home' && (
+          <LandingPageView
+            theme={theme}
+            onChangeTheme={(nextTheme) =>
+              persistStore({
+                ...store,
+                theme: nextTheme,
+              })
+            }
+            activeProfile={activeProfile}
+            totalJobsCount={activeJobsCount}
+            applicableJobsCount={applicableJobsCount}
+            queuedCount={queuedJobIds.length}
+            isDesktopApp={isDesktopApp}
+            onNavigateTab={(tab) => setActiveTab(tab)}
+            onSelectBoardAndLaunch={(board) => {
+              setSourceFilter(board);
+              setStatusFilter('active');
+              setActiveTab('jobs');
+            }}
+          />
+        )}
+
         {/* TAB 1: JOBSTREET-INSPIRED FIND JOBS VIEW */}
         {activeTab === 'jobs' && (
           <div className="no-print space-y-5">
@@ -842,7 +908,7 @@ export function PleaseHireMeDashboard({
               </div>
 
               {/* Desired Role Quick Chips + Board Logo Statuses */}
-              <div className="flex flex-col gap-3 border-t border-neutral-800/30 pt-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className={cn('flex flex-col gap-3 border-t pt-3 lg:flex-row lg:items-center lg:justify-between', borderSubtle)}>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <span className={cn('mr-1 text-[11px] font-bold uppercase tracking-wider', mutedText)}>
                     Your Role Choices:
@@ -875,7 +941,7 @@ export function PleaseHireMeDashboard({
                           autoPivotRoles: e.target.checked,
                         })
                       }
-                      className="h-3.5 w-3.5 accent-black dark:accent-white"
+                      className="h-3.5 w-3.5 accent-orange-500"
                     />
                     Pivot Mode
                   </label>
@@ -1044,7 +1110,7 @@ export function PleaseHireMeDashboard({
                     step={5}
                     value={minScore}
                     onChange={(e) => setMinScore(Number(e.target.value))}
-                    className="w-20 accent-black dark:accent-white"
+                    className="w-20 accent-orange-500"
                   />
                 </label>
 
@@ -1103,11 +1169,7 @@ export function PleaseHireMeDashboard({
                         onClick={() => setSelectedJobId(job.id)}
                         className={cn(
                           'cursor-pointer space-y-2.5 rounded-2xl border p-4 transition-all',
-                          isSelected
-                            ? isDark
-                              ? 'border-white bg-neutral-950 shadow-[0_0_0_1px_#ffffff]'
-                              : 'border-black bg-white shadow-[0_0_0_1px_#000000]'
-                            : cardSurface
+                          isSelected ? selectedCard : cardSurface
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">

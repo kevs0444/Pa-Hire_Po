@@ -8,7 +8,7 @@ export type WorkType = 'any' | 'remote' | 'hybrid' | 'onsite';
 
 export type ExperienceLevel = 'any' | 'entry' | 'mid' | 'senior';
 
-export type MonochromeTheme = 'dark' | 'light';
+export type MonochromeTheme = 'dark' | 'light' | 'orange';
 
 export interface ResumeExperienceItem {
   id: string;

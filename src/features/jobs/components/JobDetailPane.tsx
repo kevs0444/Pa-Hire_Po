@@ -22,6 +22,7 @@ import {
 import { JobListing, JobStatus, MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { MatchScoreRing } from '@/components/ui/MatchScoreRing';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface JobDetailPaneProps {
@@ -49,20 +50,15 @@ export function JobDetailPane({
   onToggleQueueJob,
   onUpdateStatus,
 }: JobDetailPaneProps) {
-  const isDark = theme === 'dark';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-white';
-  const subSurface = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const {
+    cardSurface,
+    subSurface,
+    primaryBtn,
+    secondaryBtn,
+    orangeBadge,
+    mutedText,
+    strongText,
+  } = getThemeTokens(theme);
 
   if (!job) {
     return (
@@ -117,7 +113,7 @@ export function JobDetailPane({
             <span
               className={cn(
                 'inline-flex items-center gap-1.5 font-bold',
-                isDark ? 'text-white' : 'text-black'
+                strongText
               )}
             >
               <Building2 className="h-4 w-4" />
@@ -135,10 +131,10 @@ export function JobDetailPane({
               <span
                 className={cn(
                   'inline-flex items-center gap-1 font-bold',
-                  isDark ? 'text-white' : 'text-black'
+                  strongText
                 )}
               >
-                <Wallet className="h-3.5 w-3.5" />
+                <Wallet className="h-3.5 w-3.5 text-orange-500" />
                 {job.salary}
               </span>
             )}
@@ -156,7 +152,7 @@ export function JobDetailPane({
         )}
       >
         <div className="flex items-center gap-2.5">
-          <Award className="h-5 w-5 shrink-0" />
+          <Award className="h-5 w-5 shrink-0 text-orange-500" />
           <div>
             <div className="text-[11px] font-bold uppercase tracking-wider opacity-70">
               Experience Needed
@@ -167,7 +163,7 @@ export function JobDetailPane({
         <span
           className={cn(
             'rounded-lg border px-2.5 py-1 text-xs font-bold',
-            secondaryBtn
+            job.experienceFit === 'fit' ? orangeBadge : secondaryBtn
           )}
         >
           {getExpBadgeLabel(job)}

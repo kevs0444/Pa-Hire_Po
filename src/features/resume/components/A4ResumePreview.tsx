@@ -16,6 +16,7 @@ import {
   StructuredResume,
   UserProfile,
 } from '@/types/job';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface A4ResumePreviewProps {
@@ -71,13 +72,10 @@ export function A4ResumePreview({
     profile.primaryRole || 'Data Analyst'
   );
 
-  const isDark = theme === 'dark';
-  const surfaceClass = isDark
-    ? 'border-neutral-800 bg-neutral-950 text-neutral-100'
-    : 'border-neutral-200 bg-neutral-50 text-neutral-900';
-  const buttonOutlineClass = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-neutral-600 hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
+  const tokens = getThemeTokens(theme);
+  const isDark = tokens.isDark;
+  const surfaceClass = tokens.cardSurface;
+  const buttonOutlineClass = tokens.secondaryBtn;
 
   const roleChoices = Array.from(
     new Set([
@@ -110,16 +108,10 @@ export function A4ResumePreview({
                 className={cn(
                   'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
                   activeResume.tailorMethod === 'gemini-ai'
-                    ? isDark
-                      ? 'border-white bg-white text-black'
-                      : 'border-black bg-black text-white'
+                    ? tokens.primaryBtn
                     : activeResume.tailorMethod === 'smart-engine'
-                      ? isDark
-                        ? 'border-neutral-600 bg-neutral-800 text-white'
-                        : 'border-neutral-400 bg-neutral-200 text-black'
-                      : isDark
-                        ? 'border-neutral-800 bg-black text-neutral-400'
-                        : 'border-neutral-300 bg-white text-neutral-600'
+                      ? tokens.orangeBadge
+                      : tokens.subSurface
                 )}
               >
                 {activeResume.tailorMethod === 'gemini-ai'
@@ -159,11 +151,7 @@ export function A4ResumePreview({
               onClick={() => setEditMode((v) => !v)}
               className={cn(
                 'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition',
-                editMode
-                  ? isDark
-                    ? 'border-white bg-white text-black'
-                    : 'border-black bg-black text-white'
-                  : buttonOutlineClass
+                editMode ? tokens.primaryBtn : buttonOutlineClass
               )}
             >
               {editMode ? (
@@ -199,9 +187,7 @@ export function A4ResumePreview({
               onClick={handlePrint}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition',
-                isDark
-                  ? 'bg-white text-black hover:bg-neutral-200'
-                  : 'bg-black text-white hover:bg-neutral-800'
+                tokens.primaryBtn
               )}
             >
               <Printer className="h-3.5 w-3.5" />
@@ -211,15 +197,13 @@ export function A4ResumePreview({
         </div>
 
         {/* Tailor Bar */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-neutral-800/40 pt-2.5">
+        <div className={cn('flex flex-wrap items-center gap-2 border-t pt-2.5', tokens.borderSubtle)}>
           <select
             value={selectedRoleForFix}
             onChange={(e) => setSelectedRoleForFix(e.target.value)}
             className={cn(
               'min-w-[170px] flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-              isDark
-                ? 'border-neutral-800 bg-black text-white'
-                : 'border-neutral-300 bg-white text-black'
+              tokens.inputSurface
             )}
           >
             {roleChoices.map((role) => (
@@ -235,9 +219,7 @@ export function A4ResumePreview({
             onClick={() => onTailorResume(activeTailorJob, selectedRoleForFix)}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50',
-              isDark
-                ? 'bg-white text-black hover:bg-neutral-200'
-                : 'bg-black text-white hover:bg-neutral-800'
+              tokens.contrastBtn
             )}
           >
             <Wand2 className={cn('h-3.5 w-3.5', tailoring && 'animate-spin')} />
@@ -264,9 +246,7 @@ export function A4ResumePreview({
               placeholder="Optional Gemini API Key (AIza...) — blank uses Smart Career Journey Tailor"
               className={cn(
                 'flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-                isDark
-                  ? 'border-neutral-700 bg-black text-white'
-                  : 'border-neutral-300 bg-white text-black'
+                tokens.inputSurface
               )}
             />
             <span className="text-[10px] opacity-70">
@@ -279,13 +259,11 @@ export function A4ResumePreview({
           <div
             className={cn(
               'rounded-xl border px-3 py-2 text-[11px]',
-              isDark
-                ? 'border-neutral-800 bg-black text-neutral-300'
-                : 'border-neutral-300 bg-white text-neutral-700'
+              tokens.subSurface
             )}
           >
             <div className="mb-1 flex items-center gap-1.5 font-semibold">
-              <Sparkles className="h-3 w-3" />
+              <Sparkles className="h-3 w-3 text-orange-500" />
               What was fixed on your A4 sheet:
             </div>
             <ul className="list-disc space-y-0.5 pl-4">
@@ -301,9 +279,11 @@ export function A4ResumePreview({
       <div
         className={cn(
           'print-only-container flex justify-center overflow-x-auto rounded-2xl border p-3 sm:p-5',
-          isDark
-            ? 'border-neutral-800 bg-neutral-900/60'
-            : 'border-neutral-300 bg-neutral-200/70'
+          tokens.isOrange
+            ? 'border-orange-500/30 bg-[#1a0b05]'
+            : isDark
+              ? 'border-neutral-800 bg-neutral-900/60'
+              : 'border-neutral-300 bg-neutral-200/70'
         )}
       >
         <div

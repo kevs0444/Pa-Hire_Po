@@ -21,6 +21,7 @@ import {
 } from '@/types/job';
 import { A4ResumePreview } from '@/features/resume/components/A4ResumePreview';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface ApplyFlowModalProps {
@@ -51,7 +52,7 @@ export function ApplyFlowModal({
 
   if (!job) return null;
 
-  const isDark = theme === 'dark';
+  const tokens = getThemeTokens(theme);
   const boardName =
     job.source === 'linkedin'
       ? 'LinkedIn'
@@ -59,19 +60,12 @@ export function ApplyFlowModal({
         ? 'JobStreet'
         : 'Indeed';
 
-  const modalSurface = isDark
-    ? 'border-neutral-800 bg-black text-white'
-    : 'border-neutral-200 bg-white text-black';
-  const boxSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-neutral-50';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-700 bg-black text-neutral-200 hover:border-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const modalSurface = tokens.cardSurface;
+  const boxSurface = tokens.subSurface;
+  const primaryBtn = tokens.primaryBtn;
+  const secondaryBtn = tokens.secondaryBtn;
+  const mutedText = tokens.mutedText;
+  const borderSubtle = tokens.borderSubtle;
 
   const handleTailorForJob = async () => {
     setTailoring(true);
@@ -120,7 +114,7 @@ export function ApplyFlowModal({
         <div
           className={cn(
             'no-print flex items-center justify-between gap-3 border-b px-5 py-4',
-            isDark ? 'border-neutral-800' : 'border-neutral-200'
+            borderSubtle
           )}
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -180,9 +174,7 @@ export function ApplyFlowModal({
                 <div
                   className={cn(
                     'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs',
-                    isDark
-                      ? 'border-neutral-700 bg-black'
-                      : 'border-neutral-300 bg-white'
+                    tokens.subSurface
                   )}
                 >
                   <span className="inline-flex items-center gap-1.5 font-semibold">

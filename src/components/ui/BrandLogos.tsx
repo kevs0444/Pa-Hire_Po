@@ -16,7 +16,8 @@ export function BoardLogo({
   size = 'sm',
   showLabel = true,
 }: BoardLogoProps) {
-  const isDark = theme === 'dark';
+  const isDark = theme !== 'light';
+  const isOrange = theme === 'orange';
 
   const iconBoxSize =
     size === 'lg' ? 'h-7 w-7' : size === 'md' ? 'h-5 w-5' : 'h-4 w-4';
@@ -35,7 +36,7 @@ export function BoardLogo({
             width="24"
             height="24"
             rx="5"
-            fill={isDark ? '#FFFFFF' : '#0A66C2'}
+            fill={isOrange ? '#F97316' : isDark ? '#FFFFFF' : '#0A66C2'}
           />
           <path
             d="M7.1 9.8H4.6V19h2.5V9.8zM5.85 5.4a1.45 1.45 0 1 0 0 2.9 1.45 1.45 0 0 0 0-2.9zM19.4 13.7c0-2.7-1.4-4-3.4-4-1.5 0-2.3.8-2.7 1.4V9.8h-2.4V19h2.5v-4.9c0-1.3.3-2.5 1.9-2.5 1.5 0 1.6 1.4 1.6 2.6V19h2.5v-5.3z"
@@ -59,7 +60,7 @@ export function BoardLogo({
             width="24"
             height="24"
             rx="5"
-            fill={isDark ? '#FFFFFF' : '#111111'}
+            fill={isOrange ? '#F97316' : isDark ? '#FFFFFF' : '#111111'}
           />
           {/* JobStreet / SEEK signature ribbon + target mark */}
           <path
@@ -94,7 +95,7 @@ export function BoardLogo({
           width="24"
           height="24"
           rx="5"
-          fill={isDark ? '#FFFFFF' : '#003A9B'}
+          fill={isOrange ? '#F97316' : isDark ? '#FFFFFF' : '#003A9B'}
         />
         {/* Indeed signature curved i + floating dot */}
         <path

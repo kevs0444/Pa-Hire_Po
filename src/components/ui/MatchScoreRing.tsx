@@ -20,22 +20,29 @@ export function MatchScoreRing({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
 
-  const isDark = theme === 'dark';
+  const isDark = theme !== 'light';
 
-  const ringColor = isDark
-    ? clamped >= 75
-      ? 'text-white'
+  const ringColor =
+    clamped >= 75
+      ? 'text-orange-500'
       : clamped >= 55
-        ? 'text-neutral-400'
-        : 'text-neutral-600'
-    : clamped >= 75
-      ? 'text-black'
-      : clamped >= 55
-        ? 'text-neutral-600'
-        : 'text-neutral-400';
+        ? 'text-amber-500'
+        : isDark
+          ? 'text-neutral-500'
+          : 'text-neutral-400';
 
-  const trackColor = isDark ? 'text-neutral-800' : 'text-neutral-200';
-  const labelColor = isDark ? 'text-white' : 'text-black';
+  const trackColor =
+    theme === 'orange'
+      ? 'text-orange-950/80'
+      : isDark
+        ? 'text-neutral-800'
+        : 'text-neutral-200';
+  const labelColor =
+    theme === 'orange'
+      ? 'text-orange-100'
+      : isDark
+        ? 'text-white'
+        : 'text-black';
 
   return (
     <div

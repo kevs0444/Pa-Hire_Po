@@ -16,6 +16,7 @@ import {
 import { JobListing, MonochromeTheme, UserProfile } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { AutoApplyConfig } from '@/features/auto-apply/types';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface AutoApplyBlueprintPanelProps {
@@ -43,23 +44,14 @@ export function AutoApplyBlueprintPanel({
   onOpenApplyModal,
   onOpenJobInExplorer,
 }: AutoApplyBlueprintPanelProps) {
-  const isDark = theme === 'dark';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-white';
-  const subSurface = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const inputSurface = isDark
-    ? 'border-neutral-800 bg-black text-white focus:border-white'
-    : 'border-neutral-300 bg-white text-black focus:border-black';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const {
+    cardSurface,
+    subSurface,
+    inputSurface,
+    primaryBtn,
+    secondaryBtn,
+    mutedText,
+  } = getThemeTokens(theme);
 
   const stages = [
     {

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface HowItWorksModalProps {
@@ -26,17 +27,11 @@ export function HowItWorksModal({
 }: HowItWorksModalProps) {
   if (!isOpen) return null;
 
-  const isDark = theme === 'dark';
-  const modalSurface = isDark
-    ? 'border-neutral-800 bg-black text-white'
-    : 'border-neutral-200 bg-white text-black';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-neutral-50';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
+  const tokens = getThemeTokens(theme);
+  const modalSurface = tokens.cardSurface;
+  const cardSurface = tokens.subSurface;
+  const mutedText = tokens.mutedText;
+  const primaryBtn = tokens.primaryBtn;
 
   const steps = [
     {
@@ -47,7 +42,7 @@ export function HowItWorksModal({
     {
       icon: RefreshCw,
       title: '2. 5-Second Live Auto-Refresh + Role Rotation',
-      desc: 'When 5s Auto-Refresh is enabled, PleaseHireMe waits 5 seconds after each completed scan, rotates across your chosen role options + Dynamic Role Pivots, deduplicates listings, and merges new finds without disturbing the job you are currently reading.',
+      desc: 'When 5s Auto-Refresh is enabled, Pa-Hire Po waits 5 seconds after each completed scan, rotates across your chosen role options + Dynamic Role Pivots, deduplicates listings, and merges new finds without disturbing the job you are currently reading.',
     },
     {
       icon: Award,
@@ -57,7 +52,7 @@ export function HowItWorksModal({
     {
       icon: Briefcase,
       title: '4. Top 3 Choices Spotlight',
-      desc: 'PleaseHireMe filters out direct link fallbacks and senior-level mismatches that exceed your selected experience level, then ranks your Top 3 Most Applicable Jobs right at the top of the screen.',
+      desc: 'Pa-Hire Po filters out direct link fallbacks and senior-level mismatches that exceed your selected experience level, then ranks your Top 3 Most Applicable Jobs right at the top of the screen.',
     },
     {
       icon: Wand2,
@@ -77,14 +72,14 @@ export function HowItWorksModal({
         <div
           className={cn(
             'flex items-center justify-between border-b px-6 py-4',
-            isDark ? 'border-neutral-800' : 'border-neutral-200'
+            tokens.borderSubtle
           )}
         >
           <div className="flex items-center gap-2.5">
-            <Cpu className="h-5 w-5" />
+            <Cpu className="h-5 w-5 text-orange-500" />
             <div>
               <h2 className="text-base font-bold">
-                How PleaseHireMe Finds &amp; Ranks Jobs
+                How Pa-Hire Po Finds &amp; Ranks Jobs
               </h2>
               <p className={cn('text-xs', mutedText)}>
                 Transparent breakdown of the scraping, scoring, Top 3 choices, and A4 tailoring pipeline
@@ -95,10 +90,7 @@ export function HowItWorksModal({
           <button
             type="button"
             onClick={onClose}
-            className={cn(
-              'rounded-xl border p-2',
-              isDark ? 'border-neutral-800 hover:border-white' : 'border-neutral-300 hover:border-black'
-            )}
+            className={cn('rounded-xl border p-2', tokens.secondaryBtn)}
           >
             <X className="h-4 w-4" />
           </button>
@@ -133,7 +125,7 @@ export function HowItWorksModal({
         <div
           className={cn(
             'flex justify-end border-t px-6 py-3.5',
-            isDark ? 'border-neutral-800' : 'border-neutral-200'
+            tokens.borderSubtle
           )}
         >
           <button

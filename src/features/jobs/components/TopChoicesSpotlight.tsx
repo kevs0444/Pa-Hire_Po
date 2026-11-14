@@ -3,6 +3,7 @@
 import { Award, ListPlus, Check, Trophy, Wand2 } from 'lucide-react';
 import { JobListing, MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface TopChoicesSpotlightProps {
@@ -30,26 +31,21 @@ export function TopChoicesSpotlight({
 }: TopChoicesSpotlightProps) {
   if (choices.length === 0) return null;
 
-  const isDark = theme === 'dark';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-white';
-  const subSurface = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
+  const {
+    cardSurface,
+    subSurface,
+    primaryBtn,
+    secondaryBtn,
+    orangeBadge,
+    selectedCard,
+    mutedText,
+  } = getThemeTokens(theme);
 
   return (
     <section className="space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Trophy className="h-4 w-4" />
+          <Trophy className="h-4 w-4 text-orange-500" />
           <h2 className="text-sm font-extrabold uppercase tracking-wider">
             Top 3 Choices for {activeProfileName}
           </h2>
@@ -70,11 +66,7 @@ export function TopChoicesSpotlight({
               onClick={() => onSelectJob(job.id)}
               className={cn(
                 'flex cursor-pointer flex-col justify-between gap-3 rounded-2xl border p-4 transition',
-                isSelected
-                  ? isDark
-                    ? 'border-white bg-neutral-950'
-                    : 'border-black bg-white shadow-md'
-                  : cardSurface
+                isSelected ? selectedCard : cardSurface
               )}
             >
               <div className="space-y-2">
@@ -82,7 +74,7 @@ export function TopChoicesSpotlight({
                   <span
                     className={cn(
                       'rounded-md px-2 py-0.5 text-[10px] font-extrabold uppercase',
-                      primaryBtn
+                      idx === 0 ? primaryBtn : cn('border', orangeBadge)
                     )}
                   >
                     #{idx + 1} Choice • {job.matchScore}%

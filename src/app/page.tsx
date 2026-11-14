@@ -1,5 +1,5 @@
 import { PleaseHireMeDashboard } from '@/components/PleaseHireMeDashboard';
 
 export default function Home() {
-  return <PleaseHireMeDashboard />;
+  return <PleaseHireMeDashboard initialTab="home" />;
 }

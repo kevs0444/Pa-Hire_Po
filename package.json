@@ -1,5 +1,5 @@
 {
-  "name": "please-hire-me",
+  "name": "pa-hire-po",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.cjs",
@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "desktop": "node electron/launch-dev.cjs",
+    "desktop:open": "node electron/open-desktop.cjs",
+    "desktop:live": "node electron/open-desktop.cjs --live",
     "desktop:install": "npm install --save-dev electron"
   },
   "dependencies": {

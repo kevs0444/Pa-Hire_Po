@@ -1,6 +1,19 @@
-# PleaseHireMe — Complete Feature & Context Breakdown
+# Pa-Hire Po — Complete Feature & Context Breakdown
 
-Here is the complete breakdown of **PleaseHireMe** features, organized into **Main Features** and **Sub-Features**:
+Here is the complete breakdown of **Pa-Hire Po** (formerly PleaseHireMe) features, organized into **Main Features** and **Sub-Features**:
+
+---
+
+## 0. Web & Desktop Landing Page + 3-Color Theme Studio
+
+**Core files:** `src/app/page.tsx`, `src/app/jobs/page.tsx`, `src/components/LandingPageView.tsx`, `src/lib/theme.ts`, `public/pa-hire-po-logo.jpg`, `electron/open-desktop.cjs`, `open-desktop.bat`
+
+- **Sub-Feature 0.1 — Official Branding (`Pa-Hire Po` Logo & Metadata):**
+  - Displays the official `Pa-Hire Po` emblem (`/pa-hire-po-logo.jpg`) in the browser tab favicon, sticky navbar header, Hero studio showcase, and Electron desktop window icon.
+- **Sub-Feature 0.2 — 3-Color UI Theme Switcher (`Dark` | `Light` | `Orange`):**
+  - Combines **Black** (`Dark`), **White** (`Light`), and **Orange Studio** (`Orange`) modes paired with signature `#f97316` accents across CTAs, match rings, and active pills via `getThemeTokens`.
+- **Sub-Feature 0.3 — Interactive Landing Page & 1-Click Desktop Launchers:**
+  - Root `/` opens on the **Home** Landing Page with **Live Workspace Snapshot**, direct **JobStreet / LinkedIn / Indeed** board jump links, 6 workflow cards, and copy-ready commands (`npm run desktop:open`, `npm run desktop:live`, and Windows `open-desktop.bat`).
 
 ---
 

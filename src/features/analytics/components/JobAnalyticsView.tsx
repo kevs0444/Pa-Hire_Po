@@ -23,6 +23,7 @@ import {
 } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { AutoApplyBlueprintPanel } from '@/features/auto-apply/components/AutoApplyBlueprintPanel';
+import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface JobAnalyticsViewProps {
@@ -70,22 +71,15 @@ export function JobAnalyticsView({
   onOpenApplyModal,
   onAddSkillToProfile,
 }: JobAnalyticsViewProps) {
-  const isDark = theme === 'dark';
-  const cardSurface = isDark
-    ? 'border-neutral-800 bg-neutral-950'
-    : 'border-neutral-200 bg-white';
-  const subSurface = isDark
-    ? 'border-neutral-800 bg-black'
-    : 'border-neutral-200 bg-neutral-50';
-  const primaryBtn = isDark
-    ? 'bg-white text-black hover:bg-neutral-200'
-    : 'bg-black text-white hover:bg-neutral-800';
-  const secondaryBtn = isDark
-    ? 'border-neutral-800 bg-black text-neutral-200 hover:border-white hover:text-white'
-    : 'border-neutral-300 bg-white text-neutral-800 hover:border-black hover:text-black';
-  const mutedText = isDark ? 'text-neutral-400' : 'text-neutral-600';
-  const barTrack = isDark ? 'bg-neutral-900' : 'bg-neutral-200';
-  const barFill = isDark ? 'bg-white' : 'bg-black';
+  const {
+    cardSurface,
+    subSurface,
+    primaryBtn,
+    secondaryBtn,
+    mutedText,
+    barTrack,
+    barFill,
+  } = getThemeTokens(theme);
 
   const stats = useMemo(() => {
     const activeJobs = jobs.filter((j) => j.status !== 'hidden');

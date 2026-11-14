@@ -22,7 +22,8 @@ function createMainWindow() {
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#000000',
-    title: 'PleaseHireMe — Desktop Studio',
+    icon: path.join(__dirname, '..', 'public', 'pa-hire-po-logo.jpg'),
+    title: 'Pa-Hire Po — Desktop Studio',
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -47,7 +48,7 @@ function createMainWindow() {
       <html>
         <body style="margin:0;background:#000;color:#fff;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;">
           <div style="max-width:460px;padding:32px;border:1px solid #262626;border-radius:16px;text-align:center;">
-            <h2 style="margin:0 0 8px;">PleaseHireMe Local Server Not Running</h2>
+            <h2 style="margin:0 0 8px;">Pa-Hire Po Local Server Not Running</h2>
             <p style="color:#a3a3a3;font-size:14px;line-height:1.5;">
               Start the local Next.js server first with <code>npm run dev</code>, then press Ctrl+R to reload.
             </p>
