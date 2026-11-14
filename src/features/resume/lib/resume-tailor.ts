@@ -46,7 +46,7 @@ function detectTrack(text: string): TrackKind {
     return 'ai-ds';
   }
   if (
-    /\b(data analyst|business intelligence|bi analyst|power bi|tableau|excel|reporting|kpi)\b/.test(
+    /\b(data analyst|junior data analyst|business intelligence|bi analyst|power bi|tableau|excel|reporting|kpi)\b/.test(
       lower
     )
   ) {
@@ -65,7 +65,7 @@ export function tailorResumeLocally(
     targetJob?.title ||
     targetRoleOverride ||
     profile.primaryRole ||
-    'Data Analyst'
+    'Data Analyst / Junior Data Analyst'
   ).trim();
   const targetCompany = targetJob?.company || null;
 

@@ -31,14 +31,44 @@ export function normalizeStoreState(
   const defaults = getDefaultStoreState();
   const users: UserProfile[] =
     Array.isArray(raw.users) && raw.users.length > 0
-      ? raw.users.map((u) => ({
-          ...MAR_KEVIN_PROFILE,
-          ...u,
-          structuredResume: {
-            ...MAR_KEVIN_PROFILE.structuredResume,
-            ...(u.structuredResume || {}),
-          },
-        }))
+      ? raw.users.map((u) => {
+          const merged: UserProfile = {
+            ...MAR_KEVIN_PROFILE,
+            ...u,
+            structuredResume: {
+              ...MAR_KEVIN_PROFILE.structuredResume,
+              ...(u.structuredResume || {}),
+            },
+          };
+
+          if (merged.id === 'mar-kevin-alcantara') {
+            const legacyDefaults = new Set(['Data Analyst', 'Junior Data Engineer']);
+            const normalizedPrimaryRole =
+              !merged.primaryRole?.trim() || legacyDefaults.has(merged.primaryRole.trim())
+                ? 'Data Analyst / Junior Data Analyst'
+                : merged.primaryRole;
+            const normalizedTitle =
+              !merged.title?.trim() || legacyDefaults.has(merged.title.trim())
+                ? 'Data Analyst / Junior Data Analyst'
+                : merged.title;
+
+            return {
+              ...merged,
+              title: normalizedTitle,
+              primaryRole: normalizedPrimaryRole,
+              preferredRoles: Array.from(
+                new Set([
+                  'Data Analyst / Junior Data Analyst',
+                  ...(Array.isArray(merged.preferredRoles)
+                    ? merged.preferredRoles
+                    : MAR_KEVIN_PROFILE.preferredRoles),
+                ])
+              ).filter(Boolean),
+            };
+          }
+
+          return merged;
+        })
       : [MAR_KEVIN_PROFILE];
 
   const activeUserId = users.some((u) => u.id === raw.activeUserId)

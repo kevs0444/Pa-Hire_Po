@@ -359,7 +359,7 @@ export function LinkedInProfileView({
           <input
             type="text"
             required
-            placeholder="Target Job Title * (e.g. Data Analyst)"
+            placeholder="Target Job Title * (e.g. Data Analyst / Junior Data Analyst)"
             value={newUserForm.primaryRole}
             onChange={(e) => setNewUserForm({ ...newUserForm, primaryRole: e.target.value })}
             className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}

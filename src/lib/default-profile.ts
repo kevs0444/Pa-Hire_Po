@@ -34,13 +34,13 @@ As of November 14, 2026
 ## 4. Upskilling & Career Direction
 - Data Engineering Pilipinas x DataCamp Donates Scholarship (June 2026): Introduction to Excel (2,800 XP), Data Preparation in Excel (2,250 XP).
 - Cisco Data Analytics Essentials, Cisco Python Essentials 1, FastAPI, SQLAlchemy, React, Next.js, Docker, Linux.
-- Target Roles: Data Analyst, Business Intelligence Analyst, Junior Data Engineer, Data Scientist, AI Engineer.
+- Target Roles: Data Analyst / Junior Data Analyst, Business Intelligence Analyst, Junior Data Engineer, Data Scientist, AI Engineer.
 - Long-term Trajectory: Data Analyst -> Data Engineer -> Data Scientist / AI Engineer.
 - Work Preference: Remote or Hybrid (open to onsite); Target Compensation: PHP 25,000–30,000+.`;
 
 export const MAR_KEVIN_BASE_RESUME: StructuredResume = {
   fullName: 'MAR KEVIN P. ALCANTARA',
-  targetHeadline: 'Data Analyst • Business Intelligence • ETL Automation',
+  targetHeadline: 'Data Analyst / Junior Data Analyst • Business Intelligence • ETL Automation',
   tailoredSummary: null,
   email: 'markevinalcantara40@gmail.com',
   phones: ['+63 952 470 2284', '+63 992 003 0148'],
@@ -190,7 +190,7 @@ export function resumeToPlainText(resume: StructuredResume): string {
 export const MAR_KEVIN_PROFILE: UserProfile = {
   id: 'mar-kevin-alcantara',
   name: 'Mar Kevin P. Alcantara',
-  title: 'Data Analyst',
+  title: 'Data Analyst / Junior Data Analyst',
   summary:
     'Computer Engineering graduate (GWA 1.71, Taguig Scholar Award) with hands-on internships at LUXASIA (LEAP), Phoenix Petroleum, and Denso Ten Solutions. Experienced in Python, SQL, Power BI, ETL automation, and XGBoost forecasting.',
   resumeText: resumeToPlainText(MAR_KEVIN_BASE_RESUME),
@@ -225,15 +225,19 @@ export const MAR_KEVIN_PROFILE: UserProfile = {
     'Docker',
     'Linux',
   ],
-  primaryRole: 'Data Analyst',
+  primaryRole: 'Data Analyst / Junior Data Analyst',
   preferredRoles: [
+    'Data Analyst / Junior Data Analyst',
     'Data Analyst',
+    'Junior Data Analyst',
     'Business Intelligence Analyst',
     'Junior Data Engineer',
     'Data Scientist',
     'AI Engineer',
   ],
   customRoles: [
+    'Data Analyst',
+    'Junior Data Analyst',
     'Business Intelligence Analyst',
     'Junior Data Engineer',
     'Data Scientist',
@@ -261,7 +265,7 @@ export function createBlankUserProfile(params: {
   skills?: string[];
 }): UserProfile {
   const id = `user-${Date.now().toString(36)}`;
-  const role = params.primaryRole.trim() || 'Data Analyst';
+  const role = params.primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
   const preferred =
     params.preferredRoles && params.preferredRoles.length > 0
       ? params.preferredRoles

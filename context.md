@@ -30,7 +30,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Manual **"Find Jobs Now"** button for instant on-demand scraping.
   - Non-overlapping auto-refresh timer (`Off` | `5s Live` | `15s` | `30s`) with live second-by-second countdown (`scanInFlightRef` prevents overlapping requests).
 - **Sub-Feature 1.3 — Dynamic Role Choices & Pivot Mode:**
-  - Quick-switch pills for your target roles (`Data Analyst`, `Business Intelligence Analyst`, `Junior Data Engineer`, `Data Scientist`, `AI Engineer`, or any custom role).
+  - Quick-switch pills for your target roles (default **`Data Analyst / Junior Data Analyst`**, plus `Data Analyst`, `Junior Data Analyst`, `Business Intelligence Analyst`, `Junior Data Engineer`, `Data Scientist`, `AI Engineer`, or any custom role). Compound `/` roles automatically expand into separate clean job-board search queries while scoring both title variants cleanly.
   - **Pivot Mode (`autoPivotRoles`):** Automatically rotates adjacent high-overlap roles (`selectRolesForScan` & `inferDynamicRoles`) into searches and tags them with a `Pivot` badge.
 - **Sub-Feature 1.4 — Multi-Country & Work-Type Targeting:**
   - Supports Philippines (`ph`), Malaysia (`my`), Singapore (`sg`), Indonesia (`id`), United States (`us`), and Global Remote (`remote`).

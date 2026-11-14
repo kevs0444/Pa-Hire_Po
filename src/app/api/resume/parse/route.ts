@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
       summary,
       skills,
       suggestedRoles,
-      recommendedPrimaryRole: suggestedRoles[0]?.role || primaryRole || 'Data Analyst',
+      recommendedPrimaryRole:
+        suggestedRoles[0]?.role ||
+        primaryRole ||
+        'Data Analyst / Junior Data Analyst',
       warning,
     });
   } catch (err) {

@@ -642,7 +642,7 @@ export function A4ResumePreview({
   const [compareMode, setCompareMode] = useState(false);
   const [highlightChanges, setHighlightChanges] = useState(true);
   const [selectedRoleForFix, setSelectedRoleForFix] = useState(
-    profile.primaryRole || 'Data Analyst'
+    profile.primaryRole || 'Data Analyst / Junior Data Analyst'
   );
 
   const tokens = getThemeTokens(theme);

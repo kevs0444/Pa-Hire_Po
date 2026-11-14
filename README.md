@@ -14,7 +14,7 @@
 - **Quick Launchers**: Direct board shortcuts for **JobStreet**, **LinkedIn**, and **Indeed**, quick access to **Resume Studio (`AI`)**, and copy-ready Electron CLI commands.
 
 ### 1. Live Multi-Board Job Finder (`Find Jobs` / `/jobs`)
-- **3-Board Concurrent Scraper Engine**: Searches **LinkedIn** (Guest API + `cheerio` + `ts-jobspy`), **JobStreet** (v5 JSON API across `PH-Main`, `MY-Main`, `SG-Main`, `ID-Main`), and **Indeed** (`ts-jobspy`) with authentic SVG board logos and safe search fallbacks.
+- **3-Board Concurrent Scraper Engine**: Searches **LinkedIn** (Guest API + `cheerio` + `ts-jobspy`), **JobStreet** (v5 JSON API across `PH-Main`, `MY-Main`, `SG-Main`, `ID-Main`), and **Indeed** (`ts-jobspy`) with authentic SVG board logos, compound `/` role query expansion (default target role **`Data Analyst / Junior Data Analyst`**), and safe search fallbacks.
 - **5-Second Live Auto-Refresh + Manual Scan**: Toggle `Off`, `5s Live`, `15s`, or `30s` non-overlapping live polling alongside manual **Find Jobs**.
 - **Recommended Top 3 Strip**: Surfaces top 3 applicable listings for your active profile and experience level without noisy marketing banners.
 - **2-Column Master-Detail Explorer**: Left job feed (`border-l-[3px]` selection indicator, `✓` high-match pills) paired with a clean single-surface job detail inspector (`JobDetailPane`) and semantic `MatchScoreRing`.

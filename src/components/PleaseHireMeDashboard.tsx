@@ -141,7 +141,7 @@ export function PleaseHireMeDashboard({
   const [fitFilter, setFitFilter] = useState<'all' | 'applicable'>('all');
   const [minScore, setMinScore] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleDraft, setRoleDraft] = useState('Data Analyst');
+  const [roleDraft, setRoleDraft] = useState('Data Analyst / Junior Data Analyst');
 
   const initialAutoScanRan = useRef(false);
   const scanInFlightRef = useRef(false);
@@ -837,7 +837,7 @@ export function PleaseHireMeDashboard({
                           handleApplyPrimaryRole(roleDraft, true);
                         }
                       }}
-                      placeholder="Data Analyst, BI Analyst, Junior Data Engineer..."
+                      placeholder="Data Analyst / Junior Data Analyst, BI Analyst, Junior Data Engineer..."
                       className={cn('w-full rounded-lg border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
                     />
                   </div>

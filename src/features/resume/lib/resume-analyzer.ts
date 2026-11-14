@@ -389,6 +389,24 @@ export function inferDynamicRoles(
 }
 
 /**
+ * Splits compound `/` roles (e.g. "Data Analyst / Junior Data Analyst") into clean search queries.
+ */
+function splitCompoundRoles(roleLabel: string): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const part of roleLabel.split('/')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const lower = trimmed.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      unique.push(trimmed);
+    }
+  }
+  return unique;
+}
+
+/**
  * Picks which roles to include in a scan: always includes primaryRole, plus
  * 1-2 dynamic pivot roles when autoPivotRoles is enabled (rotating smoothly).
  */
@@ -396,15 +414,42 @@ export function selectRolesForScan(
   profile: UserProfile,
   explicitRoles?: string[]
 ): { role: string; isPivot: boolean }[] {
+  const primary =
+    profile.primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
+  const expandedPrimary = splitCompoundRoles(primary);
+  const primaryQueries =
+    expandedPrimary.length > 0
+      ? expandedPrimary
+      : ['Data Analyst', 'Junior Data Analyst'];
+  const primaryVariants = new Set([
+    primary.toLowerCase(),
+    ...primaryQueries.map((r) => r.toLowerCase()),
+  ]);
+
   if (explicitRoles && explicitRoles.length > 0) {
-    return explicitRoles.map((role, idx) => ({
-      role,
-      isPivot: idx > 0 && role.toLowerCase() !== profile.primaryRole.toLowerCase(),
-    }));
+    const expanded: { role: string; isPivot: boolean }[] = [];
+    const seen = new Set<string>();
+    explicitRoles.forEach((rawRole, idx) => {
+      for (const part of splitCompoundRoles(rawRole)) {
+        const lower = part.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          expanded.push({
+            role: part,
+            isPivot: idx > 0 && !primaryVariants.has(lower),
+          });
+        }
+      }
+    });
+    if (expanded.length > 0) return expanded;
   }
 
-  const primary = profile.primaryRole.trim() || 'Data Analyst';
-  const result: { role: string; isPivot: boolean }[] = [{ role: primary, isPivot: false }];
+  const result: { role: string; isPivot: boolean }[] = primaryQueries.map(
+    (role) => ({
+      role,
+      isPivot: false,
+    })
+  );
 
   if (!profile.autoPivotRoles) {
     return result;
@@ -412,14 +457,15 @@ export function selectRolesForScan(
 
   const candidates = new Set<string>();
   for (const custom of profile.customRoles) {
-    if (custom.trim() && custom.trim().toLowerCase() !== primary.toLowerCase()) {
-      candidates.add(custom.trim());
+    const trimmed = custom.trim();
+    if (trimmed && !primaryVariants.has(trimmed.toLowerCase())) {
+      candidates.add(trimmed);
     }
   }
 
   const inferred = inferDynamicRoles(profile.resumeText, profile.skills, primary);
   for (const item of inferred) {
-    if (item.role.toLowerCase() !== primary.toLowerCase() && item.overlapPercent >= 45) {
+    if (!primaryVariants.has(item.role.toLowerCase()) && item.overlapPercent >= 45) {
       candidates.add(item.role);
     }
     if (candidates.size >= 5) break;
@@ -583,12 +629,16 @@ export function scoreJobAgainstProfile(
   // 1. Title alignment (up to 38 pts)
   const titleLower = raw.title.toLowerCase();
   const primaryLower = profile.primaryRole.toLowerCase();
+  const primaryVariants = splitCompoundRoles(primaryLower);
   const searchedLower = raw.searchedRole.toLowerCase();
   const primaryWords = tokenize(primaryLower);
   const searchedWords = tokenize(searchedLower);
 
   let titleScore = 10;
-  if (titleLower.includes(primaryLower)) {
+  if (
+    titleLower.includes(primaryLower) ||
+    primaryVariants.some((variant) => titleLower.includes(variant))
+  ) {
     titleScore = 38;
   } else if (titleLower.includes(searchedLower)) {
     titleScore = 32;
