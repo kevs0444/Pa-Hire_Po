@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  Award,
   Bookmark,
   BookmarkCheck,
   Briefcase,
@@ -12,12 +11,9 @@ import {
   Compass,
   ExternalLink,
   EyeOff,
-  Lightbulb,
   ListPlus,
   MapPin,
-  Sparkles,
   Wallet,
-  Wand2,
 } from 'lucide-react';
 import { JobListing, JobStatus, MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
@@ -36,7 +32,7 @@ interface JobDetailPaneProps {
 }
 
 function getExpBadgeLabel(job: JobListing) {
-  if (job.experienceFit === 'fit') return 'Matches Your Level';
+  if (job.experienceFit === 'fit') return '✓ Matches Your Level';
   if (job.experienceFit === 'stretch') return 'Slight Stretch';
   return 'Senior Exp Requested';
 }
@@ -51,49 +47,69 @@ export function JobDetailPane({
   onUpdateStatus,
 }: JobDetailPaneProps) {
   const {
+    isDark,
     cardSurface,
-    subSurface,
     primaryBtn,
     secondaryBtn,
-    orangeBadge,
     mutedText,
     strongText,
+    borderSubtle,
   } = getThemeTokens(theme);
 
   if (!job) {
     return (
-      <div className={cn('rounded-3xl border border-dashed p-12 text-center', cardSurface)}>
-        <Briefcase className="mx-auto h-8 w-8 opacity-60" />
-        <p className="mt-3 text-sm font-bold">Select a job on the left</p>
+      <div
+        className={cn(
+          'rounded-lg border border-dashed p-12 text-center',
+          cardSurface
+        )}
+      >
+        <Briefcase className={cn('mx-auto h-7 w-7', mutedText)} />
+        <p className="mt-3 text-sm font-semibold">Select a job listing</p>
         <p className={cn('mt-1 text-xs', mutedText)}>
-          Click any job card to inspect experience requirements, matched skills, and apply with step-by-step A4 resume tailoring.
+          Choose any role on the left to inspect requirements, skill alignment,
+          and open Resume Studio (AI) before applying.
         </p>
       </div>
     );
   }
 
+  const fitBadgeTone =
+    job.experienceFit === 'fit'
+      ? isDark
+        ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+        : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+      : job.experienceFit === 'stretch'
+        ? isDark
+          ? 'border-amber-700/70 bg-amber-950/50 text-amber-300'
+          : 'border-amber-200 bg-amber-50 text-amber-800'
+        : isDark
+          ? 'border-slate-700 bg-slate-800 text-slate-300'
+          : 'border-slate-300 bg-slate-100 text-slate-700';
+
   return (
-    <div className={cn('space-y-5 rounded-3xl border p-5 sm:p-6', cardSurface)}>
-      {/* Detail Header */}
+    <div className={cn('rounded-lg border p-5 sm:p-6 space-y-5', cardSurface)}>
+      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <BoardLogo source={job.source} theme={theme} size="lg" />
+            <BoardLogo source={job.source} theme={theme} size="md" />
             {job.isPivotSuggestion && (
               <span
                 className={cn(
-                  'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-semibold',
+                  'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium',
                   secondaryBtn
                 )}
               >
                 <Compass className="h-3 w-3" />
-                Pivot Role: {job.searchedRole}
+                Pivot: {job.searchedRole}
               </span>
             )}
             {job.isFallback && (
               <span
                 className={cn(
-                  'rounded-md border border-dashed px-2 py-0.5 text-[10px]',
+                  'rounded border border-dashed px-2 py-0.5 text-[11px]',
+                  borderSubtle,
                   mutedText
                 )}
               >
@@ -102,17 +118,19 @@ export function JobDetailPane({
             )}
           </div>
 
-          <h2 className="text-xl font-extrabold leading-tight">{job.title}</h2>
+          <h2 className="text-xl font-bold leading-snug tracking-tight">
+            {job.title}
+          </h2>
 
           <div
             className={cn(
-              'flex flex-wrap items-center gap-x-4 gap-y-1 text-xs',
+              'flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]',
               mutedText
             )}
           >
             <span
               className={cn(
-                'inline-flex items-center gap-1.5 font-bold',
+                'inline-flex items-center gap-1.5 font-semibold',
                 strongText
               )}
             >
@@ -130,74 +148,47 @@ export function JobDetailPane({
             {job.salary && (
               <span
                 className={cn(
-                  'inline-flex items-center gap-1 font-bold',
+                  'inline-flex items-center gap-1 font-mono text-xs font-medium',
                   strongText
                 )}
               >
-                <Wallet className="h-3.5 w-3.5 text-orange-500" />
+                <Wallet className="h-3.5 w-3.5" />
                 {job.salary}
               </span>
             )}
           </div>
         </div>
 
-        <MatchScoreRing score={job.matchScore} size={64} theme={theme} />
+        <MatchScoreRing score={job.matchScore} size={58} theme={theme} />
       </div>
 
-      {/* PROMINENT EXPERIENCE NEEDED CALLOUT */}
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-between gap-2 rounded-2xl border p-3.5',
-          subSurface
-        )}
-      >
-        <div className="flex items-center gap-2.5">
-          <Award className="h-5 w-5 shrink-0 text-orange-500" />
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider opacity-70">
-              Experience Needed
-            </div>
-            <div className="text-sm font-extrabold">{job.experienceRequired}</div>
-          </div>
-        </div>
-        <span
-          className={cn(
-            'rounded-lg border px-2.5 py-1 text-xs font-bold',
-            job.experienceFit === 'fit' ? orangeBadge : secondaryBtn
-          )}
-        >
-          {getExpBadgeLabel(job)}
-        </span>
-      </div>
-
-      {/* JOBSTREET-STYLE ACTION BAR */}
+      {/* Action Bar */}
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => onOpenApplyModal(job)}
           className={cn(
-            'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs font-extrabold transition',
+            'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
             primaryBtn
           )}
         >
-          <Wand2 className="h-4 w-4" />
-          Apply for This Job (Tailor A4 Resume)
+          Apply &amp; Tailor Resume
         </button>
 
         <button
           type="button"
           onClick={() => onToggleQueueJob(job.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition',
+            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             isQueued ? primaryBtn : secondaryBtn
           )}
         >
           {isQueued ? (
-            <Check className="h-4 w-4" />
+            <Check className="h-3.5 w-3.5" />
           ) : (
-            <ListPlus className="h-4 w-4" />
+            <ListPlus className="h-3.5 w-3.5" />
           )}
-          {isQueued ? 'In Auto-Apply Queue' : 'Add to Auto-Apply Queue'}
+          {isQueued ? 'Queued' : 'Queue'}
         </button>
 
         <button
@@ -206,14 +197,14 @@ export function JobDetailPane({
             onUpdateStatus(job.id, job.status === 'saved' ? 'suggested' : 'saved')
           }
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-semibold',
+            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             secondaryBtn
           )}
         >
           {job.status === 'saved' ? (
-            <BookmarkCheck className="h-4 w-4" />
+            <BookmarkCheck className="h-3.5 w-3.5" />
           ) : (
-            <Bookmark className="h-4 w-4" />
+            <Bookmark className="h-3.5 w-3.5" />
           )}
           {job.status === 'saved' ? 'Saved' : 'Save'}
         </button>
@@ -227,11 +218,11 @@ export function JobDetailPane({
             )
           }
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-semibold',
+            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             secondaryBtn
           )}
         >
-          <CheckCircle2 className="h-4 w-4" />
+          <CheckCircle2 className="h-3.5 w-3.5" />
           {job.status === 'applied' ? 'Applied' : 'Mark Applied'}
         </button>
 
@@ -240,7 +231,7 @@ export function JobDetailPane({
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2.5 text-xs font-semibold',
+            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             secondaryBtn
           )}
         >
@@ -253,30 +244,51 @@ export function JobDetailPane({
           onClick={() =>
             onUpdateStatus(job.id, job.status === 'hidden' ? 'suggested' : 'hidden')
           }
-          className={cn('ml-auto rounded-xl border p-2.5', secondaryBtn)}
+          className={cn('ml-auto rounded-lg border p-2 transition-colors', secondaryBtn)}
           title="Hide job"
+          aria-label="Hide job"
         >
           <EyeOff className="h-4 w-4" />
         </button>
       </div>
 
-      {/* MATCH RATIONALE & SKILLS */}
-      <div className={cn('space-y-3 rounded-2xl border p-4', subSurface)}>
-        <div className="flex items-start gap-2 text-xs">
-          <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            <strong>Why this fits {activeProfileName}: </strong>
-            {job.matchReason}
-          </p>
+      {/* Experience & Fit Strip */}
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-2 border-y py-3 text-xs',
+          borderSubtle
+        )}
+      >
+        <div>
+          <span className={mutedText}>Experience required: </span>
+          <span className="font-semibold">{job.experienceRequired}</span>
         </div>
+        <span
+          className={cn(
+            'rounded border px-2.5 py-0.5 text-xs font-semibold',
+            fitBadgeTone
+          )}
+        >
+          {getExpBadgeLabel(job)}
+        </span>
+      </div>
+
+      {/* Match Rationale & Skills */}
+      <div className="space-y-2.5">
+        <p className="text-xs leading-relaxed">
+          <span className="font-semibold">Fit summary for {activeProfileName}: </span>
+          <span className={mutedText}>{job.matchReason}</span>
+        </p>
 
         <div className="flex flex-wrap gap-1.5">
           {job.matchedSkills.map((s) => (
             <span
               key={`d-m-${s}`}
               className={cn(
-                'rounded-md border px-2 py-0.5 text-[11px] font-bold',
-                secondaryBtn
+                'rounded border px-2 py-0.5 text-[11px] font-medium',
+                isDark
+                  ? 'border-emerald-800/70 bg-emerald-950/50 text-emerald-300'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
               )}
             >
               ✓ {s}
@@ -286,7 +298,8 @@ export function JobDetailPane({
             <span
               key={`d-x-${s}`}
               className={cn(
-                'rounded-md border border-dashed px-2 py-0.5 text-[11px]',
+                'rounded border border-dashed px-2 py-0.5 text-[11px]',
+                borderSubtle,
                 mutedText
               )}
             >
@@ -296,29 +309,19 @@ export function JobDetailPane({
         </div>
       </div>
 
-      {/* JOB DESCRIPTION */}
-      <div className="space-y-2">
-        <h3 className="text-xs font-extrabold uppercase tracking-wider">
-          Job Description &amp; Details
-        </h3>
-        <div
-          className={cn(
-            'max-h-[340px] overflow-y-auto whitespace-pre-line rounded-2xl border p-4 text-xs leading-relaxed',
-            subSurface
-          )}
-        >
+      {/* Job Description */}
+      <div className={cn('space-y-2 border-t pt-4', borderSubtle)}>
+        <h3 className="text-sm font-semibold">Job Description</h3>
+        <div className="max-h-[360px] overflow-y-auto whitespace-pre-line pr-2 text-sm leading-relaxed">
           {job.description}
         </div>
       </div>
 
-      {/* TAILORING TIPS */}
+      {/* Tailoring Tips */}
       {job.tailoringTips.length > 0 && (
-        <div className={cn('space-y-1.5 rounded-2xl border p-4 text-xs', subSurface)}>
-          <div className="flex items-center gap-1.5 font-bold">
-            <Lightbulb className="h-4 w-4" />
-            <span>How to Tailor Before Applying:</span>
-          </div>
-          <ul className="list-disc space-y-1 pl-4 opacity-90">
+        <div className={cn('space-y-1.5 border-t pt-4 text-xs', borderSubtle)}>
+          <h3 className="text-sm font-semibold">Resume Tailoring Notes</h3>
+          <ul className={cn('list-disc space-y-1 pl-4', mutedText)}>
             {job.tailoringTips.map((tip, i) => (
               <li key={i}>{tip}</li>
             ))}

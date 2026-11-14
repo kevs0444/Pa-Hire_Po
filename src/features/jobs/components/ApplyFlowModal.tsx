@@ -1,16 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
-  Award,
   CheckCircle2,
   ExternalLink,
   Loader2,
   Printer,
-  Sparkles,
-  Wand2,
   X,
 } from 'lucide-react';
 import {
@@ -29,28 +26,29 @@ interface ApplyFlowModalProps {
   profile: UserProfile;
   theme: MonochromeTheme;
   geminiApiKey: string;
+  personalApiConfigured?: boolean;
   onClose: () => void;
   onMarkApplied: (jobId: string) => void;
   onUpdateGeminiKey: (key: string) => void;
 }
 
-export function ApplyFlowModal({
+function ApplyFlowContent({
   job,
   profile,
   theme,
   geminiApiKey,
+  personalApiConfigured = true,
+  titleId,
   onClose,
   onMarkApplied,
   onUpdateGeminiKey,
-}: ApplyFlowModalProps) {
+}: Omit<ApplyFlowModalProps, 'job'> & { job: JobListing; titleId: string }) {
   const [step, setStep] = useState<'prompt' | 'preview'>('prompt');
   const [tailoring, setTailoring] = useState(false);
   const [tailoredResume, setTailoredResume] = useState<StructuredResume | null>(
     null
   );
   const [error, setError] = useState<string | null>(null);
-
-  if (!job) return null;
 
   const tokens = getThemeTokens(theme);
   const boardName =
@@ -60,7 +58,6 @@ export function ApplyFlowModal({
         ? 'JobStreet'
         : 'Indeed';
 
-  const modalSurface = tokens.cardSurface;
   const boxSurface = tokens.subSurface;
   const primaryBtn = tokens.primaryBtn;
   const secondaryBtn = tokens.secondaryBtn;
@@ -80,6 +77,7 @@ export function ApplyFlowModal({
           targetJob: job,
           targetRole: job.title,
           geminiApiKey,
+          pageSize: (tailoredResume || profile.structuredResume).pageSize || 'a4',
         }),
       });
       const data = await res.json();
@@ -102,159 +100,154 @@ export function ApplyFlowModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-6">
+    <div
+      className={cn(
+        'flex max-h-[92vh] w-full flex-col overflow-hidden print:max-h-none print:overflow-visible',
+        step === 'preview' ? 'sm:w-[min(92vw,1024px)]' : 'sm:w-[min(92vw,672px)]'
+      )}
+    >
+      {/* Top Step Indicator Header */}
       <div
         className={cn(
-          'flex max-h-[94vh] w-full flex-col overflow-hidden rounded-3xl border shadow-2xl',
-          step === 'preview' ? 'max-w-5xl' : 'max-w-2xl',
-          modalSurface
+          'no-print flex items-center justify-between gap-3 border-b px-5 py-4',
+          borderSubtle
         )}
       >
-        {/* Top Step Indicator Header */}
-        <div
-          className={cn(
-            'no-print flex items-center justify-between gap-3 border-b px-5 py-4',
-            borderSubtle
-          )}
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <BoardLogo source={job.source} theme={theme} size="md" showLabel={false} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider">
-                <span className={step === 'prompt' ? '' : mutedText}>
-                  Step 1: Tailor Choice
-                </span>
-                <span className={mutedText}>→</span>
-                <span className={step === 'preview' ? '' : mutedText}>
-                  Step 2: A4 Resume &amp; Apply
-                </span>
-              </div>
-              <h2 className="truncate text-sm font-bold">
-                {job.title} — {job.company}
-              </h2>
+        <div className="flex min-w-0 items-center gap-3">
+          <BoardLogo source={job.source} theme={theme} size="md" showLabel={false} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <span className={step === 'prompt' ? 'font-semibold' : mutedText}>
+                1. Tailor Resume
+              </span>
+              <span className={mutedText}>→</span>
+              <span className={step === 'preview' ? 'font-semibold' : mutedText}>
+                2. Preview &amp; Apply
+              </span>
             </div>
+            <h2 id={titleId} className="truncate text-sm font-semibold">
+              {job.title} — {job.company}
+            </h2>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className={cn('rounded-xl border p-2', secondaryBtn)}
-            aria-label="Close application modal"
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6">
-          {step === 'prompt' ? (
-            <div className="space-y-5">
-              {/* Job Summary Card */}
-              <div className={cn('rounded-2xl border p-4 space-y-3', boxSurface)}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <BoardLogo source={job.source} theme={theme} size="md" />
-                  <span
-                    className={cn(
-                      'rounded-lg px-2.5 py-1 text-xs font-bold',
-                      primaryBtn
-                    )}
-                  >
-                    {job.matchScore}% Match
-                  </span>
-                </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className={cn('rounded-lg border p-2 transition-colors', secondaryBtn)}
+          aria-label="Close application modal"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
 
-                <div>
-                  <h3 className="text-lg font-bold">{job.title}</h3>
-                  <p className={cn('text-xs', mutedText)}>
-                    {job.company} • {job.location} • {job.postedAt}
-                  </p>
-                </div>
-
-                {/* Experience Needed Highlight */}
-                <div
+      {/* Modal Body */}
+      <div className="flex-1 overflow-y-auto p-5 sm:p-6 print:overflow-visible print:p-0">
+        {step === 'prompt' ? (
+          <div className="space-y-4">
+            {/* Job Summary */}
+            <div className={cn('rounded-lg border p-4 space-y-3', boxSurface)}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <BoardLogo source={job.source} theme={theme} size="md" />
+                <span
                   className={cn(
-                    'flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs',
-                    tokens.subSurface
+                    'rounded border px-2.5 py-0.5 font-mono text-xs font-medium tabular-nums',
+                    tokens.orangeBadge
                   )}
                 >
-                  <span className="inline-flex items-center gap-1.5 font-semibold">
-                    <Award className="h-4 w-4" />
-                    Experience Needed: {job.experienceRequired}
-                  </span>
-                  <span className="font-semibold">
-                    {job.experienceFit === 'fit'
-                      ? '✓ Applicable to your level'
-                      : job.experienceFit === 'stretch'
-                        ? '⚡ Slight stretch'
-                        : '⚠️ Senior experience requested'}
-                  </span>
-                </div>
-
-                {job.matchedSkills.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {job.matchedSkills.map((s) => (
-                      <span
-                        key={s}
-                        className={cn(
-                          'rounded-md border px-2 py-0.5 text-[11px] font-semibold',
-                          secondaryBtn
-                        )}
-                      >
-                        ✓ {s}
-                      </span>
-                    ))}
-                  </div>
-                )}
+                  {job.matchScore}% Match
+                </span>
               </div>
 
-              {/* Tailor Question */}
-              <div className={cn('rounded-2xl border p-5 space-y-4', boxSurface)}>
-                <div className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
-                      primaryBtn
-                    )}
-                  >
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-base font-bold">
-                      Do you want to fix &amp; tailor your A4 Resume for this job before applying?
-                    </h4>
-                    <p className={cn('mt-1 text-xs leading-relaxed', mutedText)}>
-                      We will emphasize your matching projects (e.g., LUXASIA, Phoenix Petroleum, Denso Ten, LEAP AURA, FOVB-AIoT) and skills from{' '}
-                      <strong>{profile.name}</strong>&apos;s Career Journey to fit{' '}
-                      <strong>{job.title}</strong> at <strong>{job.company}</strong>.
-                    </p>
-                  </div>
-                </div>
+              <div>
+                <h3 className="text-base font-semibold">{job.title}</h3>
+                <p className={cn('text-xs', mutedText)}>
+                  {job.company} • {job.location} • {job.postedAt}
+                </p>
+              </div>
 
-                {error && (
-                  <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
-                    {error}
-                  </p>
+              <div
+                className={cn(
+                  'flex flex-wrap items-center justify-between gap-2 border-t pt-2.5 text-xs',
+                  borderSubtle
                 )}
+              >
+                <span className="font-medium">
+                  Experience required: {job.experienceRequired}
+                </span>
+                <span className="font-medium">
+                  {job.experienceFit === 'fit'
+                    ? '✓ Applicable to your level'
+                    : job.experienceFit === 'stretch'
+                      ? 'Slight stretch'
+                      : 'Senior experience requested'}
+                </span>
+              </div>
 
-                <div className="flex flex-col gap-2.5 sm:flex-row">
-                  <button
-                    type="button"
-                    disabled={tailoring}
-                    onClick={() => void handleTailorForJob()}
-                    className={cn(
-                      'inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-bold transition disabled:opacity-60',
-                      primaryBtn
-                    )}
-                  >
+              {job.matchedSkills.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {job.matchedSkills.map((s) => (
+                    <span
+                      key={s}
+                      className={cn(
+                        'rounded border px-2 py-0.5 text-[11px] font-medium',
+                        secondaryBtn
+                      )}
+                    >
+                      ✓ {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tailor Decision */}
+            <div className="space-y-3 pt-1">
+              <div>
+                <h4 className="text-sm font-semibold">
+                  Tailor your resume in Resume Studio (AI) before applying?
+                </h4>
+                <p className={cn('mt-1 text-xs leading-relaxed', mutedText)}>
+                  Reorders relevant experience and projects from{' '}
+                  <strong className="font-semibold">{profile.name}</strong>&apos;s
+                  profile using your personal AI key to highlight requirements for{' '}
+                  <strong className="font-semibold">{job.title}</strong> at{' '}
+                  <strong className="font-semibold">{job.company}</strong> (defaults to A4, resizable in Studio).
+                </p>
+              </div>
+
+              {error && (
+                <p
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-xs',
+                    tokens.isDark
+                      ? 'border-red-500/40 bg-red-950/50 text-red-300'
+                      : 'border-red-300 bg-red-50 text-red-700'
+                  )}
+                >
+                  {error}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-2.5 sm:flex-row">
+                <button
+                  type="button"
+                  autoFocus
+                  disabled={tailoring}
+                  onClick={() => void handleTailorForJob()}
+                  className={cn(
+                    'inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-xs transition-colors disabled:opacity-60',
+                    primaryBtn
+                  )}
+                >
                     {tailoring ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Tailoring A4 Resume for {job.company}...
+                        Tailoring Resume for {job.company}...
                       </>
                     ) : (
                       <>
-                        <Wand2 className="h-4 w-4" />
-                        Yes, Tailor My A4 Resume (Step 2)
+                        Tailor in Resume Studio (AI)
                         <ArrowRight className="h-4 w-4" />
                       </>
                     )}
@@ -264,7 +257,7 @@ export function ApplyFlowModal({
                     type="button"
                     onClick={handleApplyAndMark}
                     className={cn(
-                      'inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-xs font-semibold transition',
+                      'inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-xs font-medium transition-colors',
                       secondaryBtn
                     )}
                   >
@@ -279,7 +272,7 @@ export function ApplyFlowModal({
               {/* Step 2 Action Bar */}
               <div
                 className={cn(
-                  'no-print flex flex-wrap items-center justify-between gap-2 rounded-2xl border p-3.5',
+                  'no-print flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3',
                   boxSurface
                 )}
               >
@@ -287,7 +280,7 @@ export function ApplyFlowModal({
                   type="button"
                   onClick={() => setStep('prompt')}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold',
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
                     secondaryBtn
                   )}
                 >
@@ -300,19 +293,19 @@ export function ApplyFlowModal({
                     type="button"
                     onClick={() => window.print()}
                     className={cn(
-                      'inline-flex items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold',
+                      'inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium',
                       secondaryBtn
                     )}
                   >
                     <Printer className="h-3.5 w-3.5" />
-                    Print / Save A4 PDF
+                    Print / Save PDF
                   </button>
 
                   <button
                     type="button"
                     onClick={handleApplyAndMark}
                     className={cn(
-                      'inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold',
+                      'inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs',
                       primaryBtn
                     )}
                   >
@@ -329,6 +322,7 @@ export function ApplyFlowModal({
                 activeTailorJob={job}
                 theme={theme}
                 geminiApiKey={geminiApiKey}
+                personalApiConfigured={personalApiConfigured}
                 tailoring={tailoring}
                 onUpdateGeminiKey={onUpdateGeminiKey}
                 onTailorResume={() => void handleTailorForJob()}
@@ -337,8 +331,103 @@ export function ApplyFlowModal({
               />
             </div>
           )}
-        </div>
       </div>
     </div>
+  );
+}
+
+export function ApplyFlowModal({
+  job,
+  profile,
+  theme,
+  geminiApiKey,
+  personalApiConfigured = true,
+  onClose,
+  onMarkApplied,
+  onUpdateGeminiKey,
+}: ApplyFlowModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const tokens = getThemeTokens(theme);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    if (job && !dialog.open) {
+      dialog.showModal();
+    } else if (!job && dialog.open) {
+      dialog.close();
+    }
+  }, [job]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+
+    const handleNativeClose = () => {
+      dialog.returnValue = '';
+      onClose();
+    };
+    dialog.addEventListener('close', handleNativeClose);
+
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      const outside = (e: PointerEvent) => {
+        const r = dialog.getBoundingClientRect();
+        return (
+          e.clientX < r.left ||
+          e.clientX > r.right ||
+          e.clientY < r.top ||
+          e.clientY > r.bottom
+        );
+      };
+      let pressedOutside = false;
+      const onPointerDown = (e: PointerEvent) => {
+        pressedOutside = outside(e);
+      };
+      const onPointerUp = (e: PointerEvent) => {
+        if (pressedOutside && outside(e)) {
+          dialog.close();
+        }
+      };
+      dialog.addEventListener('pointerdown', onPointerDown);
+      dialog.addEventListener('pointerup', onPointerUp);
+      return () => {
+        dialog.removeEventListener('close', handleNativeClose);
+        dialog.removeEventListener('pointerdown', onPointerDown);
+        dialog.removeEventListener('pointerup', onPointerUp);
+      };
+    }
+
+    return () => {
+      dialog.removeEventListener('close', handleNativeClose);
+    };
+  }, [onClose]);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby={titleId}
+      {...({ closedby: 'any' } as Record<string, string>)}
+      className={cn(
+        'm-auto max-w-[94vw] rounded-xl border p-0 shadow-xl',
+        tokens.cardSurface
+      )}
+    >
+      {job && (
+        <ApplyFlowContent
+          key={job.id}
+          job={job}
+          profile={profile}
+          theme={theme}
+          geminiApiKey={geminiApiKey}
+          personalApiConfigured={personalApiConfigured}
+          titleId={titleId}
+          onClose={() => dialogRef.current?.close()}
+          onMarkApplied={onMarkApplied}
+          onUpdateGeminiKey={onUpdateGeminiKey}
+        />
+      )}
+    </dialog>
   );
 }

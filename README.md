@@ -1,45 +1,47 @@
 # Pa-Hire Po
 
-> *Your friendly multi-board job finder & live A4 resume tailor across LinkedIn, JobStreet, and Indeed.*
+> *Minimalist multi-board job finder & AI-powered dynamic Resume Studio across LinkedIn, JobStreet, and Indeed.*
 
-**Pa-Hire Po** (`pa-hire-po`) is a dual **Web App + Electron Desktop App** in a **3-color Black, White & Orange (`#f97316`)** studio UI for automated job discovery, live job market analytics, LinkedIn-style multi-user profile management, and per-job **A4 HTML Resume** tailoring — built with Next.js 16, TypeScript, Tailwind CSS v4, and an optional Electron desktop shell.
+**Pa-Hire Po** (`pa-hire-po`) is a hybrid **Web App + Electron Desktop App** built with a **Civic Career Utility** UI (LinkedIn × JobStreet Light Civic default + Dark Slate mode) for multi-board job discovery, market analytics, LinkedIn-style profile sync, and personal-AI resume tailoring in **Resume Studio (`AI`)** — powered by Next.js 16, TypeScript, Tailwind CSS v4, and optional Electron.
 
 ---
 
 ## Key Features
 
-### 0. Landing Page & 3-Color Theme Studio (`Home` / `/`)
-- **Official Pa-Hire Po Branding**: Uses `/pa-hire-po-logo.jpg` across the favicon, navbar brand emblem, Electron desktop window icon, and hero studio showcase.
-- **3-Color UI Variant Switcher**: Switch anytime between **Black (Dark)**, **White (Light)**, and **Orange Studio**, accented throughout with signature `#f97316` CTAs, match rings, and rank badges.
-- **Live Workspace Snapshot & Quick Launchers**: Jump directly into filtered **JobStreet**, **LinkedIn**, or **Indeed** feeds or open the **Desktop App** command guide.
+### 0. Civic Career Utility UI & Workspace Overview (`Home` / `/`)
+- **Anti-AI-Slop Utilitarian Craft**: Light Civic default (`#F3F2EF` canvas, `#FFFFFF` panels, `#0A66C2` civic blue accents, `3px` active left border) and Dark Slate (`#0B0F17` / `#111827`), paired with `Plus Jakarta Sans`, `Source Sans 3`, and `JetBrains Mono` (`tabular-nums`).
+- **Official Pa-Hire Po Branding**: Displays `/pa-hire-po-logo.jpg` and `/favicon.ico` across the navbar, workspace overview, and Electron desktop window icon.
+- **Quick Launchers**: Direct board shortcuts for **JobStreet**, **LinkedIn**, and **Indeed**, quick access to **Resume Studio (`AI`)**, and copy-ready Electron CLI commands.
 
 ### 1. Live Multi-Board Job Finder (`Find Jobs` / `/jobs`)
-- **3-Board Concurrent Scraper Engine**: Searches **LinkedIn** (Guest API + `cheerio` + `ts-jobspy`), **JobStreet** (v5 JSON API across `PH-Main`, `MY-Main`, `SG-Main`, `ID-Main`), and **Indeed** (`ts-jobspy`) with official SVG board logos and direct search fallbacks if a board rate-limits.
-- **5-Second Live Auto-Refresh + Manual Scan**: Toggle `Off`, `5s Live`, `15s`, or `30s` non-overlapping live polling alongside manual **Find Jobs Now**.
-- **Top 3 Applicable Choices Spotlight**: Surfaces `#1 Choice`, `#2 Choice`, and `#3 Choice` tailored to your active user profile and experience level.
-- **Experience Needed Emphasis**: Extracts years/seniority (`Open / Not Specified`, `1–3 yrs experience`, `5+ yrs`, etc.) and classifies each posting as `fit`, `stretch`, or `senior-warning`.
-- **JobStreet-Inspired 2-Column Explorer**: Master job list on the left, sticky full job details pane on the right with `28–98%` match scoring, skill match/gap pills, and tailoring tips.
+- **3-Board Concurrent Scraper Engine**: Searches **LinkedIn** (Guest API + `cheerio` + `ts-jobspy`), **JobStreet** (v5 JSON API across `PH-Main`, `MY-Main`, `SG-Main`, `ID-Main`), and **Indeed** (`ts-jobspy`) with authentic SVG board logos and safe search fallbacks.
+- **5-Second Live Auto-Refresh + Manual Scan**: Toggle `Off`, `5s Live`, `15s`, or `30s` non-overlapping live polling alongside manual **Find Jobs**.
+- **Recommended Top 3 Strip**: Surfaces top 3 applicable listings for your active profile and experience level without noisy marketing banners.
+- **2-Column Master-Detail Explorer**: Left job feed (`border-l-[3px]` selection indicator, `✓` high-match pills) paired with a clean single-surface job detail inspector (`JobDetailPane`) and semantic `MatchScoreRing`.
 
-### 2. Job Market Analytics & Auto-Apply Co-Pilot (`Analytics` / `/analytics`)
-- **Jobs Per Board Breakdown**: Exact counts, market share %, average match score, and top-scoring listing for **JobStreet**, **LinkedIn**, and **Indeed**.
-- **Experience & Work Setup Insights**: Distribution across Entry/Applicable vs Stretch vs Senior roles, plus `Remote`, `Hybrid`, `Onsite`, and role demand rankings.
-- **Top 12 Requested Skills**: Compare live job requirements against your resume skills with 1-click `+ Add Skill` rescoring.
-- **Auto-Apply Co-Pilot & Queue**: Save per-user screening answers (expected salary, notice period, work authorization), queue jobs (`Queue Top 3 Applicable Choices`), and prepare for Electron BrowserView assisted submission.
+### 2. Job Market Analytics & Application Queue (`Analytics` / `/analytics`)
+- **Board & Experience Breakdowns**: Exact counts, market share bars, average match score (`font-mono tabular-nums`), experience fit tiers (`fit`, `stretch`, `senior-warning`), and work setup distribution.
+- **Top 12 Requested Skills**: Compare live job requirements against your resume with 1-click `+ Add Skill` profile rescoring.
+- **Saved Screening Answers & Queue**: Store expected salary, notice period, and work authorization per user and queue jobs cleanly (`Queue Top 3 Matches`).
 
-### 3. LinkedIn Profile & Step-by-Step A4 HTML Resume Studio (`My Profile` & `A4 Resume`)
-- **2-Way Synced LinkedIn-Style Profile**: Add/edit Experience, Projects, Licenses & Certifications, Education, Skills, and Career Journey — synced automatically to your A4 resume sheet and job scorer.
-- **Step-by-Step Apply Flow**: Clicking **Apply for This Job (Tailor A4 Resume)** prompts whether to customize your `210mm × 297mm` print-ready A4 resume for that specific job (`tailorResumeLocally` or optional **Gemini 2.5 Flash** via `GEMINI_API_KEY`) before opening the board link.
+### 3. LinkedIn Profile & Dynamic `Resume Studio` (`AI`) (`My Profile` & `Resume Studio [AI]`)
+- **2-Way Synced LinkedIn-Style Profile**: Add/edit Experience, Projects, Certifications, Education, Skills, and Career Journey — synced automatically to **Resume Studio (`AI`)** and the job scorer.
+- **Dynamic Resume Page Size (Default A4)**: Preview and export **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, or **Dynamic Auto-Fit**, with `Compact` / `Standard` / `Comfortable` density controls and synchronized `@page` print CSS.
+- **Personal Gemini AI Integration**: Automatically uses your personal server-side `GEMINI_API_KEY` from `.env` (`gemini-3.1-flash-lite` primary model with `gemini-flash-lite-latest` and deterministic local Smart Career Journey fallback), displaying a **Personal AI Active** status badge across the workspace.
+- **Native Top-Layer `<dialog>` Application Flow**: Semantic `<dialog>` workflow (`showModal()`, `closedby="any"` + backdrop light-dismiss) lets you tailor your resume before opening the job link and marking it applied.
 
 ---
 
 ## Project Architecture
 
 ```text
-├── public/                      # Static assets including official pa-hire-po-logo.jpg
-├── electron/                    # Optional Electron Desktop shell (main.cjs, preload.cjs, launch-dev.cjs, open-desktop.cjs)
+├── AGENTS.md                    # Next.js 16 rules + Anti-AI-Slop UI design guardrails
+├── context.md                   # Complete feature & UI architecture reference
+├── public/                      # Official pa-hire-po-logo.jpg & favicon assets
+├── electron/                    # Optional Electron Desktop shell (main.cjs, preload.cjs, open-desktop.cjs)
 ├── open-desktop.bat             # Windows 1-click desktop launcher
 ├── src/
-│   ├── app/                     # Next.js App Router pages (/, /jobs, /analytics) & API routes (/api/*)
+│   ├── app/                     # Next.js 16 App Router pages (/, /jobs, /analytics) & API routes (/api/*)
 │   ├── components/
 │   │   ├── LandingPageView.tsx
 │   │   ├── PleaseHireMeDashboard.tsx
@@ -49,28 +51,29 @@
 │   │   ├── auto-apply/          # AutoApplyBlueprintPanel.tsx & types.ts
 │   │   ├── jobs/                # TopChoicesSpotlight, JobDetailPane, ApplyFlowModal, HowItWorksModal
 │   │   ├── profile/             # LinkedInProfileView.tsx
-│   │   └── resume/              # A4ResumePreview.tsx, resume-analyzer.ts, resume-tailor.ts
+│   │   └── resume/              # A4ResumePreview.tsx (Resume Studio AI), resume-analyzer.ts, resume-tailor.ts
 │   ├── server/scrapers/         # linkedin.ts, jobstreet.ts, indeed.ts
 │   ├── lib/                     # default-profile.ts, storage.ts, theme.ts, utils.ts
-│   └── types/                   # Shared TypeScript interfaces
+│   └── types/                   # Shared TypeScript interfaces (ResumePageSize, ResumeDensity, etc.)
 ```
 
 ---
 
-## Local Development (Web + Desktop)
+## Local Development & Personal API Setup
 
 ### 1. Run the Web App
 ```bash
 npm install
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) (Landing Page), [http://localhost:3000/jobs](http://localhost:3000/jobs), or [http://localhost:3000/analytics](http://localhost:3000/analytics).
+Open [http://localhost:3000](http://localhost:3000), [http://localhost:3000/jobs](http://localhost:3000/jobs), or [http://localhost:3000/analytics](http://localhost:3000/analytics).
 
-### 2. Optional AI Resume Tailoring (`.env`)
-Create a `.env` file in the repository root (ignored by git via `.gitignore`) to enable Gemini 2.5 Flash tailoring alongside the local Smart Engine:
+### 2. Personal Gemini API Tailoring (`.env` / Vercel Env Var)
+Set your personal `GEMINI_API_KEY` in `.env` locally (gitignored) and in your Vercel Project Environment Variables for hosted deployments:
 ```env
-GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=your_personal_gemini_api_key
 ```
+`POST /api/resume/tailor` uses your personal `.env` key automatically (`gemini-3.1-flash-lite`) without requiring you to re-enter it in the browser.
 
 ### 3. Open the Electron Desktop App
 ```bash
@@ -81,13 +84,13 @@ npm run desktop:live      # Launches Electron connected directly to https://pa-h
 
 ---
 
-## Git Workflow & Deploying to Vercel
+## Verification & Deploying to Vercel
 
-- Keep `main` clean for production-ready releases (import this GitHub repo into **Vercel** so pushes to `main` deploy automatically).
-- For upcoming features (such as Electron BrowserView Auto-Apply Phase 2), create a feature branch before merging to `main`:
-  ```bash
-  git checkout -b feat/your-feature-name
-  # develop & verify locally (npm run lint && npm run build)
-  git push -u origin feat/your-feature-name
-  # open a PR / merge into main when ready
-  ```
+```bash
+npm run lint
+npm run build
+git add -A
+git commit -m "feat: dynamic Resume Studio AI, personal Gemini API, and anti-slop UI rules"
+git push origin main
+```
+Pushes to `main` on `https://github.com/kevs0444/PleaseHireMe.git` trigger automatic production deployments on Vercel.

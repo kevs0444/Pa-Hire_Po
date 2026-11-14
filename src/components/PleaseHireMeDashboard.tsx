@@ -4,24 +4,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   Activity,
-  Award,
   BarChart3,
   Briefcase,
   Compass,
   FileText,
   Filter,
-  Flame,
   HelpCircle,
   Home,
   Moon,
   RefreshCw,
   Search,
-  Sparkles,
   Sun,
   Trash2,
   UserCheck,
   UserCircle2,
-  Wallet,
 } from 'lucide-react';
 import {
   AppStoreState,
@@ -111,6 +107,7 @@ export function PleaseHireMeDashboard({
   const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [store, setStore] = useState<AppStoreState>(getDefaultStoreState);
   const [storageMode, setStorageMode] = useState<string>('browser-only');
+  const [personalApiConfigured, setPersonalApiConfigured] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
 
   const [enabledSources, setEnabledSources] = useState<JobSource[]>([
@@ -318,6 +315,7 @@ export function PleaseHireMeDashboard({
         )
       );
       setStorageMode(server.storageMode);
+      setPersonalApiConfigured(server.personalApiConfigured);
       const chosen =
         server.state && server.state.jobs.length >= local.jobs.length
           ? server.state
@@ -459,6 +457,7 @@ export function PleaseHireMeDashboard({
   ) => {
     setTailoring(true);
     try {
+      const currentResume = tailoredResume || activeProfile.structuredResume;
       const res = await fetch('/api/resume/tailor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -467,11 +466,17 @@ export function PleaseHireMeDashboard({
           targetJob,
           targetRole: targetRole || activeProfile.primaryRole,
           geminiApiKey: store.geminiApiKey || '',
+          pageSize: currentResume.pageSize || 'a4',
         }),
       });
       const data = await res.json();
       if (res.ok && data.resume) {
-        setTailoredResume(data.resume as StructuredResume);
+        const nextTailored = data.resume as StructuredResume;
+        setTailoredResume({
+          ...nextTailored,
+          pageSize: currentResume.pageSize || nextTailored.pageSize || 'a4',
+          density: currentResume.density || nextTailored.density || 'standard',
+        });
       }
     } finally {
       setTailoring(false);
@@ -558,8 +563,9 @@ export function PleaseHireMeDashboard({
     [store.jobs]
   );
 
-  // 3-Color Theme Tokens (Black / White / Orange #f97316)
+  // Civic Career Utility theme tokens (Light / Dark Slate)
   const {
+    isDark,
     pageBg,
     navBg,
     cardSurface,
@@ -567,75 +573,81 @@ export function PleaseHireMeDashboard({
     inputSurface,
     primaryBtn,
     secondaryBtn,
-    orangeBadge,
     selectedCard,
     mutedText,
+    strongText,
     navTrack,
     borderSubtle,
   } = getThemeTokens(theme);
 
+  useEffect(() => {
+    document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+  }, [isDark]);
+
+  const activeNavTabClass = isDark
+    ? 'border-b-2 border-blue-400 text-blue-400 font-semibold'
+    : 'border-b-2 border-[#0a66c2] text-[#0a66c2] font-semibold';
+
+  const inactiveNavTabClass = cn(
+    'border-b-2 border-transparent font-medium transition-colors',
+    mutedText,
+    isDark ? 'hover:text-slate-100' : 'hover:text-slate-900'
+  );
+
   return (
-    <div className={cn('min-h-screen transition-colors', pageBg)}>
+    <div
+      className={cn('min-h-screen transition-colors', pageBg)}
+      style={{ colorScheme: isDark ? 'dark' : 'light' }}
+    >
       {/* Top Navbar */}
-      <header className={cn('no-print sticky top-0 z-30 border-b backdrop-blur-md', navBg)}>
-        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+      <header className={cn('no-print sticky top-0 z-30 border-b', navBg)}>
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 sm:px-6">
           <button
             type="button"
             onClick={() => setActiveTab('home')}
-            className="flex items-center gap-3 text-left transition hover:opacity-90"
-            title="Go to Pa-Hire Po Landing Page"
+            className="flex items-center gap-2.5 py-2 text-left transition-opacity hover:opacity-85"
+            title="Go to Pa-Hire Po Overview"
           >
-            <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-orange-500/50 bg-white shadow-sm">
+            <div
+              className={cn(
+                'relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border bg-white shadow-xs',
+                borderSubtle
+              )}
+            >
               <Image
                 src="/pa-hire-po-logo.jpg"
                 alt="Pa-Hire Po Logo"
                 fill
-                sizes="40px"
+                sizes="36px"
                 className="object-cover"
                 priority
               />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-base font-extrabold tracking-tight">
-                  Pa-Hire <span className="text-orange-500">Po</span>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-base font-bold tracking-tight leading-none">
+                  Pa-Hire Po
                 </h1>
-                <span
-                  className={cn(
-                    'hidden sm:inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                    orangeBadge
-                  )}
-                >
-                  JobStreet × LinkedIn
-                </span>
-                <span
-                  className={cn(
-                    'hidden xl:inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
-                    secondaryBtn
-                  )}
-                >
-                  {isDesktopApp ? 'Electron Desktop' : 'Web + Desktop Ready'}
-                </span>
+                {isDesktopApp && (
+                  <span className="rounded-full border border-orange-500/30 bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-400">
+                    Desktop
+                  </span>
+                )}
               </div>
-              <p className={cn('hidden md:block text-[11px]', mutedText)}>
+              <p className={cn('hidden xl:block mt-0.5 text-[11px] leading-none', mutedText)}>
                 {activeProfile.name} • {activeProfile.primaryRole}
               </p>
             </div>
           </button>
 
           {/* Primary Navigation Tabs */}
-          <nav
-            className={cn(
-              'inline-flex flex-wrap rounded-xl border p-0.5',
-              navTrack
-            )}
-          >
+          <nav className="flex flex-wrap items-center gap-1 sm:gap-2" aria-label="Primary sections">
             <button
               type="button"
               onClick={() => setActiveTab('home')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                activeTab === 'home' ? primaryBtn : mutedText
+                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                activeTab === 'home' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
               <Home className="h-3.5 w-3.5" />
@@ -645,8 +657,8 @@ export function PleaseHireMeDashboard({
               type="button"
               onClick={() => setActiveTab('jobs')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                activeTab === 'jobs' ? primaryBtn : mutedText
+                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                activeTab === 'jobs' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
               <Briefcase className="h-3.5 w-3.5" />
@@ -656,14 +668,14 @@ export function PleaseHireMeDashboard({
               type="button"
               onClick={() => setActiveTab('analytics')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                activeTab === 'analytics' ? primaryBtn : mutedText
+                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                activeTab === 'analytics' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
               <BarChart3 className="h-3.5 w-3.5" />
               Analytics
               {hydrated && activeJobsCount > 0 && (
-                <span className="rounded px-1 text-[10px] font-extrabold opacity-80">
+                <span className="font-mono text-[11px] tabular-nums opacity-80">
                   ({activeJobsCount})
                 </span>
               )}
@@ -672,8 +684,8 @@ export function PleaseHireMeDashboard({
               type="button"
               onClick={() => setActiveTab('profile')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                activeTab === 'profile' ? primaryBtn : mutedText
+                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                activeTab === 'profile' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
               <UserCircle2 className="h-3.5 w-3.5" />
@@ -683,22 +695,32 @@ export function PleaseHireMeDashboard({
               type="button"
               onClick={() => setActiveTab('resume')}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition',
-                activeTab === 'resume' ? primaryBtn : mutedText
+                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                activeTab === 'resume' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
               <FileText className="h-3.5 w-3.5" />
-              A4 Resume
+              <span>Resume Studio</span>
+              <span
+                className={cn(
+                  'rounded border px-1 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
+                  isDark
+                    ? 'border-blue-500/35 bg-blue-500/15 text-blue-300'
+                    : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
+                )}
+              >
+                AI
+              </span>
             </button>
           </nav>
 
           {/* Utility Controls */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 py-2">
             <button
               type="button"
               onClick={() => setHowItWorksOpen(true)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs font-semibold',
+                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
                 secondaryBtn
               )}
             >
@@ -713,7 +735,7 @@ export function PleaseHireMeDashboard({
                 onChange={(e) => handleSelectUser(e.target.value)}
                 aria-label="Switch user profile"
                 className={cn(
-                  'rounded-xl border px-2.5 py-1.5 text-xs font-semibold focus:outline-none',
+                  'rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none',
                   inputSurface
                 )}
               >
@@ -725,21 +747,20 @@ export function PleaseHireMeDashboard({
               </select>
             </div>
 
-            {/* 3-Color Theme Variant Switcher (Dark | Light | Orange) */}
+            {/* Light / Dark Theme Switcher */}
             <div
-              className={cn('inline-flex items-center rounded-xl border p-0.5', navTrack)}
+              className={cn('inline-flex items-center rounded-lg border p-0.5', navTrack)}
               role="group"
-              aria-label="Theme color variant switcher"
+              aria-label="Color theme switcher"
             >
               {(
                 [
-                  { id: 'dark', label: 'Dark', icon: Moon, title: 'Black + Orange Theme' },
-                  { id: 'light', label: 'Light', icon: Sun, title: 'White + Orange Theme' },
-                  { id: 'orange', label: 'Orange', icon: Flame, title: 'Warm Orange Studio Theme' },
+                  { id: 'light', label: 'Light', icon: Sun, title: 'Light Mode' },
+                  { id: 'dark', label: 'Dark', icon: Moon, title: 'Dark Mode' },
                 ] as const
               ).map((opt) => {
                 const Icon = opt.icon;
-                const active = theme === opt.id;
+                const active = (theme === 'dark' ? 'dark' : 'light') === opt.id;
                 return (
                   <button
                     key={opt.id}
@@ -751,12 +772,12 @@ export function PleaseHireMeDashboard({
                       })
                     }
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition',
+                      'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
                       active ? primaryBtn : mutedText
                     )}
                     title={opt.title}
                   >
-                    <Icon className="h-3 w-3" />
+                    <Icon className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">{opt.label}</span>
                   </button>
                 );
@@ -766,8 +787,8 @@ export function PleaseHireMeDashboard({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6">
-        {/* TAB 0: WEB & DESKTOP APP LANDING PAGE */}
+      <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6">
+        {/* TAB 0: OVERVIEW */}
         {activeTab === 'home' && (
           <LandingPageView
             theme={theme}
@@ -793,14 +814,14 @@ export function PleaseHireMeDashboard({
 
         {/* TAB 1: JOBSTREET-INSPIRED FIND JOBS VIEW */}
         {activeTab === 'jobs' && (
-          <div className="no-print space-y-5">
-            {/* JobStreet-Style Search Banner */}
-            <section className={cn('space-y-3.5 rounded-3xl border p-4 sm:p-5', cardSurface)}>
-              <div className="grid gap-2.5 lg:grid-cols-12">
+          <div className="no-print space-y-4">
+            {/* Search Banner */}
+            <section className={cn('space-y-3 rounded-lg border p-4', cardSurface)}>
+              <div className="grid gap-3 lg:grid-cols-12">
                 {/* WHAT */}
                 <div className="lg:col-span-5">
-                  <label className={cn('mb-1 block text-[11px] font-bold uppercase tracking-wider', mutedText)}>
-                    What role are you looking for?
+                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                    Role or keyword
                   </label>
                   <div className="relative">
                     <Search className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
@@ -815,15 +836,15 @@ export function PleaseHireMeDashboard({
                         }
                       }}
                       placeholder="Data Analyst, BI Analyst, Junior Data Engineer..."
-                      className={cn('w-full rounded-xl border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
+                      className={cn('w-full rounded-lg border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
                     />
                   </div>
                 </div>
 
                 {/* WHERE */}
                 <div className="lg:col-span-4">
-                  <label className={cn('mb-1 block text-[11px] font-bold uppercase tracking-wider', mutedText)}>
-                    Where
+                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                    Location
                   </label>
                   <div className="flex gap-2">
                     <select
@@ -836,7 +857,7 @@ export function PleaseHireMeDashboard({
                           location: COUNTRY_CONFIGS[code].defaultLocation,
                         });
                       }}
-                      className={cn('rounded-xl border px-2.5 py-2 text-xs font-medium focus:outline-none', inputSurface)}
+                      className={cn('rounded-lg border px-2.5 py-2 text-xs font-medium focus:outline-none', inputSurface)}
                     >
                       {Object.values(COUNTRY_CONFIGS).map((c) => (
                         <option key={c.code} value={c.code}>
@@ -854,12 +875,12 @@ export function PleaseHireMeDashboard({
                         })
                       }
                       placeholder="Taguig City, Metro Manila"
-                      className={cn('min-w-0 flex-1 rounded-xl border px-3 py-2 text-xs focus:outline-none', inputSurface)}
+                      className={cn('min-w-0 flex-1 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputSurface)}
                     />
                   </div>
                 </div>
 
-                {/* MANUAL + 5s AUTO-REFRESH CONTROLS */}
+                {/* MANUAL + AUTO-REFRESH CONTROLS */}
                 <div className="flex flex-col justify-end lg:col-span-3">
                   <div className="flex gap-2">
                     <button
@@ -867,15 +888,15 @@ export function PleaseHireMeDashboard({
                       disabled={scanning}
                       onClick={() => handleApplyPrimaryRole(roleDraft, true)}
                       className={cn(
-                        'inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold transition disabled:opacity-60',
+                        'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors disabled:opacity-60',
                         primaryBtn
                       )}
                     >
                       <RefreshCw className={cn('h-3.5 w-3.5', scanning && 'animate-spin')} />
-                      {scanning ? 'Finding...' : 'Find Jobs Now'}
+                      {scanning ? 'Finding...' : 'Find Jobs'}
                     </button>
 
-                    <div className={cn('inline-flex items-center rounded-xl border p-0.5', subSurface)}>
+                    <div className={cn('inline-flex items-center rounded-lg border p-0.5', subSurface)}>
                       {REFRESH_OPTIONS.map((opt) => {
                         const active = autoRefreshSeconds === opt.seconds;
                         return (
@@ -887,7 +908,7 @@ export function PleaseHireMeDashboard({
                               setCountdown(opt.seconds || 5);
                             }}
                             className={cn(
-                              'rounded-lg px-2 py-1.5 text-[10px] font-bold transition',
+                              'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
                               active ? primaryBtn : mutedText
                             )}
                             title={
@@ -910,8 +931,8 @@ export function PleaseHireMeDashboard({
               {/* Desired Role Quick Chips + Board Logo Statuses */}
               <div className={cn('flex flex-col gap-3 border-t pt-3 lg:flex-row lg:items-center lg:justify-between', borderSubtle)}>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={cn('mr-1 text-[11px] font-bold uppercase tracking-wider', mutedText)}>
-                    Your Role Choices:
+                  <span className={cn('mr-1 text-xs font-medium', mutedText)}>
+                    Target roles:
                   </span>
                   {activeProfile.preferredRoles.map((role) => {
                     const isCurrent =
@@ -922,7 +943,7 @@ export function PleaseHireMeDashboard({
                         type="button"
                         onClick={() => handleApplyPrimaryRole(role, true)}
                         className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-semibold transition',
+                          'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                           isCurrent ? primaryBtn : secondaryBtn
                         )}
                       >
@@ -931,7 +952,7 @@ export function PleaseHireMeDashboard({
                     );
                   })}
 
-                  <label className={cn('ml-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px]', mutedText)}>
+                  <label className={cn('ml-2 inline-flex cursor-pointer items-center gap-1.5 text-xs', mutedText)}>
                     <input
                       type="checkbox"
                       checked={activeProfile.autoPivotRoles}
@@ -941,9 +962,9 @@ export function PleaseHireMeDashboard({
                           autoPivotRoles: e.target.checked,
                         })
                       }
-                      className="h-3.5 w-3.5 accent-orange-500"
+                      className="h-3.5 w-3.5"
                     />
-                    Pivot Mode
+                    <span>Pivot Mode</span>
                   </label>
                 </div>
 
@@ -958,8 +979,8 @@ export function PleaseHireMeDashboard({
                         type="button"
                         onClick={() => toggleSource(board)}
                         className={cn(
-                          'inline-flex items-center gap-2 rounded-xl border px-2.5 py-1 text-xs transition',
-                          enabled ? secondaryBtn : 'border-neutral-800 opacity-45'
+                          'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs transition-opacity',
+                          enabled ? secondaryBtn : 'border-slate-300 opacity-50'
                         )}
                         title="Toggle searching this board"
                       >
@@ -967,8 +988,12 @@ export function PleaseHireMeDashboard({
                         {meta && (
                           <span
                             className={cn(
-                              'rounded px-1.5 py-0.5 text-[10px] font-bold',
-                              meta.status === 'live' ? primaryBtn : subSurface
+                              'rounded px-1.5 py-0.5 font-mono text-[11px] font-medium',
+                              meta.status === 'live'
+                                ? isDark
+                                  ? 'bg-emerald-950/60 text-emerald-300'
+                                  : 'bg-emerald-50 text-emerald-800'
+                                : subSurface
                             )}
                           >
                             {meta.count} {meta.status}
@@ -981,7 +1006,7 @@ export function PleaseHireMeDashboard({
               </div>
 
               {(lastSearchedRoles.length > 0 || autoRefreshSeconds > 0) && (
-                <div className={cn('flex flex-wrap items-center justify-between gap-2 text-[11px]', mutedText)}>
+                <div className={cn('flex flex-wrap items-center justify-between gap-2 text-xs', mutedText)}>
                   <span className="inline-flex items-center gap-1.5">
                     <Activity className="h-3.5 w-3.5" />
                     Last queried:{' '}
@@ -989,27 +1014,35 @@ export function PleaseHireMeDashboard({
                       .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
                       .join(' • ')}
                     {autoRefreshSeconds > 0 && (
-                      <strong className="ml-2">
+                      <strong className="ml-2 font-semibold">
                         • Auto-refreshing every {autoRefreshSeconds}s (next in {countdown}s)
                       </strong>
                     )}
                   </span>
                   {store.lastScannedAt && hydrated && (
                     <span>
-                      Updated {new Date(store.lastScannedAt).toLocaleTimeString()} • {storageMode === 'local-file' ? 'Local + Browser' : 'Browser'}
+                      Updated {new Date(store.lastScannedAt).toLocaleTimeString()} •{' '}
+                      {storageMode === 'local-file' ? 'Local + Browser' : 'Browser'}
                     </span>
                   )}
                 </div>
               )}
 
               {scanError && (
-                <p className="rounded-xl border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+                <p
+                  className={cn(
+                    'rounded-lg border px-3 py-2 text-xs font-medium',
+                    isDark
+                      ? 'border-red-500/40 bg-red-950/50 text-red-300'
+                      : 'border-red-300 bg-red-50 text-red-700'
+                  )}
+                >
                   {scanError}
                 </p>
               )}
             </section>
 
-            {/* TOP 3 APPLICABLE CHOICES SPOTLIGHT */}
+            {/* RECOMMENDED TOP 3 */}
             <TopChoicesSpotlight
               choices={top3Choices}
               selectedJobId={selectedJob?.id || null}
@@ -1023,7 +1056,7 @@ export function PleaseHireMeDashboard({
             />
 
             {/* FILTER BAR */}
-            <section className={cn('flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border p-3', cardSurface)}>
+            <section className={cn('flex flex-wrap items-center justify-between gap-2.5 rounded-lg border px-3 py-2.5', cardSurface)}>
               <div className="flex flex-wrap items-center gap-1.5">
                 {(
                   [
@@ -1038,7 +1071,7 @@ export function PleaseHireMeDashboard({
                     type="button"
                     onClick={() => setStatusFilter(t.key)}
                     className={cn(
-                      'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                       statusFilter === t.key ? primaryBtn : secondaryBtn
                     )}
                   >
@@ -1046,13 +1079,13 @@ export function PleaseHireMeDashboard({
                   </button>
                 ))}
 
-                <div className="mx-1 h-4 w-px bg-neutral-700/40" />
+                <div className={cn('mx-1 h-4 w-px', isDark ? 'bg-slate-700' : 'bg-slate-300')} />
 
                 <button
                   type="button"
                   onClick={() => setSourceFilter('all')}
                   className={cn(
-                    'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                     sourceFilter === 'all' ? primaryBtn : secondaryBtn
                   )}
                 >
@@ -1064,7 +1097,7 @@ export function PleaseHireMeDashboard({
                     type="button"
                     onClick={() => setSourceFilter(src)}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                      'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                       sourceFilter === src ? primaryBtn : secondaryBtn
                     )}
                   >
@@ -1078,13 +1111,13 @@ export function PleaseHireMeDashboard({
                     setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
                   }
                   className={cn(
-                    'rounded-lg border px-2.5 py-1 text-xs font-semibold',
+                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                     fitFilter === 'applicable' ? primaryBtn : secondaryBtn
                   )}
                 >
                   {fitFilter === 'applicable'
                     ? '✓ Applicable Exp Only'
-                    : 'Filter: Entry/Applicable Exp'}
+                    : 'Entry / Applicable Exp'}
                 </button>
               </div>
 
@@ -1096,13 +1129,13 @@ export function PleaseHireMeDashboard({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter results..."
-                    className={cn('w-44 rounded-xl border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
+                    className={cn('w-44 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
                   />
                 </div>
 
                 <label className={cn('flex items-center gap-1.5 text-xs', mutedText)}>
                   <Filter className="h-3.5 w-3.5" />
-                  <span>Min {minScore}%</span>
+                  <span className="font-mono text-[11px] tabular-nums">Min {minScore}%</span>
                   <input
                     type="range"
                     min={0}
@@ -1110,7 +1143,7 @@ export function PleaseHireMeDashboard({
                     step={5}
                     value={minScore}
                     onChange={(e) => setMinScore(Number(e.target.value))}
-                    className="w-20 accent-orange-500"
+                    className="w-20"
                   />
                 </label>
 
@@ -1123,7 +1156,7 @@ export function PleaseHireMeDashboard({
                       );
                       persistStore({ ...store, jobs: kept });
                     }}
-                    className={cn('inline-flex items-center gap-1 rounded-xl border px-2.5 py-1.5 text-xs', secondaryBtn)}
+                    className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     Clear
@@ -1135,40 +1168,53 @@ export function PleaseHireMeDashboard({
             {/* JOBSTREET 2-COLUMN MASTER-DETAIL EXPLORER */}
             <section className="grid items-start gap-5 lg:grid-cols-12">
               {/* LEFT COLUMN: JOB LIST */}
-              <div className="space-y-2.5 lg:col-span-5">
+              <div className="space-y-2 lg:col-span-5">
                 {scanning && store.jobs.length === 0 ? (
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     {[1, 2, 3, 4].map((n) => (
                       <div
                         key={n}
-                        className={cn('h-32 animate-pulse rounded-2xl border p-4', cardSurface)}
+                        className={cn('h-28 animate-pulse rounded-lg border p-4', cardSurface)}
                       />
                     ))}
                   </div>
                 ) : filteredJobs.length === 0 ? (
-                  <div className={cn('space-y-3 rounded-2xl border border-dashed p-10 text-center', cardSurface)}>
-                    <Sparkles className="mx-auto h-7 w-7" />
-                    <p className="text-sm font-bold">No matching jobs yet</p>
+                  <div className={cn('space-y-3 rounded-lg border border-dashed p-10 text-center', cardSurface)}>
+                    <Briefcase className={cn('mx-auto h-7 w-7', mutedText)} />
+                    <p className="text-sm font-semibold">No matching jobs yet</p>
                     <p className={cn('text-xs', mutedText)}>
-                      Click &ldquo;Find Jobs Now&rdquo; to scrape LinkedIn, JobStreet, and Indeed.
+                      Click &ldquo;Find Jobs&rdquo; to search LinkedIn, JobStreet, and Indeed.
                     </p>
                     <button
                       type="button"
                       onClick={() => void runJobScan()}
-                      className={cn('rounded-xl px-4 py-2 text-xs font-bold', primaryBtn)}
+                      className={cn('rounded-lg px-4 py-2 text-xs', primaryBtn)}
                     >
-                      Find Jobs Now
+                      Find Jobs
                     </button>
                   </div>
                 ) : (
                   filteredJobs.map((job) => {
                     const isSelected = selectedJob?.id === job.id;
+                    const matchBadgeTone =
+                      job.matchScore >= 75
+                        ? isDark
+                          ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : job.matchScore >= 55
+                          ? isDark
+                            ? 'border-blue-700/70 bg-blue-950/60 text-blue-300'
+                            : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
+                          : isDark
+                            ? 'border-slate-700 bg-slate-800 text-slate-300'
+                            : 'border-slate-200 bg-slate-100 text-slate-700';
+
                     return (
                       <article
                         key={job.id}
                         onClick={() => setSelectedJobId(job.id)}
                         className={cn(
-                          'cursor-pointer space-y-2.5 rounded-2xl border p-4 transition-all',
+                          'cursor-pointer space-y-2 rounded-lg border p-3.5 transition-colors',
                           isSelected ? selectedCard : cardSurface
                         )}
                       >
@@ -1176,62 +1222,68 @@ export function PleaseHireMeDashboard({
                           <div className="flex items-center gap-2">
                             <BoardLogo source={job.source} theme={theme} size="sm" />
                             {job.isPivotSuggestion && (
-                              <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold', secondaryBtn)}>
-                                <Compass className="h-2.5 w-2.5" />
+                              <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium', secondaryBtn)}>
+                                <Compass className="h-3 w-3" />
                                 Pivot
                               </span>
                             )}
                             {job.status === 'applied' && (
-                              <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold uppercase', primaryBtn)}>
+                              <span
+                                className={cn(
+                                  'rounded border px-1.5 py-0.5 text-[11px] font-semibold',
+                                  isDark
+                                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                )}
+                              >
                                 Applied
                               </span>
                             )}
                           </div>
-                          <span className={cn('rounded-md px-2 py-0.5 text-xs font-extrabold tabular-nums', primaryBtn)}>
-                            {job.matchScore}%
+                          <span className={cn('rounded border px-2 py-0.5 font-mono text-xs font-medium tabular-nums', matchBadgeTone)}>
+                            {job.matchScore >= 75 ? `✓ ${job.matchScore}%` : `${job.matchScore}%`}
                           </span>
                         </div>
 
                         <div>
-                          <h3 className="text-sm font-bold leading-snug">{job.title}</h3>
+                          <h3 className={cn('text-[15px] font-semibold leading-snug', strongText)}>
+                            {job.title}
+                          </h3>
                           <p className={cn('mt-0.5 text-xs font-medium', mutedText)}>
                             {job.company} • {job.location}
                           </p>
                         </div>
 
-                        {/* Emphasized Experience Needed Pill */}
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-bold',
+                              'rounded border px-2 py-0.5 text-[11px] font-medium',
                               job.experienceFit === 'senior-warning'
-                                ? 'border-dashed border-neutral-500 opacity-75'
-                                : secondaryBtn
+                                ? cn('border-dashed', borderSubtle, mutedText)
+                                : subSurface
                             )}
                           >
-                            <Award className="h-3 w-3" />
-                            Exp Needed: {job.experienceRequired}
+                            Exp: {job.experienceRequired}
                           </span>
                           {job.salary && (
-                            <span className={cn('inline-flex items-center gap-1 text-[11px] font-semibold', mutedText)}>
-                              <Wallet className="h-3 w-3" />
+                            <span className={cn('font-mono text-[11px] font-medium', mutedText)}>
                               {job.salary}
                             </span>
                           )}
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
                           <div className="flex flex-wrap gap-1">
                             {job.matchedSkills.slice(0, 3).map((s) => (
                               <span
                                 key={s}
-                                className={cn('rounded border px-1.5 py-0.5 text-[10px] font-semibold', subSurface)}
+                                className={cn('rounded border px-1.5 py-0.5 text-[11px] font-medium', subSurface)}
                               >
                                 ✓ {s}
                               </span>
                             ))}
                           </div>
-                          <span className={cn('text-[10px]', mutedText)}>
+                          <span className={cn('text-[11px]', mutedText)}>
                             {job.postedAt}
                           </span>
                         </div>
@@ -1241,8 +1293,8 @@ export function PleaseHireMeDashboard({
                 )}
               </div>
 
-              {/* RIGHT COLUMN: STICKY JOBSTREET-STYLE JOB DETAILS PANE */}
-              <div className="lg:sticky lg:top-20 lg:col-span-7">
+              {/* RIGHT COLUMN: STICKY JOB DETAILS PANE */}
+              <div className="lg:sticky lg:top-16 lg:col-span-7">
                 <JobDetailPane
                   job={selectedJob}
                   activeProfileName={activeProfile.name}
@@ -1292,13 +1344,14 @@ export function PleaseHireMeDashboard({
           />
         )}
 
-        {/* TAB 3: LINKEDIN-STYLE PROFILE VIEW (SYNCED 2-WAY WITH A4 RESUME) */}
+        {/* TAB 3: LINKEDIN-STYLE PROFILE VIEW (SYNCED 2-WAY WITH RESUME STUDIO AI) */}
         {activeTab === 'profile' && (
           <LinkedInProfileView
             users={store.users}
             profile={activeProfile}
             theme={store.theme}
             geminiApiKey={store.geminiApiKey || ''}
+            personalApiConfigured={personalApiConfigured}
             onSelectUser={handleSelectUser}
             onCreateUser={handleCreateUser}
             onUpdateGeminiKey={(key) =>
@@ -1309,7 +1362,7 @@ export function PleaseHireMeDashboard({
           />
         )}
 
-        {/* TAB 4: FULL A4 RESUME STUDIO */}
+        {/* TAB 4: RESUME STUDIO (AI) */}
         {activeTab === 'resume' && (
           <div className="mx-auto max-w-4xl">
             <A4ResumePreview
@@ -1318,6 +1371,7 @@ export function PleaseHireMeDashboard({
               activeTailorJob={selectedJob}
               theme={store.theme}
               geminiApiKey={store.geminiApiKey || ''}
+              personalApiConfigured={personalApiConfigured}
               tailoring={tailoring}
               onUpdateGeminiKey={(key) =>
                 persistStore({ ...store, geminiApiKey: key })
@@ -1331,6 +1385,18 @@ export function PleaseHireMeDashboard({
                     structuredResume: nextResume,
                     resumeText: resumeToPlainText(nextResume),
                   });
+                } else {
+                  updateActiveUserProfile(
+                    {
+                      ...activeProfile,
+                      structuredResume: {
+                        ...activeProfile.structuredResume,
+                        pageSize: nextResume.pageSize || 'a4',
+                        density: nextResume.density || 'standard',
+                      },
+                    },
+                    false
+                  );
                 }
               }}
               onResetResume={() => setTailoredResume(null)}
@@ -1339,13 +1405,13 @@ export function PleaseHireMeDashboard({
         )}
       </main>
 
-      {/* STEP-BY-STEP APPLY & A4 RESUME TAILOR MODAL */}
+      {/* STEP-BY-STEP APPLY & RESUME STUDIO AI MODAL */}
       <ApplyFlowModal
-        key={applyModalJob?.id || 'closed'}
         job={applyModalJob}
         profile={activeProfile}
         theme={store.theme}
         geminiApiKey={store.geminiApiKey || ''}
+        personalApiConfigured={personalApiConfigured}
         onClose={() => setApplyModalJob(null)}
         onMarkApplied={(id) => handleUpdateJobStatus(id, 'applied')}
         onUpdateGeminiKey={(key) =>

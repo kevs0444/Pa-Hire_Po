@@ -7,18 +7,21 @@ const DATA_DIR = path.join(process.cwd(), '.data');
 const STORE_PATH = path.join(DATA_DIR, 'store.json');
 
 export async function GET() {
+  const personalApiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
   try {
     const raw = await fs.readFile(STORE_PATH, 'utf8');
     const parsed = JSON.parse(raw) as AppStoreState;
     return NextResponse.json({
       exists: true,
       storageMode: 'local-file',
+      personalApiConfigured,
       state: parsed,
     });
   } catch {
     return NextResponse.json({
       exists: false,
       storageMode: process.env.VERCEL ? 'browser-only' : 'local-file',
+      personalApiConfigured,
       state: null,
     });
   }

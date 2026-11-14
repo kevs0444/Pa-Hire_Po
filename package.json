@@ -11,7 +11,8 @@
     "desktop": "node electron/launch-dev.cjs",
     "desktop:open": "node electron/open-desktop.cjs",
     "desktop:live": "node electron/open-desktop.cjs --live",
-    "desktop:install": "npm install --save-dev electron"
+    "desktop:install": "npm install --save-dev electron",
+    "desktop:build-launcher": "powershell -ExecutionPolicy Bypass -File ./scripts/build-launcher.ps1"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -28,6 +29,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "electron": "^45.3.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",

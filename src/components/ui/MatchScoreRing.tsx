@@ -12,7 +12,7 @@ interface MatchScoreRingProps {
 export function MatchScoreRing({
   score,
   size = 56,
-  theme = 'dark',
+  theme = 'light',
 }: MatchScoreRingProps) {
   const clamped = Math.max(0, Math.min(100, Math.round(score)));
   const strokeWidth = 4.5;
@@ -20,37 +20,32 @@ export function MatchScoreRing({
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (clamped / 100) * circumference;
 
-  const isDark = theme !== 'light';
+  const isDark = theme === 'dark';
 
   const ringColor =
     clamped >= 75
-      ? 'text-orange-500'
+      ? isDark
+        ? 'text-emerald-400'
+        : 'text-[#057642]'
       : clamped >= 55
-        ? 'text-amber-500'
+        ? isDark
+          ? 'text-blue-400'
+          : 'text-[#0a66c2]'
         : isDark
-          ? 'text-neutral-500'
-          : 'text-neutral-400';
+          ? 'text-slate-500'
+          : 'text-slate-400';
 
-  const trackColor =
-    theme === 'orange'
-      ? 'text-orange-950/80'
-      : isDark
-        ? 'text-neutral-800'
-        : 'text-neutral-200';
-  const labelColor =
-    theme === 'orange'
-      ? 'text-orange-100'
-      : isDark
-        ? 'text-white'
-        : 'text-black';
+  const trackColor = isDark ? 'text-slate-800' : 'text-slate-200';
+  const labelColor = isDark ? 'text-slate-100' : 'text-slate-900';
 
   return (
     <div
       className="relative inline-flex shrink-0 items-center justify-center"
       style={{ width: size, height: size }}
       title={`${clamped}% resume match`}
+      aria-label={`${clamped}% resume match`}
     >
-      <svg className="-rotate-90" width={size} height={size}>
+      <svg className="-rotate-90" width={size} height={size} aria-hidden="true">
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -70,10 +65,10 @@ export function MatchScoreRing({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          className={cn('transition-all duration-500', ringColor)}
+          className={cn('transition-all duration-300', ringColor)}
         />
       </svg>
-      <span className={cn('absolute text-xs font-bold tabular-nums', labelColor)}>
+      <span className={cn('absolute font-mono text-xs font-semibold tabular-nums', labelColor)}>
         {clamped}%
       </span>
     </div>

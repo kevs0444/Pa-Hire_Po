@@ -1,15 +1,100 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #fafafa;
+  --background: #f3f2ef;
+  --foreground: #0f172a;
+  --accent-light: #0a66c2;
+  --accent-dark: #3b82f6;
+  --accent-color: var(--accent-light);
+  --scrollbar-track: #e2e8f0;
+  --scrollbar-thumb: #94a3b8;
+
+  @media (prefers-color-scheme: dark) {
+    --background: #0b0f17;
+    --foreground: #f8fafc;
+    --accent-color: var(--accent-dark);
+    --scrollbar-track: #1e293b;
+    --scrollbar-thumb: #64748b;
+  }
+
+  @supports (color: light-dark(white, black)) {
+    --background: light-dark(#f3f2ef, #0b0f17);
+    --foreground: light-dark(#0f172a, #f8fafc);
+    --accent-color: light-dark(var(--accent-light), var(--accent-dark));
+    --scrollbar-track: light-dark(#e2e8f0, #1e293b);
+    --scrollbar-thumb: light-dark(#94a3b8, #64748b);
+  }
+
+  color-scheme: light dark;
+  accent-color: var(--accent-color);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+}
+
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+  background: rgb(15 23 42 / 0.55);
+}
+
+@supports not (accent-color: #0a66c2) {
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+  }
+
+  input[type="range"]::-webkit-slider-runnable-track {
+    width: 100%;
+    height: 6px;
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 14px;
+    width: 14px;
+    border-radius: 50%;
+    background: var(--accent-color, #0a66c2);
+    cursor: pointer;
+    margin-top: -4px;
+  }
+
+  input[type="range"]::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: #cbd5e1;
+    border-radius: 9999px;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border-radius: 50%;
+    background: var(--accent-color, #0a66c2);
+    border: none;
+    cursor: pointer;
+  }
 }
 
 @page {
@@ -32,6 +117,25 @@
     display: none !important;
   }
 
+  dialog[open] {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  dialog::backdrop {
+    display: none !important;
+  }
+
   .print-only-container {
     position: static !important;
     width: 100% !important;
@@ -46,7 +150,9 @@
 
   #a4-resume-sheet {
     width: 100% !important;
-    min-height: auto !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    height: auto !important;
     padding: 0 !important;
     margin: 0 !important;
     box-shadow: none !important;

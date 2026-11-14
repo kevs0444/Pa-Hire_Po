@@ -8,7 +8,7 @@ export function getDefaultStoreState(): AppStoreState {
   return {
     users: [MAR_KEVIN_PROFILE],
     activeUserId: MAR_KEVIN_PROFILE.id,
-    theme: 'dark',
+    theme: 'light',
     geminiApiKey: '',
     jobs: [],
     queuedJobIds: [],
@@ -48,10 +48,7 @@ export function normalizeStoreState(
   return {
     users,
     activeUserId,
-    theme:
-      raw.theme === 'light' || raw.theme === 'orange' || raw.theme === 'dark'
-        ? raw.theme
-        : 'dark',
+    theme: raw.theme === 'dark' ? 'dark' : 'light',
     geminiApiKey: raw.geminiApiKey ?? defaults.geminiApiKey,
     jobs: Array.isArray(raw.jobs)
       ? raw.jobs.map((j) => ({
@@ -96,21 +93,34 @@ export function saveLocalState(state: AppStoreState): void {
 export async function fetchServerState(): Promise<{
   state: AppStoreState | null;
   storageMode: string;
+  personalApiConfigured: boolean;
 }> {
   try {
     const res = await fetch('/api/state', { cache: 'no-store' });
-    if (!res.ok) return { state: null, storageMode: 'browser-only' };
+    if (!res.ok) {
+      return {
+        state: null,
+        storageMode: 'browser-only',
+        personalApiConfigured: false,
+      };
+    }
     const data = (await res.json()) as {
       exists?: boolean;
       state?: Partial<AppStoreState> | null;
       storageMode?: string;
+      personalApiConfigured?: boolean;
     };
     return {
       state: data.exists && data.state ? normalizeStoreState(data.state) : null,
       storageMode: data.storageMode || 'browser-only',
+      personalApiConfigured: Boolean(data.personalApiConfigured),
     };
   } catch {
-    return { state: null, storageMode: 'browser-only' };
+    return {
+      state: null,
+      storageMode: 'browser-only',
+      personalApiConfigured: false,
+    };
   }
 }
 

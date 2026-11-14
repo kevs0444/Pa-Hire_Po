@@ -10,6 +10,10 @@ export type ExperienceLevel = 'any' | 'entry' | 'mid' | 'senior';
 
 export type MonochromeTheme = 'dark' | 'light' | 'orange';
 
+export type ResumePageSize = 'a4' | 'letter' | 'legal' | 'auto';
+
+export type ResumeDensity = 'compact' | 'standard' | 'comfortable';
+
 export interface ResumeExperienceItem {
   id: string;
   role: string;
@@ -58,6 +62,8 @@ export interface StructuredResume {
   tailoredForCompany?: string | null;
   tailorMethod?: 'base' | 'smart-engine' | 'gemini-ai';
   tailorNotes?: string[];
+  pageSize?: ResumePageSize;
+  density?: ResumeDensity;
 }
 
 export interface UserProfile {

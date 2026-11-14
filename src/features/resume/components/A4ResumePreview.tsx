@@ -7,12 +7,12 @@ import {
   KeyRound,
   Printer,
   RotateCcw,
-  Sparkles,
-  Wand2,
 } from 'lucide-react';
 import {
   JobListing,
   MonochromeTheme,
+  ResumeDensity,
+  ResumePageSize,
   StructuredResume,
   UserProfile,
 } from '@/types/job';
@@ -25,12 +25,74 @@ interface A4ResumePreviewProps {
   activeTailorJob: JobListing | null;
   theme: MonochromeTheme;
   geminiApiKey: string;
+  personalApiConfigured?: boolean;
   tailoring: boolean;
   onUpdateGeminiKey: (key: string) => void;
   onTailorResume: (targetJob: JobListing | null, targetRole?: string) => void;
   onUpdateResume: (next: StructuredResume) => void;
   onResetResume: () => void;
 }
+
+const PAGE_SIZE_PRESETS: Record<
+  ResumePageSize,
+  {
+    label: string;
+    shortLabel: string;
+    sheetClass: string;
+    printPageSize: string;
+    dimensionsLabel: string;
+  }
+> = {
+  a4: {
+    label: 'A4 (Default • 210 × 297 mm)',
+    shortLabel: 'A4',
+    sheetClass: 'max-w-[794px] min-h-[1040px] h-auto',
+    printPageSize: 'A4 portrait',
+    dimensionsLabel: '210 × 297 mm',
+  },
+  letter: {
+    label: 'US Letter (8.5 × 11 in)',
+    shortLabel: 'Letter',
+    sheetClass: 'max-w-[816px] min-h-[1056px] h-auto',
+    printPageSize: 'letter portrait',
+    dimensionsLabel: '8.5 × 11 in',
+  },
+  legal: {
+    label: 'US Legal (8.5 × 14 in)',
+    shortLabel: 'Legal',
+    sheetClass: 'max-w-[816px] min-h-[1344px] h-auto',
+    printPageSize: 'legal portrait',
+    dimensionsLabel: '8.5 × 14 in',
+  },
+  auto: {
+    label: 'Dynamic (Auto Fit Content)',
+    shortLabel: 'Dynamic',
+    sheetClass: 'max-w-[794px] min-h-0 h-auto',
+    printPageSize: 'A4 portrait',
+    dimensionsLabel: 'Fluid height',
+  },
+};
+
+const DENSITY_PRESETS: Record<
+  ResumeDensity,
+  { label: string; textClass: string; padClass: string }
+> = {
+  compact: {
+    label: 'Compact',
+    textClass: 'text-[10.2px] leading-[1.28]',
+    padClass: 'px-6 py-5',
+  },
+  standard: {
+    label: 'Standard',
+    textClass: 'text-[11px] leading-[1.35]',
+    padClass: 'px-7 py-6',
+  },
+  comfortable: {
+    label: 'Comfortable',
+    textClass: 'text-[11.5px] leading-[1.42]',
+    padClass: 'px-8 py-7',
+  },
+};
 
 function renderFormattedLine(text: string) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
@@ -59,6 +121,7 @@ export function A4ResumePreview({
   activeTailorJob,
   theme,
   geminiApiKey,
+  personalApiConfigured = true,
   tailoring,
   onUpdateGeminiKey,
   onTailorResume,
@@ -77,6 +140,12 @@ export function A4ResumePreview({
   const surfaceClass = tokens.cardSurface;
   const buttonOutlineClass = tokens.secondaryBtn;
 
+  const pageSize: ResumePageSize = activeResume.pageSize || 'a4';
+  const density: ResumeDensity = activeResume.density || 'standard';
+  const sizePreset = PAGE_SIZE_PRESETS[pageSize] || PAGE_SIZE_PRESETS.a4;
+  const densityPreset = DENSITY_PRESETS[density] || DENSITY_PRESETS.standard;
+  const aiReady = personalApiConfigured || Boolean(geminiApiKey.trim());
+
   const roleChoices = Array.from(
     new Set([
       profile.primaryRole,
@@ -91,22 +160,34 @@ export function A4ResumePreview({
 
   return (
     <div className="flex flex-col gap-3">
+      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } }`}</style>
+
       {/* Studio Controls Toolbar */}
       <div
         className={cn(
-          'no-print rounded-2xl border p-3.5 space-y-3',
+          'no-print rounded-lg border p-3.5 space-y-3',
           surfaceClass
         )}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold uppercase tracking-wider">
-                A4 Resume Studio
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold">
+                Resume Studio
               </span>
               <span
                 className={cn(
-                  'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                  'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
+                  isDark
+                    ? 'border-blue-500/35 bg-blue-500/15 text-blue-300'
+                    : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
+                )}
+              >
+                AI
+              </span>
+              <span
+                className={cn(
+                  'rounded border px-2 py-0.5 text-[11px] font-medium',
                   activeResume.tailorMethod === 'gemini-ai'
                     ? tokens.primaryBtn
                     : activeResume.tailorMethod === 'smart-engine'
@@ -115,54 +196,80 @@ export function A4ResumePreview({
                 )}
               >
                 {activeResume.tailorMethod === 'gemini-ai'
-                  ? 'Gemini AI Fixed'
+                  ? 'Personal Gemini AI'
                   : activeResume.tailorMethod === 'smart-engine'
                     ? 'Auto-Tailored'
-                    : 'Base A4 CV'}
+                    : `Base ${sizePreset.shortLabel} CV`}
+              </span>
+              <span
+                className={cn(
+                  'rounded border px-2 py-0.5 font-mono text-[11px]',
+                  tokens.subSurface,
+                  tokens.mutedText
+                )}
+              >
+                {sizePreset.shortLabel} • {sizePreset.dimensionsLabel}
               </span>
             </div>
-            <p className="text-[11px] opacity-70">
+            <p className={cn('text-xs', tokens.mutedText)}>
               {activeResume.tailoredForJobTitle
-                ? `Fixed for: ${activeResume.tailoredForJobTitle}${
+                ? `Tailored for: ${activeResume.tailoredForJobTitle}${
                     activeResume.tailoredForCompany
                       ? ` @ ${activeResume.tailoredForCompany}`
                       : ''
                   }`
-                : 'Showing your base A4 resume. Click "Fix Resume" on any job or choose a role below.'}
+                : 'Dynamic resume sheet (default A4). Adjust page size or tailor for a target role below.'}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setShowKeyInput((v) => !v)}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition',
-                buttonOutlineClass
-              )}
-              title="Optional Gemini API Key for AI resume tailoring"
-            >
-              <KeyRound className="h-3 w-3" />
-              {geminiApiKey ? 'Gemini Key Set' : 'Gemini API'}
-            </button>
+            {aiReady ? (
+              <button
+                type="button"
+                onClick={() => setShowKeyInput((v) => !v)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  isDark
+                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                )}
+                title="Personal Gemini API key from .env is active (click to override)"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>{geminiApiKey ? 'Custom AI Key' : 'Personal AI Active'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowKeyInput((v) => !v)}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  buttonOutlineClass
+                )}
+                title="Optional Gemini API Key override"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                Gemini API
+              </button>
+            )}
 
             <button
               type="button"
               onClick={() => setEditMode((v) => !v)}
               className={cn(
-                'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition',
+                'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
                 editMode ? tokens.primaryBtn : buttonOutlineClass
               )}
             >
               {editMode ? (
                 <>
-                  <Check className="h-3 w-3" />
+                  <Check className="h-3.5 w-3.5" />
                   Done Editing
                 </>
               ) : (
                 <>
-                  <Edit3 className="h-3 w-3" />
-                  Edit A4
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit Resume
                 </>
               )}
             </button>
@@ -172,12 +279,12 @@ export function A4ResumePreview({
                 type="button"
                 onClick={onResetResume}
                 className={cn(
-                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition',
+                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
                   buttonOutlineClass
                 )}
                 title="Reset to base resume"
               >
-                <RotateCcw className="h-3 w-3" />
+                <RotateCcw className="h-3.5 w-3.5" />
                 Reset
               </button>
             )}
@@ -186,21 +293,22 @@ export function A4ResumePreview({
               type="button"
               onClick={handlePrint}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition',
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors',
                 tokens.primaryBtn
               )}
             >
               <Printer className="h-3.5 w-3.5" />
-              Print / Save A4 PDF
+              Print / Save PDF ({sizePreset.shortLabel})
             </button>
           </div>
         </div>
 
-        {/* Tailor Bar */}
+        {/* Tailor & Dynamic Sizing Bar */}
         <div className={cn('flex flex-wrap items-center gap-2 border-t pt-2.5', tokens.borderSubtle)}>
           <select
             value={selectedRoleForFix}
             onChange={(e) => setSelectedRoleForFix(e.target.value)}
+            aria-label="Target role for AI tailoring"
             className={cn(
               'min-w-[170px] flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
@@ -213,44 +321,87 @@ export function A4ResumePreview({
             ))}
           </select>
 
+          <select
+            value={pageSize}
+            onChange={(e) =>
+              onUpdateResume({
+                ...activeResume,
+                pageSize: e.target.value as ResumePageSize,
+              })
+            }
+            aria-label="Resume page size"
+            className={cn(
+              'rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              tokens.inputSurface
+            )}
+          >
+            {(Object.keys(PAGE_SIZE_PRESETS) as ResumePageSize[]).map((key) => (
+              <option key={key} value={key}>
+                Size: {PAGE_SIZE_PRESETS[key].label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={density}
+            onChange={(e) =>
+              onUpdateResume({
+                ...activeResume,
+                density: e.target.value as ResumeDensity,
+              })
+            }
+            aria-label="Resume density"
+            className={cn(
+              'rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              tokens.inputSurface
+            )}
+          >
+            {(Object.keys(DENSITY_PRESETS) as ResumeDensity[]).map((key) => (
+              <option key={key} value={key}>
+                Density: {DENSITY_PRESETS[key].label}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
             disabled={tailoring}
             onClick={() => onTailorResume(activeTailorJob, selectedRoleForFix)}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50',
+              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
               tokens.contrastBtn
             )}
           >
-            <Wand2 className={cn('h-3.5 w-3.5', tailoring && 'animate-spin')} />
-            {tailoring ? 'Fixing A4...' : 'Fix A4 Resume for Role'}
+            {tailoring ? 'Tailoring with AI...' : 'AI Tailor for Role'}
           </button>
 
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] opacity-80">
+          <label className={cn('inline-flex cursor-pointer items-center gap-1.5 text-xs', tokens.mutedText)}>
             <input
               type="checkbox"
               checked={showSummary}
               onChange={(e) => setShowSummary(e.target.checked)}
-              className="h-3.5 w-3.5 accent-black dark:accent-white"
+              className="h-3.5 w-3.5"
             />
-            Show Tailored Summary
+            <span>Show Tailored Summary</span>
           </label>
         </div>
 
         {showKeyInput && (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-neutral-800/60 bg-black/20 p-2.5 text-xs">
+          <div className={cn('flex flex-wrap items-center gap-2 rounded-lg border p-2.5 text-xs', tokens.subSurface)}>
             <input
               type="password"
               value={geminiApiKey}
               onChange={(e) => onUpdateGeminiKey(e.target.value)}
-              placeholder="Optional Gemini API Key (AIza...) — blank uses Smart Career Journey Tailor"
+              placeholder="Optional browser override key — leave blank to use your personal .env GEMINI_API_KEY"
               className={cn(
                 'flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
                 tokens.inputSurface
               )}
             />
-            <span className="text-[10px] opacity-70">
-              Stored locally in your browser.
+            <span className={cn('text-[11px]', tokens.mutedText)}>
+              {personalApiConfigured
+                ? 'Server .env personal key (gemini-3.1-flash-lite) runs by default.'
+                : 'Stored locally in your browser.'}
             </span>
           </div>
         )}
@@ -258,15 +409,14 @@ export function A4ResumePreview({
         {activeResume.tailorNotes && activeResume.tailorNotes.length > 0 && (
           <div
             className={cn(
-              'rounded-xl border px-3 py-2 text-[11px]',
+              'rounded-lg border px-3 py-2 text-xs',
               tokens.subSurface
             )}
           >
-            <div className="mb-1 flex items-center gap-1.5 font-semibold">
-              <Sparkles className="h-3 w-3 text-orange-500" />
-              What was fixed on your A4 sheet:
+            <div className="mb-1 font-semibold">
+              Changes applied to your {sizePreset.shortLabel} resume sheet:
             </div>
-            <ul className="list-disc space-y-0.5 pl-4">
+            <ul className={cn('list-disc space-y-0.5 pl-4', tokens.mutedText)}>
               {activeResume.tailorNotes.map((note, idx) => (
                 <li key={idx}>{note}</li>
               ))}
@@ -275,20 +425,23 @@ export function A4ResumePreview({
         )}
       </div>
 
-      {/* Authentic A4 Paper Preview */}
+      {/* Dynamic Resume Paper Preview (Default A4) */}
       <div
         className={cn(
-          'print-only-container flex justify-center overflow-x-auto rounded-2xl border p-3 sm:p-5',
-          tokens.isOrange
-            ? 'border-orange-500/30 bg-[#1a0b05]'
-            : isDark
-              ? 'border-neutral-800 bg-neutral-900/60'
-              : 'border-neutral-300 bg-neutral-200/70'
+          'print-only-container flex justify-center overflow-x-auto rounded-lg border p-3 sm:p-5',
+          isDark
+            ? 'border-slate-800 bg-slate-900/70'
+            : 'border-slate-300 bg-slate-200/70'
         )}
       >
         <div
           id="a4-resume-sheet"
-          className="w-full max-w-[794px] min-h-[1040px] bg-white px-7 py-6 text-black shadow-2xl ring-1 ring-black/10 font-sans text-[11px] leading-[1.35]"
+          className={cn(
+            'w-full bg-white text-black shadow-xl ring-1 ring-black/10 font-sans transition-all',
+            sizePreset.sheetClass,
+            densityPreset.padClass,
+            densityPreset.textClass
+          )}
         >
           {/* Header */}
           <header className="text-center">

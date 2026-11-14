@@ -2,6 +2,10 @@
 const path = require('node:path');
 const { app, BrowserWindow, ipcMain, shell } = require('electron');
 
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.pahirepo.desktop');
+}
+
 const START_URL = process.env.ELECTRON_START_URL || 'http://localhost:3000';
 
 let mainWindow = null;
@@ -16,13 +20,17 @@ function isSafeExternalUrl(rawUrl) {
 }
 
 function createMainWindow() {
+  const iconPath = process.platform === 'win32'
+    ? path.join(__dirname, '..', 'public', 'pa-hire-po.ico')
+    : path.join(__dirname, '..', 'public', 'pa-hire-po-logo.jpg');
+
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1080,
     minHeight: 720,
     backgroundColor: '#000000',
-    icon: path.join(__dirname, '..', 'public', 'pa-hire-po-logo.jpg'),
+    icon: iconPath,
     title: 'Pa-Hire Po — Desktop Studio',
     autoHideMenuBar: true,
     webPreferences: {

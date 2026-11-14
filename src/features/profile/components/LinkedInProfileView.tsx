@@ -13,7 +13,6 @@ import {
   KeyRound,
   MapPin,
   Plus,
-  Sparkles,
   Trash2,
   Upload,
   UserPlus,
@@ -40,6 +39,7 @@ interface LinkedInProfileViewProps {
   profile: UserProfile;
   theme: MonochromeTheme;
   geminiApiKey: string;
+  personalApiConfigured?: boolean;
   onSelectUser: (userId: string) => void;
   onCreateUser: (payload: {
     name: string;
@@ -58,6 +58,7 @@ export function LinkedInProfileView({
   profile,
   theme,
   geminiApiKey,
+  personalApiConfigured = true,
   onSelectUser,
   onCreateUser,
   onUpdateGeminiKey,
@@ -66,13 +67,12 @@ export function LinkedInProfileView({
 }: LinkedInProfileViewProps) {
   const tokens = getThemeTokens(theme);
   const isDark = tokens.isDark;
-  const isOrange = tokens.isOrange;
   const resume = profile.structuredResume;
 
-  // Toggleable inline forms
   const [showNewUser, setShowNewUser] = useState(false);
   const [editingHeader, setEditingHeader] = useState(false);
   const [editingJourney, setEditingJourney] = useState(false);
+  const [showKeyOverride, setShowKeyOverride] = useState(false);
 
   const [addingExp, setAddingExp] = useState(false);
   const [editingExpId, setEditingExpId] = useState<string | null>(null);
@@ -119,6 +119,7 @@ export function LinkedInProfileView({
   const primaryBtn = tokens.primaryBtn;
   const secondaryBtn = tokens.secondaryBtn;
   const mutedText = tokens.mutedText;
+  const borderSubtle = tokens.borderSubtle;
 
   const initials = profile.name
     .split(/\s+/)
@@ -136,7 +137,6 @@ export function LinkedInProfileView({
     });
   };
 
-  // Experience handlers
   const handleSaveExp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!expForm.role.trim() || !expForm.company.trim()) return;
@@ -171,7 +171,6 @@ export function LinkedInProfileView({
     });
   };
 
-  // Project handlers
   const handleSaveProj = (e: React.FormEvent) => {
     e.preventDefault();
     if (!projForm.name.trim()) return;
@@ -193,7 +192,6 @@ export function LinkedInProfileView({
     setProjForm({ name: '', subtitle: '', period: '', bulletsText: '' });
   };
 
-  // Certificate handlers
   const handleAddCert = () => {
     const clean = newCert.trim();
     if (!clean) return;
@@ -204,7 +202,6 @@ export function LinkedInProfileView({
     setNewCert('');
   };
 
-  // Education handlers
   const handleSaveEdu = (e: React.FormEvent) => {
     e.preventDefault();
     if (!eduForm.degree.trim() || !eduForm.school.trim()) return;
@@ -219,7 +216,6 @@ export function LinkedInProfileView({
     setEduForm({ degree: '', school: '', period: '', honors: '' });
   };
 
-  // Skills sync (updates both profile.skills & resume skillCategories)
   const handleAddSkill = () => {
     const clean = newSkill.trim();
     if (!clean) return;
@@ -272,11 +268,11 @@ export function LinkedInProfileView({
   };
 
   return (
-    <div className="no-print mx-auto max-w-5xl space-y-5">
-      {/* Per-User Switcher Bar */}
-      <div className={cn('rounded-2xl border p-4 flex flex-wrap items-center justify-between gap-3', cardClass)}>
+    <div className="no-print mx-auto max-w-5xl space-y-4">
+      {/* Profile Switcher Bar */}
+      <div className={cn('rounded-lg border p-3.5 flex flex-wrap items-center justify-between gap-3', cardClass)}>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn('text-xs font-bold uppercase tracking-wider', mutedText)}>
+          <span className={cn('text-xs font-medium', mutedText)}>
             Profiles:
           </span>
           {users.map((u) => (
@@ -285,7 +281,7 @@ export function LinkedInProfileView({
               type="button"
               onClick={() => onSelectUser(u.id)}
               className={cn(
-                'rounded-xl border px-3 py-1.5 text-xs font-semibold transition',
+                'rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 u.id === profile.id ? primaryBtn : secondaryBtn
               )}
             >
@@ -298,19 +294,22 @@ export function LinkedInProfileView({
           <button
             type="button"
             onClick={() => setShowNewUser((v) => !v)}
-            className={cn('inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+            className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
           >
             <UserPlus className="h-3.5 w-3.5" />
-            {showNewUser ? 'Cancel' : 'Add User Profile'}
+            {showNewUser ? 'Cancel' : 'Add Profile'}
           </button>
 
           <button
             type="button"
             onClick={onOpenA4Studio}
-            className={cn('inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-bold', primaryBtn)}
+            className={cn('inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs', primaryBtn)}
           >
             <FileText className="h-3.5 w-3.5" />
-            Preview Base A4 Resume
+            <span>Open Resume Studio</span>
+            <span className="rounded border border-white/30 bg-white/15 px-1 py-0.5 font-mono text-[9px] font-semibold uppercase leading-none">
+              AI
+            </span>
           </button>
         </div>
       </div>
@@ -340,7 +339,7 @@ export function LinkedInProfileView({
             });
             setShowNewUser(false);
           }}
-          className={cn('grid gap-3 rounded-2xl border p-4 sm:grid-cols-2', cardClass)}
+          className={cn('grid gap-3 rounded-lg border p-4 sm:grid-cols-2', cardClass)}
         >
           <input
             type="text"
@@ -348,78 +347,68 @@ export function LinkedInProfileView({
             placeholder="Full Name *"
             value={newUserForm.name}
             onChange={(e) => setNewUserForm({ ...newUserForm, name: e.target.value })}
-            className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
           <input
             type="email"
             placeholder="Email"
             value={newUserForm.email}
             onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })}
-            className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
           <input
             type="text"
             required
-            placeholder="Wanted Job Title * (e.g. Data Analyst)"
+            placeholder="Target Job Title * (e.g. Data Analyst)"
             value={newUserForm.primaryRole}
             onChange={(e) => setNewUserForm({ ...newUserForm, primaryRole: e.target.value })}
-            className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
           <input
             type="text"
             placeholder="Location"
             value={newUserForm.location}
             onChange={(e) => setNewUserForm({ ...newUserForm, location: e.target.value })}
-            className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
           <input
             type="text"
             placeholder="Additional role options (comma separated)"
             value={newUserForm.extras}
             onChange={(e) => setNewUserForm({ ...newUserForm, extras: e.target.value })}
-            className={cn('sm:col-span-2 rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('sm:col-span-2 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
-          <button type="submit" className={cn('sm:col-span-2 rounded-xl py-2 text-xs font-bold', primaryBtn)}>
+          <button type="submit" className={cn('sm:col-span-2 rounded-lg py-2 text-xs', primaryBtn)}>
             Create Profile &amp; Switch
           </button>
         </form>
       )}
 
-      {/* LINKEDIN HERO BANNER CARD */}
-      <section className={cn('overflow-hidden rounded-3xl border', cardClass)}>
-        {/* Cover Banner (Dark / Light / Orange Studio) */}
+      {/* LINKEDIN HERO PROFILE CARD */}
+      <section className={cn('overflow-hidden rounded-lg border', cardClass)}>
         <div
           className={cn(
-            'relative h-32 w-full border-b',
-            isOrange
-              ? 'border-orange-500/35 bg-gradient-to-r from-[#240d04] via-orange-600/30 to-[#240d04]'
-              : isDark
-                ? 'border-neutral-800 bg-gradient-to-r from-neutral-900 via-orange-950/35 to-neutral-900'
-                : 'border-neutral-200 bg-gradient-to-r from-orange-100/70 via-neutral-100 to-orange-100/70'
+            'relative h-28 w-full border-b',
+            isDark
+              ? 'border-slate-800 bg-slate-900'
+              : 'border-slate-200 bg-[#1e293b]'
           )}
         >
-          <div className="absolute right-4 top-4 flex items-center gap-2">
-            <span
-              className={cn(
-                'rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-wider',
-                primaryBtn
-              )}
-            >
-              Synced with A4 Resume
+          <div className="absolute right-4 top-3.5">
+            <span className="rounded border border-white/20 bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-slate-100">
+              Synced 2-way with Resume Studio (AI)
             </span>
           </div>
         </div>
 
         <div className="px-6 pb-6">
-          <div className="-mt-12 flex flex-wrap items-end justify-between gap-4">
+          <div className="-mt-11 flex flex-wrap items-end justify-between gap-4">
             <div
               className={cn(
-                'flex h-24 w-24 items-center justify-center rounded-full border-4 text-2xl font-extrabold shadow-lg',
-                isOrange
-                  ? 'border-[#160a04] bg-orange-500 text-black'
-                  : isDark
-                    ? 'border-black bg-orange-500 text-black'
-                    : 'border-white bg-black text-white ring-2 ring-orange-500'
+                'flex h-22 w-22 items-center justify-center rounded-full border-4 text-xl font-bold',
+                isDark
+                  ? 'border-[#111827] bg-[#2563eb] text-white'
+                  : 'border-white bg-[#0a66c2] text-white'
               )}
             >
               {initials}
@@ -429,12 +418,12 @@ export function LinkedInProfileView({
               <button
                 type="button"
                 onClick={() => setEditingHeader((v) => !v)}
-                className={cn('inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+                className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
               >
                 <Edit3 className="h-3.5 w-3.5" />
-                {editingHeader ? 'Close Header Editor' : 'Edit Profile Info'}
+                {editingHeader ? 'Close Editor' : 'Edit Profile Info'}
               </button>
-              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}>
+              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}>
                 <Upload className="h-3.5 w-3.5" />
                 Import CV File
                 <input
@@ -448,7 +437,7 @@ export function LinkedInProfileView({
           </div>
 
           {uploadStatus && (
-            <p className="mt-3 rounded-xl border border-neutral-600 px-3 py-1.5 text-xs">
+            <p className={cn('mt-3 rounded-lg border px-3 py-1.5 text-xs', borderSubtle)}>
               {uploadStatus}
             </p>
           )}
@@ -465,21 +454,21 @@ export function LinkedInProfileView({
                   )
                 }
                 placeholder="Full Name"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
                 value={resume.targetHeadline}
                 onChange={(e) => syncResume({ ...resume, targetHeadline: e.target.value })}
                 placeholder="LinkedIn / Resume Headline"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
                 value={resume.email}
                 onChange={(e) => syncResume({ ...resume, email: e.target.value })}
                 placeholder="Email"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
@@ -491,14 +480,14 @@ export function LinkedInProfileView({
                   )
                 }
                 placeholder="Location"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
                 value={resume.portfolio}
                 onChange={(e) => syncResume({ ...resume, portfolio: e.target.value })}
                 placeholder="Portfolio URL"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
@@ -507,12 +496,12 @@ export function LinkedInProfileView({
                   onUpdateProfile({ ...profile, salaryExpectation: e.target.value })
                 }
                 placeholder="Salary Expectation"
-                className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
             </div>
           ) : (
-            <div className="mt-3 space-y-2">
-              <h2 className="text-2xl font-extrabold tracking-tight">{profile.name}</h2>
+            <div className="mt-3 space-y-1.5">
+              <h2 className="text-xl font-bold tracking-tight">{profile.name}</h2>
               <p className="text-sm font-medium">{resume.targetHeadline}</p>
               <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 text-xs', mutedText)}>
                 <span className="inline-flex items-center gap-1">
@@ -525,7 +514,7 @@ export function LinkedInProfileView({
                     href={resume.portfolio.startsWith('http') ? resume.portfolio : `https://${resume.portfolio}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-semibold underline"
+                    className="font-medium underline"
                   >
                     {resume.portfolio}
                   </a>
@@ -536,14 +525,14 @@ export function LinkedInProfileView({
           )}
 
           {/* Open to Work / Role Options Box */}
-          <div className={cn('mt-4 rounded-2xl border p-4 space-y-3', subBoxClass)}>
+          <div className={cn('mt-5 rounded-lg border p-4 space-y-3', subBoxClass)}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider">
-                  Open to Work — Desired Job Titles
+                <h3 className="text-xs font-semibold">
+                  Open to Work — Target Job Titles
                 </h3>
-                <p className={cn('text-[11px]', mutedText)}>
-                  Click any role to make it your Primary Target. Changes also guide job scoring &amp; Top 3 Choices.
+                <p className={cn('text-xs', mutedText)}>
+                  Select your primary target role to calibrate match scoring.
                 </p>
               </div>
 
@@ -556,7 +545,7 @@ export function LinkedInProfileView({
                       experienceLevel: e.target.value as ExperienceLevel,
                     })
                   }
-                  className={cn('rounded-lg border px-2 py-1 text-xs focus:outline-none', inputClass)}
+                  className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
                   <option value="entry">Fresh Grad / Entry Level</option>
                   <option value="mid">Mid-Level</option>
@@ -572,7 +561,7 @@ export function LinkedInProfileView({
                       workType: e.target.value as WorkType,
                     })
                   }
-                  className={cn('rounded-lg border px-2 py-1 text-xs focus:outline-none', inputClass)}
+                  className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
                   <option value="any">Any Work Setup</option>
                   <option value="remote">Remote</option>
@@ -590,7 +579,7 @@ export function LinkedInProfileView({
                       location: COUNTRY_CONFIGS[c].defaultLocation,
                     });
                   }}
-                  className={cn('rounded-lg border px-2 py-1 text-xs focus:outline-none', inputClass)}
+                  className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
                   {Object.values(COUNTRY_CONFIGS).map((c) => (
                     <option key={c.code} value={c.code}>
@@ -609,7 +598,7 @@ export function LinkedInProfileView({
                   <span
                     key={role}
                     className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold',
+                      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium',
                       isPrimary ? primaryBtn : secondaryBtn
                     )}
                   >
@@ -636,7 +625,8 @@ export function LinkedInProfileView({
                           ),
                         })
                       }
-                      className="opacity-60 hover:opacity-100"
+                      className="opacity-75 hover:opacity-100"
+                      aria-label={`Remove ${role}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -664,7 +654,7 @@ export function LinkedInProfileView({
                   }
                 }}
                 placeholder="Add another desired job title..."
-                className={cn('flex-1 min-w-[200px] rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+                className={cn('flex-1 min-w-[200px] rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
               />
               <button
                 type="button"
@@ -678,10 +668,10 @@ export function LinkedInProfileView({
                   });
                   setNewRoleOption('');
                 }}
-                className={cn('inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold', primaryBtn)}
+                className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
               >
                 <Plus className="h-3.5 w-3.5" />
-                Add Desired Role
+                Add Role
               </button>
             </div>
           </div>
@@ -689,11 +679,11 @@ export function LinkedInProfileView({
       </section>
 
       {/* EXPERIENCE SECTION */}
-      <section className={cn('rounded-3xl border p-6 space-y-4', cardClass)}>
+      <section className={cn('rounded-lg border p-5 sm:p-6 space-y-4', cardClass)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Briefcase className="h-5 w-5" />
-            <h3 className="text-base font-bold">Experience</h3>
+            <Briefcase className="h-4 w-4" />
+            <h3 className="text-base font-semibold">Experience</h3>
           </div>
           <button
             type="button"
@@ -708,7 +698,7 @@ export function LinkedInProfileView({
                 bulletsText: '',
               });
             }}
-            className={cn('inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+            className={cn('inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
           >
             <Plus className="h-3.5 w-3.5" />
             Add Experience
@@ -718,7 +708,7 @@ export function LinkedInProfileView({
         {(addingExp || editingExpId) && (
           <form
             onSubmit={handleSaveExp}
-            className={cn('grid gap-2.5 rounded-2xl border p-4 sm:grid-cols-2', subBoxClass)}
+            className={cn('grid gap-2.5 rounded-lg border p-4 sm:grid-cols-2', subBoxClass)}
           >
             <input
               type="text"
@@ -726,7 +716,7 @@ export function LinkedInProfileView({
               placeholder="Job Title *"
               value={expForm.role}
               onChange={(e) => setExpForm({ ...expForm, role: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <input
               type="text"
@@ -734,28 +724,28 @@ export function LinkedInProfileView({
               placeholder="Company *"
               value={expForm.company}
               onChange={(e) => setExpForm({ ...expForm, company: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <input
               type="text"
               placeholder="Location (e.g. BGC, Taguig City)"
               value={expForm.location}
               onChange={(e) => setExpForm({ ...expForm, location: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <input
               type="text"
               placeholder="Period (e.g. July 2026 - Present)"
               value={expForm.period}
               onChange={(e) => setExpForm({ ...expForm, period: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <textarea
               rows={4}
               placeholder="Bullet achievements (1 per line, wrap keywords in **bold**)"
               value={expForm.bulletsText}
               onChange={(e) => setExpForm({ ...expForm, bulletsText: e.target.value })}
-              className={cn('sm:col-span-2 rounded-xl border p-3 text-xs focus:outline-none', inputClass)}
+              className={cn('sm:col-span-2 rounded-lg border p-3 text-xs focus:outline-none', inputClass)}
             />
             <div className="sm:col-span-2 flex gap-2 justify-end">
               <button
@@ -764,26 +754,23 @@ export function LinkedInProfileView({
                   setAddingExp(false);
                   setEditingExpId(null);
                 }}
-                className={cn('rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+                className={cn('rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
               >
                 Cancel
               </button>
-              <button type="submit" className={cn('rounded-xl px-4 py-1.5 text-xs font-bold', primaryBtn)}>
-                Save to Profile &amp; A4 Resume
+              <button type="submit" className={cn('rounded-lg px-4 py-1.5 text-xs', primaryBtn)}>
+                Save Experience
               </button>
             </div>
           </form>
         )}
 
-        <div className="space-y-4">
+        <div className={cn('divide-y', borderSubtle)}>
           {resume.experience.map((exp) => (
-            <div
-              key={exp.id}
-              className={cn('rounded-2xl border p-4 space-y-2', subBoxClass)}
-            >
+            <div key={exp.id} className="space-y-2 py-4 first:pt-0 last:pb-0">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <h4 className="text-sm font-bold">{exp.role}</h4>
+                  <h4 className="text-sm font-semibold">{exp.role}</h4>
                   <p className={cn('text-xs', mutedText)}>
                     {exp.company} {exp.location ? `• ${exp.location}` : ''} • {exp.period}
                   </p>
@@ -804,6 +791,7 @@ export function LinkedInProfileView({
                     }}
                     className={cn('rounded-lg border p-1.5', secondaryBtn)}
                     title="Edit experience"
+                    aria-label={`Edit ${exp.role}`}
                   >
                     <Edit3 className="h-3.5 w-3.5" />
                   </button>
@@ -812,12 +800,13 @@ export function LinkedInProfileView({
                     onClick={() => handleDeleteExp(exp.id)}
                     className={cn('rounded-lg border p-1.5', secondaryBtn)}
                     title="Delete experience"
+                    aria-label={`Delete ${exp.role}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
-              <ul className="list-disc space-y-1 pl-4 text-xs opacity-90">
+              <ul className={cn('list-disc space-y-1 pl-4 text-xs leading-relaxed', mutedText)}>
                 {exp.bullets.map((b, i) => (
                   <li key={i}>{b.replace(/\*\*/g, '')}</li>
                 ))}
@@ -828,16 +817,16 @@ export function LinkedInProfileView({
       </section>
 
       {/* PROJECTS SECTION */}
-      <section className={cn('rounded-3xl border p-6 space-y-4', cardClass)}>
+      <section className={cn('rounded-lg border p-5 sm:p-6 space-y-4', cardClass)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FolderGit2 className="h-5 w-5" />
-            <h3 className="text-base font-bold">Projects</h3>
+            <FolderGit2 className="h-4 w-4" />
+            <h3 className="text-base font-semibold">Projects</h3>
           </div>
           <button
             type="button"
             onClick={() => setAddingProj((v) => !v)}
-            className={cn('inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+            className={cn('inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
           >
             <Plus className="h-3.5 w-3.5" />
             Add Project
@@ -847,7 +836,7 @@ export function LinkedInProfileView({
         {addingProj && (
           <form
             onSubmit={handleSaveProj}
-            className={cn('grid gap-2.5 rounded-2xl border p-4 sm:grid-cols-2', subBoxClass)}
+            className={cn('grid gap-2.5 rounded-lg border p-4 sm:grid-cols-2', subBoxClass)}
           >
             <input
               type="text"
@@ -855,41 +844,41 @@ export function LinkedInProfileView({
               placeholder="Project Title *"
               value={projForm.name}
               onChange={(e) => setProjForm({ ...projForm, name: e.target.value })}
-              className={cn('sm:col-span-2 rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('sm:col-span-2 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <input
               type="text"
               placeholder="Role / Context (e.g. Lead AI Developer)"
               value={projForm.subtitle}
               onChange={(e) => setProjForm({ ...projForm, subtitle: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <input
               type="text"
               placeholder="Period (e.g. Oct 2026)"
               value={projForm.period}
               onChange={(e) => setProjForm({ ...projForm, period: e.target.value })}
-              className={cn('rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+              className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
             <textarea
               rows={3}
               placeholder="Key deliverables (1 bullet per line)"
               value={projForm.bulletsText}
               onChange={(e) => setProjForm({ ...projForm, bulletsText: e.target.value })}
-              className={cn('sm:col-span-2 rounded-xl border p-3 text-xs focus:outline-none', inputClass)}
+              className={cn('sm:col-span-2 rounded-lg border p-3 text-xs focus:outline-none', inputClass)}
             />
-            <button type="submit" className={cn('sm:col-span-2 rounded-xl py-2 text-xs font-bold', primaryBtn)}>
-              Add Project to A4 Resume
+            <button type="submit" className={cn('sm:col-span-2 rounded-lg py-2 text-xs', primaryBtn)}>
+              Add Project to Resume Studio
             </button>
           </form>
         )}
 
-        <div className="space-y-3">
+        <div className={cn('divide-y', borderSubtle)}>
           {resume.projects.map((proj) => (
-            <div key={proj.id} className={cn('rounded-2xl border p-4 space-y-1.5', subBoxClass)}>
+            <div key={proj.id} className="space-y-1.5 py-4 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h4 className="text-sm font-bold">{proj.name}</h4>
+                  <h4 className="text-sm font-semibold">{proj.name}</h4>
                   <p className={cn('text-xs', mutedText)}>
                     {proj.subtitle} {proj.period ? `• ${proj.period}` : ''}
                   </p>
@@ -903,11 +892,12 @@ export function LinkedInProfileView({
                     })
                   }
                   className={cn('rounded-lg border p-1.5', secondaryBtn)}
+                  aria-label={`Delete ${proj.name}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <ul className="list-disc space-y-1 pl-4 text-xs opacity-90">
+              <ul className={cn('list-disc space-y-1 pl-4 text-xs leading-relaxed', mutedText)}>
                 {proj.bullets.map((b, i) => (
                   <li key={i}>{b.replace(/\*\*/g, '')}</li>
                 ))}
@@ -918,18 +908,18 @@ export function LinkedInProfileView({
       </section>
 
       {/* LICENSES & CERTIFICATIONS + EDUCATION (2-COL GRID) */}
-      <div className="grid gap-5 md:grid-cols-2">
-        <section className={cn('rounded-3xl border p-6 space-y-4', cardClass)}>
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className={cn('rounded-lg border p-5 space-y-4', cardClass)}>
           <div className="flex items-center gap-2">
-            <Award className="h-5 w-5" />
-            <h3 className="text-base font-bold">Licenses &amp; Certifications</h3>
+            <Award className="h-4 w-4" />
+            <h3 className="text-base font-semibold">Licenses &amp; Certifications</h3>
           </div>
 
-          <div className="space-y-2">
+          <div className={cn('divide-y', borderSubtle)}>
             {resume.certifications.map((cert, idx) => (
               <div
                 key={`${cert}-${idx}`}
-                className={cn('flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs', subBoxClass)}
+                className="flex items-center justify-between gap-2 py-2.5 text-xs first:pt-0 last:pb-0"
               >
                 <span className="font-medium">{cert}</span>
                 <button
@@ -940,7 +930,8 @@ export function LinkedInProfileView({
                       certifications: resume.certifications.filter((_, i) => i !== idx),
                     })
                   }
-                  className="opacity-60 hover:opacity-100"
+                  className={cn('rounded p-1 transition-colors', mutedText)}
+                  aria-label={`Remove ${cert}`}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
@@ -960,12 +951,12 @@ export function LinkedInProfileView({
                 }
               }}
               placeholder="New certificate (e.g. Google Data Analytics)"
-              className={cn('flex-1 rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+              className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
             />
             <button
               type="button"
               onClick={handleAddCert}
-              className={cn('inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold', primaryBtn)}
+              className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
             >
               <Plus className="h-3.5 w-3.5" />
               Add
@@ -973,16 +964,16 @@ export function LinkedInProfileView({
           </div>
         </section>
 
-        <section className={cn('rounded-3xl border p-6 space-y-4', cardClass)}>
+        <section className={cn('rounded-lg border p-5 space-y-4', cardClass)}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <GraduationCap className="h-5 w-5" />
-              <h3 className="text-base font-bold">Education</h3>
+              <GraduationCap className="h-4 w-4" />
+              <h3 className="text-base font-semibold">Education</h3>
             </div>
             <button
               type="button"
               onClick={() => setAddingEdu((v) => !v)}
-              className={cn('inline-flex items-center gap-1 rounded-xl border px-2.5 py-1 text-xs font-semibold', secondaryBtn)}
+              className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium', secondaryBtn)}
             >
               <Plus className="h-3.5 w-3.5" />
               Add
@@ -990,14 +981,14 @@ export function LinkedInProfileView({
           </div>
 
           {addingEdu && (
-            <form onSubmit={handleSaveEdu} className={cn('space-y-2 rounded-2xl border p-3', subBoxClass)}>
+            <form onSubmit={handleSaveEdu} className={cn('space-y-2 rounded-lg border p-3', subBoxClass)}>
               <input
                 type="text"
                 required
                 placeholder="Degree / Program *"
                 value={eduForm.degree}
                 onChange={(e) => setEduForm({ ...eduForm, degree: e.target.value })}
-                className={cn('w-full rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
               />
               <input
                 type="text"
@@ -1005,7 +996,7 @@ export function LinkedInProfileView({
                 placeholder="School / University *"
                 value={eduForm.school}
                 onChange={(e) => setEduForm({ ...eduForm, school: e.target.value })}
-                className={cn('w-full rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
               />
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -1013,27 +1004,27 @@ export function LinkedInProfileView({
                   placeholder="Period"
                   value={eduForm.period}
                   onChange={(e) => setEduForm({ ...eduForm, period: e.target.value })}
-                  className={cn('rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+                  className={cn('rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
                 />
                 <input
                   type="text"
                   placeholder="GWA / Honors"
                   value={eduForm.honors}
                   onChange={(e) => setEduForm({ ...eduForm, honors: e.target.value })}
-                  className={cn('rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+                  className={cn('rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
                 />
               </div>
-              <button type="submit" className={cn('w-full rounded-xl py-1.5 text-xs font-bold', primaryBtn)}>
+              <button type="submit" className={cn('w-full rounded-lg py-1.5 text-xs', primaryBtn)}>
                 Save Education
               </button>
             </form>
           )}
 
-          <div className="space-y-2.5">
+          <div className={cn('divide-y', borderSubtle)}>
             {resume.education.map((edu, idx) => (
-              <div key={idx} className={cn('rounded-xl border p-3 text-xs space-y-0.5', subBoxClass)}>
+              <div key={idx} className="space-y-0.5 py-3 text-xs first:pt-0 last:pb-0">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-bold">{edu.degree}</span>
+                  <span className="font-semibold">{edu.degree}</span>
                   <button
                     type="button"
                     onClick={() =>
@@ -1042,7 +1033,8 @@ export function LinkedInProfileView({
                         education: resume.education.filter((_, i) => i !== idx),
                       })
                     }
-                    className="opacity-60 hover:opacity-100"
+                    className={cn('rounded p-1 transition-colors', mutedText)}
+                    aria-label={`Remove ${edu.degree}`}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -1050,7 +1042,7 @@ export function LinkedInProfileView({
                 <p className={mutedText}>
                   {edu.school} • {edu.period}
                 </p>
-                {edu.honors && <p className="font-semibold">{edu.honors}</p>}
+                {edu.honors && <p className="font-medium">{edu.honors}</p>}
               </div>
             ))}
           </div>
@@ -1058,31 +1050,57 @@ export function LinkedInProfileView({
       </div>
 
       {/* SKILLS + GEMINI AI KEY */}
-      <section className={cn('rounded-3xl border p-6 space-y-4', cardClass)}>
+      <section className={cn('rounded-lg border p-5 sm:p-6 space-y-4', cardClass)}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            <h3 className="text-base font-bold">
-              Skills &amp; Automated AI Resume Fixer Settings
-            </h3>
+          <h3 className="text-base font-semibold">
+            Skills &amp; Personal AI Tailoring
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {personalApiConfigured && (
+              <span
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium',
+                  isDark
+                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                )}
+              >
+                <Check className="h-3.5 w-3.5" />
+                Personal Gemini AI Connected (.env)
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowKeyOverride((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium',
+                secondaryBtn
+              )}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              {showKeyOverride ? 'Hide Key' : geminiApiKey ? 'Custom Key Active' : 'Override Key'}
+            </button>
           </div>
-          <div className="flex items-center gap-2">
-            <KeyRound className="h-3.5 w-3.5 opacity-70" />
+        </div>
+
+        {(showKeyOverride || !personalApiConfigured) && (
+          <div className="flex flex-wrap items-center gap-2">
+            <KeyRound className={cn('h-3.5 w-3.5', mutedText)} />
             <input
               type="password"
               value={geminiApiKey}
               onChange={(e) => onUpdateGeminiKey(e.target.value)}
-              placeholder="Optional Gemini API Key (AIza...)"
-              className={cn('w-56 rounded-xl border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+              placeholder="Optional browser Gemini API Key override — leave blank to use personal .env key"
+              className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
             />
           </div>
-        </div>
+        )}
 
         <div className="flex flex-wrap gap-1.5">
           {profile.skills.map((skill) => (
             <span
               key={skill}
-              className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium', secondaryBtn)}
+              className={cn('inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium', secondaryBtn)}
             >
               {skill}
               <button
@@ -1093,7 +1111,8 @@ export function LinkedInProfileView({
                     skills: profile.skills.filter((s) => s !== skill),
                   })
                 }
-                className="opacity-60 hover:opacity-100"
+                className="opacity-75 hover:opacity-100"
+                aria-label={`Remove ${skill}`}
               >
                 <X className="h-3 w-3" />
               </button>
@@ -1113,12 +1132,12 @@ export function LinkedInProfileView({
               }
             }}
             placeholder="Add new skill (syncs with resume & job matcher)..."
-            className={cn('flex-1 rounded-xl border px-3 py-2 text-xs focus:outline-none', inputClass)}
+            className={cn('flex-1 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
           />
           <button
             type="button"
             onClick={handleAddSkill}
-            className={cn('inline-flex items-center gap-1 rounded-xl px-4 py-2 text-xs font-bold', primaryBtn)}
+            className={cn('inline-flex items-center gap-1 rounded-lg px-4 py-2 text-xs', primaryBtn)}
           >
             <Plus className="h-3.5 w-3.5" />
             Add Skill
@@ -1127,16 +1146,16 @@ export function LinkedInProfileView({
       </section>
 
       {/* ABOUT / CAREER JOURNEY VAULT */}
-      <section className={cn('rounded-3xl border p-6 space-y-3', cardClass)}>
+      <section className={cn('rounded-lg border p-5 sm:p-6 space-y-3', cardClass)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5" />
-            <h3 className="text-base font-bold">About &amp; Career Journey Vault</h3>
+            <BookOpen className="h-4 w-4" />
+            <h3 className="text-base font-semibold">About &amp; Career Journey Vault</h3>
           </div>
           <button
             type="button"
             onClick={() => setEditingJourney((v) => !v)}
-            className={cn('inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold', secondaryBtn)}
+            className={cn('inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
           >
             {editingJourney ? (
               <>
@@ -1160,10 +1179,10 @@ export function LinkedInProfileView({
                 careerJourneyMarkdown: e.target.value,
               })
             }
-            className={cn('w-full rounded-2xl border p-4 font-mono text-xs leading-relaxed focus:outline-none', inputClass)}
+            className={cn('w-full rounded-lg border p-4 font-mono text-xs leading-relaxed focus:outline-none', inputClass)}
           />
         ) : (
-          <div className={cn('max-h-72 overflow-y-auto rounded-2xl border p-4 text-xs leading-relaxed whitespace-pre-line', subBoxClass)}>
+          <div className={cn('max-h-72 overflow-y-auto rounded-lg border p-4 text-xs leading-relaxed whitespace-pre-line', subBoxClass)}>
             {profile.careerJourneyMarkdown || profile.summary}
           </div>
         )}
