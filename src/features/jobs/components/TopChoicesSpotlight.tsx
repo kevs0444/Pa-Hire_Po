@@ -73,10 +73,10 @@ export function TopChoicesSpotlight({
                       'rounded border px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums',
                       idx === 0
                         ? isDark
-                          ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                          ? 'border-zinc-700 bg-zinc-800 text-zinc-100 font-semibold'
                           : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                         : isDark
-                          ? 'border-slate-700 bg-slate-800 text-slate-200'
+                          ? 'border-zinc-800 bg-zinc-900 text-zinc-300'
                           : 'border-slate-200 bg-slate-100 text-slate-700'
                     )}
                   >

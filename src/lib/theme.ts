@@ -30,28 +30,28 @@ export function getThemeTokens(theme: MonochromeTheme): ThemeTokens {
       theme: 'dark',
       isDark: true,
       isOrange: false,
-      pageBg: 'bg-[#0b0f17] text-slate-100',
-      navBg: 'border-slate-800 bg-[#111827]',
-      cardSurface: 'border-slate-800 bg-[#111827] text-slate-100',
-      subSurface: 'border-slate-800 bg-slate-900/75 text-slate-200',
+      pageBg: 'bg-[#121214] text-zinc-100',
+      navBg: 'border-zinc-800/90 bg-[#18181b]',
+      cardSurface: 'border-zinc-800/90 bg-[#18181b] text-zinc-100',
+      subSurface: 'border-zinc-800/80 bg-[#202024] text-zinc-200',
       inputSurface:
-        'border-slate-700 bg-[#0b0f17] text-slate-100 focus:border-blue-500',
+        'border-zinc-700 bg-[#121214] text-zinc-100 focus:border-zinc-400',
       primaryBtn:
-        'bg-[#2563eb] text-white hover:bg-blue-500 font-semibold',
+        'bg-zinc-100 text-zinc-950 hover:bg-white font-semibold shadow-xs',
       contrastBtn:
-        'bg-slate-100 text-slate-900 hover:bg-white font-semibold',
+        'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 font-semibold border border-zinc-700',
       secondaryBtn:
-        'border-slate-700 bg-[#111827] text-slate-200 hover:bg-slate-800 hover:border-slate-600',
+        'border-zinc-700/80 bg-[#1e1e22] text-zinc-200 hover:bg-zinc-800 hover:border-zinc-600',
       orangeBadge:
-        'border-blue-500/35 bg-blue-500/12 text-blue-300',
+        'border-zinc-700 bg-zinc-800/60 text-zinc-200',
       selectedCard:
-        'border-slate-700 border-l-[3px] border-l-blue-500 bg-slate-900/90 text-slate-100',
-      mutedText: 'text-slate-400',
-      strongText: 'text-slate-50',
-      barTrack: 'bg-slate-800',
-      barFill: 'bg-blue-500',
-      borderSubtle: 'border-slate-800',
-      navTrack: 'border-slate-800 bg-slate-900',
+        'border-zinc-700 border-l-[3px] border-l-zinc-300 bg-[#222227] text-zinc-100',
+      mutedText: 'text-zinc-400',
+      strongText: 'text-zinc-50',
+      barTrack: 'bg-zinc-800',
+      barFill: 'bg-zinc-300',
+      borderSubtle: 'border-zinc-800/80',
+      navTrack: 'border-zinc-800 bg-zinc-900',
     };
   }
 

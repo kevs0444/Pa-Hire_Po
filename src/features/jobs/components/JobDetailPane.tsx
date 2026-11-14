@@ -77,14 +77,14 @@ export function JobDetailPane({
   const fitBadgeTone =
     job.experienceFit === 'fit'
       ? isDark
-        ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+        ? 'border-zinc-700 bg-zinc-800 text-zinc-100 font-semibold'
         : 'border-emerald-200 bg-emerald-50 text-emerald-800'
       : job.experienceFit === 'stretch'
         ? isDark
-          ? 'border-amber-700/70 bg-amber-950/50 text-amber-300'
+          ? 'border-zinc-700 bg-zinc-800/60 text-zinc-300'
           : 'border-amber-200 bg-amber-50 text-amber-800'
         : isDark
-          ? 'border-slate-700 bg-slate-800 text-slate-300'
+          ? 'border-zinc-800 bg-zinc-900 text-zinc-400'
           : 'border-slate-300 bg-slate-100 text-slate-700';
 
   return (
@@ -287,7 +287,7 @@ export function JobDetailPane({
               className={cn(
                 'rounded border px-2 py-0.5 text-[11px] font-medium',
                 isDark
-                  ? 'border-emerald-800/70 bg-emerald-950/50 text-emerald-300'
+                  ? 'border-zinc-700 bg-zinc-800/80 text-zinc-100 font-medium'
                   : 'border-emerald-200 bg-emerald-50 text-emerald-800'
               )}
             >

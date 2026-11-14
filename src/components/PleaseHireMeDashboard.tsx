@@ -587,7 +587,7 @@ export function PleaseHireMeDashboard({
   }, [isDark]);
 
   const activeNavTabClass = isDark
-    ? 'border-b-2 border-blue-400 text-blue-400 font-semibold'
+    ? 'border-b-2 border-zinc-200 text-zinc-100 font-semibold'
     : 'border-b-2 border-[#0a66c2] text-[#0a66c2] font-semibold';
 
   const inactiveNavTabClass = cn(
@@ -707,7 +707,7 @@ export function PleaseHireMeDashboard({
                 className={cn(
                   'rounded border px-1 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
                   isDark
-                    ? 'border-blue-500/35 bg-blue-500/15 text-blue-300'
+                    ? 'border-zinc-700 bg-zinc-800 text-zinc-200'
                     : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
                 )}
               >
@@ -1201,14 +1201,14 @@ export function PleaseHireMeDashboard({
                     const matchBadgeTone =
                       job.matchScore >= 75
                         ? isDark
-                          ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                          ? 'border-zinc-700 bg-zinc-800 text-zinc-100 font-semibold'
                           : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                         : job.matchScore >= 55
                           ? isDark
-                            ? 'border-blue-700/70 bg-blue-950/60 text-blue-300'
+                            ? 'border-zinc-800 bg-zinc-800/60 text-zinc-300'
                             : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
                           : isDark
-                            ? 'border-slate-700 bg-slate-800 text-slate-300'
+                            ? 'border-zinc-800 bg-zinc-900 text-zinc-400'
                             : 'border-slate-200 bg-slate-100 text-slate-700';
 
                     return (

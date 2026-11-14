@@ -25,18 +25,18 @@ export function MatchScoreRing({
   const ringColor =
     clamped >= 75
       ? isDark
-        ? 'text-emerald-400'
+        ? 'text-zinc-100'
         : 'text-[#057642]'
       : clamped >= 55
         ? isDark
-          ? 'text-blue-400'
+          ? 'text-zinc-400'
           : 'text-[#0a66c2]'
         : isDark
-          ? 'text-slate-500'
+          ? 'text-zinc-600'
           : 'text-slate-400';
 
-  const trackColor = isDark ? 'text-slate-800' : 'text-slate-200';
-  const labelColor = isDark ? 'text-slate-100' : 'text-slate-900';
+  const trackColor = isDark ? 'text-zinc-800' : 'text-slate-200';
+  const labelColor = isDark ? 'text-zinc-100' : 'text-slate-900';
 
   return (
     <div

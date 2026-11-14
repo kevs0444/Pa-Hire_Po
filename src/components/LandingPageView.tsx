@@ -265,7 +265,7 @@ export function LandingPageView({
               <span
                 className={cn(
                   'inline-flex items-center gap-1 text-xs font-semibold',
-                  tokens.isDark ? 'text-blue-400' : 'text-[#0a66c2]'
+                  tokens.isDark ? 'text-zinc-200 hover:text-white' : 'text-[#0a66c2]'
                 )}
               >
                 Browse listings <ArrowRight className="h-3.5 w-3.5" />
