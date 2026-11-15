@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import {
   Activity,
+  ArrowUpDown,
   BarChart3,
   Briefcase,
+  Calendar,
+  Clock,
   Compass,
   FileText,
   Filter,
@@ -23,13 +26,20 @@ import {
   AppStoreState,
   AutoApplyConfig,
   COUNTRY_CONFIGS,
+  DateFilterOption,
   JobListing,
+  JobSortOption,
   JobSource,
   JobStatus,
   ScanSourceMeta,
   StructuredResume,
   UserProfile,
 } from '@/types/job';
+import {
+  filterJobsByDate,
+  formatJobDateLabel,
+  sortJobs,
+} from '@/features/jobs/lib/job-date-utils';
 import {
   createBlankUserProfile,
   resumeToPlainText,
@@ -104,6 +114,7 @@ export function PleaseHireMeDashboard({
   initialTab?: ActiveTab;
 }) {
   const [hydrated, setHydrated] = useState(false);
+  const [clientNow, setClientNow] = useState<number | null>(null);
   const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [store, setStore] = useState<AppStoreState>(getDefaultStoreState);
   const [storageMode, setStorageMode] = useState<string>('browser-only');
@@ -135,10 +146,12 @@ export function PleaseHireMeDashboard({
   );
   const [tailoring, setTailoring] = useState(false);
 
-  // Filters
+  // Filters & Sorting
   const [statusFilter, setStatusFilter] = useState<'active' | JobStatus>('active');
   const [sourceFilter, setSourceFilter] = useState<'all' | JobSource>('all');
   const [fitFilter, setFitFilter] = useState<'all' | 'applicable'>('all');
+  const [dateFilter, setDateFilter] = useState<DateFilterOption>('all');
+  const [sortBy, setSortBy] = useState<JobSortOption>('match');
   const [minScore, setMinScore] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleDraft, setRoleDraft] = useState('Data Analyst / Junior Data Analyst');
@@ -325,6 +338,7 @@ export function PleaseHireMeDashboard({
       setStore(chosen);
       setRoleDraft(user.primaryRole);
       setHydrated(true);
+      setClientNow(Date.now());
 
       if (chosen.jobs.length === 0 && !initialAutoScanRan.current) {
         initialAutoScanRan.current = true;
@@ -333,8 +347,13 @@ export function PleaseHireMeDashboard({
     }
 
     void hydrate();
+    const clockInterval = setInterval(() => {
+      setClientNow(Date.now());
+    }, 60000);
+
     return () => {
       active = false;
+      clearInterval(clockInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -495,7 +514,7 @@ export function PleaseHireMeDashboard({
 
   const filteredJobs = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return store.jobs.filter((job) => {
+    const matched = store.jobs.filter((job) => {
       if (statusFilter === 'active') {
         if (job.status === 'hidden') return false;
       } else if (job.status !== statusFilter) {
@@ -515,10 +534,20 @@ export function PleaseHireMeDashboard({
 
       return true;
     });
+
+    const dateFiltered = filterJobsByDate(
+      matched,
+      dateFilter,
+      clientNow ?? undefined
+    );
+    return sortJobs(dateFiltered, sortBy, clientNow ?? undefined);
   }, [
+    clientNow,
+    dateFilter,
     fitFilter,
     minScore,
     searchQuery,
+    sortBy,
     sourceFilter,
     statusFilter,
     store.jobs,
@@ -1123,7 +1152,7 @@ export function PleaseHireMeDashboard({
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="relative">
                   <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
                   <input
@@ -1131,8 +1160,45 @@ export function PleaseHireMeDashboard({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter results..."
-                    className={cn('w-44 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
+                    className={cn('w-36 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none sm:w-44', inputSurface)}
                   />
+                </div>
+
+                {/* DATE RECENCY FILTER */}
+                <div className="relative flex items-center">
+                  <Calendar className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
+                  <select
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value as DateFilterOption)}
+                    aria-label="Filter jobs by date posted"
+                    className={cn(
+                      'rounded-lg border py-1.5 pl-8 pr-2.5 text-xs font-medium focus:outline-none',
+                      inputSurface
+                    )}
+                  >
+                    <option value="all">All Dates</option>
+                    <option value="24h">Past 24 Hours / Today</option>
+                    <option value="7d">Past Week</option>
+                    <option value="30d">Past Month</option>
+                  </select>
+                </div>
+
+                {/* SORT STRATEGY */}
+                <div className="relative flex items-center">
+                  <ArrowUpDown className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as JobSortOption)}
+                    aria-label="Sort jobs"
+                    className={cn(
+                      'rounded-lg border py-1.5 pl-8 pr-2.5 text-xs font-medium focus:outline-none',
+                      inputSurface
+                    )}
+                  >
+                    <option value="match">Sort: Best Match</option>
+                    <option value="newest">Sort: Newest First</option>
+                    <option value="oldest">Sort: Oldest First</option>
+                  </select>
                 </div>
 
                 <label className={cn('flex items-center gap-1.5 text-xs', mutedText)}>
@@ -1171,6 +1237,25 @@ export function PleaseHireMeDashboard({
             <section className="grid items-start gap-5 lg:grid-cols-12">
               {/* LEFT COLUMN: JOB LIST */}
               <div className="space-y-2 lg:col-span-5">
+                {store.jobs.length > 0 && (
+                  <div className={cn('flex items-center justify-between px-1 text-xs', mutedText)}>
+                    <span>
+                      Showing <strong className={strongText}>{filteredJobs.length}</strong> of{' '}
+                      {store.jobs.length} jobs
+                    </span>
+                    <span className="font-mono text-[11px]">
+                      {sortBy === 'newest'
+                        ? 'Newest first'
+                        : sortBy === 'oldest'
+                          ? 'Oldest first'
+                          : 'Best match'}
+                      {dateFilter !== 'all' && (
+                        <> • {dateFilter === '24h' ? 'Past 24h' : dateFilter === '7d' ? 'Past week' : 'Past month'}</>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 {scanning && store.jobs.length === 0 ? (
                   <div className="space-y-2">
                     {[1, 2, 3, 4].map((n) => (
@@ -1285,8 +1370,12 @@ export function PleaseHireMeDashboard({
                               </span>
                             ))}
                           </div>
-                          <span className={cn('text-[11px]', mutedText)}>
-                            {job.postedAt}
+                          <span
+                            className={cn('inline-flex items-center gap-1 font-mono text-[11px]', mutedText)}
+                            title={`Posted: ${job.postedAt}`}
+                          >
+                            <Clock className="h-3 w-3 opacity-70" />
+                            {formatJobDateLabel(job, clientNow ?? undefined)}
                           </span>
                         </div>
                       </article>

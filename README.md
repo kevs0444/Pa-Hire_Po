@@ -16,6 +16,7 @@
 ### 1. Live Multi-Board Job Finder (`Find Jobs` / `/jobs`)
 - **3-Board Concurrent Scraper Engine**: Searches **LinkedIn** (Guest API + `cheerio` + `ts-jobspy`), **JobStreet** (v5 JSON API across `PH-Main`, `MY-Main`, `SG-Main`, `ID-Main`), and **Indeed** (`ts-jobspy`) with authentic SVG board logos, compound `/` role query expansion (default target role **`Data Analyst / Junior Data Analyst`**), and safe search fallbacks.
 - **5-Second Live Auto-Refresh + Manual Scan**: Toggle `Off`, `5s Live`, `15s`, or `30s` non-overlapping live polling alongside manual **Find Jobs**.
+- **Date Recency Filters & Multi-Strategy Sorting**: Filter jobs instantaneously by **All Dates**, **Past 24 Hours / Today**, **Past Week**, or **Past Month**, and sort listings by **Best Match**, **Newest First (Latest to Past)**, or **Oldest First (Past to Latest)** with unified cross-board date parsing (`job-date-utils.ts`) and card recency badges.
 - **Recommended Top 3 Strip**: Surfaces top 3 applicable listings for your active profile and experience level without noisy marketing banners.
 - **2-Column Master-Detail Explorer**: Left job feed (`border-l-[3px]` selection indicator, `✓` high-match pills) paired with a clean single-surface job detail inspector (`JobDetailPane`) and semantic `MatchScoreRing`.
 

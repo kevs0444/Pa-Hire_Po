@@ -21,6 +21,10 @@ export type ResumeFontFamily =
   | 'arial'
   | 'georgia';
 
+export type DateFilterOption = 'all' | '24h' | '7d' | '30d';
+
+export type JobSortOption = 'match' | 'newest' | 'oldest';
+
 export interface ResumeExperienceItem {
   id: string;
   role: string;

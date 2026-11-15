@@ -37,6 +37,10 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Filters by `Any`, `Remote`, `Hybrid`, or `Onsite`.
 - **Sub-Feature 1.5 — Anti-Block Fallback & Deduplication:**
   - Deduplicates listings by title/company/source and upgrades fallback cards (`isFallback`) automatically whenever live postings arrive.
+- **Sub-Feature 1.6 — Date Recency Filtering & Multi-Strategy Sorting:**
+  - **Date Recency Filters (`dateFilter`):** Instant client-side filtering by **All Dates**, **Past 24 Hours / Today** (`24h`), **Past Week** (`7d`), and **Past Month** (`30d`) without losing cached jobs.
+  - **Sorting Strategies (`sortBy`):** Sort listings by **Best Match** (match score descending, secondary recency), **Newest First** (latest to past), or **Oldest First** (past to latest). Fallback listings remain deprioritized below live jobs.
+  - **Cross-Platform Date Normalization (`job-date-utils.ts`):** Seamlessly unifies ISO timestamps (`YYYY-MM-DD` from LinkedIn/Indeed) and relative durations (`1h ago`, `2d ago`, `8d ago` from JobStreet) with SSR-safe hydration and relative card badges (`Clock` icon + `formatJobDateLabel`).
 
 ---
 
