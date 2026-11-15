@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
@@ -737,6 +738,32 @@ export function AuthScreen({
               )}
           </div>
         </section>
+
+        {/* Legal & Compliance Footer */}
+        <footer
+          className={cn(
+            'mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs',
+            tokens.mutedText
+          )}
+        >
+          <Link
+            href="/privacy"
+            className="hover:underline hover:text-[#0a66c2] transition-colors"
+          >
+            Privacy Policy
+          </Link>
+          <span>•</span>
+          <Link
+            href="/terms"
+            className="hover:underline hover:text-[#0a66c2] transition-colors"
+          >
+            Terms of Service
+          </Link>
+          <span>•</span>
+          <span className="font-mono text-[11px]">
+            © 2026 Pa-Hire Po
+          </span>
+        </footer>
       </main>
     </div>
   );
