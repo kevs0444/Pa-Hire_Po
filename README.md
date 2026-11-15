@@ -94,4 +94,4 @@ git add -A
 git commit -m "feat: dynamic Resume Studio AI, personal Gemini API, and anti-slop UI rules"
 git push origin main
 ```
-Pushes to `main` on `https://github.com/kevs0444/PleaseHireMe.git` trigger automatic production deployments on Vercel.
+Pushes to `main` on `https://github.com/kevs0444/Pa-Hire_Po.git` trigger automatic production deployments on Vercel.
