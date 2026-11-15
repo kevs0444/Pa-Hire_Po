@@ -212,14 +212,56 @@ export function AuthScreen({
       }
 
       if (mode === 'signup') {
+        const cleanFullName =
+          fullName.trim() || cleanEmail.split('@')[0] || 'User';
+        const cleanPrimaryRole =
+          primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
+
+        const signupRes = await fetch('/api/supabase/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'signup',
+            email: cleanEmail,
+            password,
+            fullName: cleanFullName,
+            primaryRole: cleanPrimaryRole,
+          }),
+        });
+        const signupData = (await signupRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          confirmed?: boolean;
+          fallbackClientSignup?: boolean;
+          error?: string;
+        };
+
+        if (!signupRes.ok) {
+          setErrorMsg(signupData.error || 'Could not create account.');
+          return;
+        }
+
+        if (signupData.ok && signupData.confirmed) {
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+          if (signInErr) {
+            setErrorMsg(signInErr.message);
+            return;
+          }
+          router.push(safeNext);
+          router.refresh();
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
             data: {
-              full_name: fullName.trim() || cleanEmail.split('@')[0],
-              primary_role: primaryRole.trim() || 'Data Analyst / Junior Data Analyst',
+              full_name: cleanFullName,
+              primary_role: cleanPrimaryRole,
             },
           },
         });
@@ -623,30 +665,40 @@ export function AuthScreen({
               </div>
             </div>
 
-            {!loadingSetup && (!setup.keyValid || !setup.schemaReady) && (
-              <div className={cn('border-t pt-4 space-y-2', tokens.borderSubtle)}>
-                <div className="flex items-center justify-between gap-2 text-[11px]">
-                  <span className={tokens.mutedText}>
-                    Local workspace &amp; Admin settings access
-                  </span>
-                  <span className={cn('font-mono', tokens.mutedText)}>
-                    Setup Pending
-                  </span>
+            {!loadingSetup &&
+              (setup.allowLocalAdmin ?? (!setup.keyValid || !setup.schemaReady)) && (
+                <div className={cn('border-t pt-4 space-y-2', tokens.borderSubtle)}>
+                  <div className="flex items-center justify-between gap-2 text-[11px]">
+                    <span className={tokens.mutedText}>
+                      Local workspace &amp; Admin settings access
+                    </span>
+                    <span
+                      className={cn(
+                        'font-mono',
+                        setup.keyValid && setup.schemaReady
+                          ? 'font-medium text-[#057642]'
+                          : tokens.mutedText
+                      )}
+                    >
+                      {setup.keyValid && setup.schemaReady
+                        ? '✓ Cloud Connected'
+                        : 'Setup Pending'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => void handleLocalAdminLogin()}
+                    className={cn(
+                      'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                      tokens.secondaryBtn
+                    )}
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                    Continue as Admin ({PRIMARY_ADMIN_EMAIL})
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={submitting}
-                  onClick={() => void handleLocalAdminLogin()}
-                  className={cn(
-                    'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
-                    tokens.secondaryBtn
-                  )}
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  Continue as Admin ({PRIMARY_ADMIN_EMAIL})
-                </button>
-              </div>
-            )}
+              )}
           </div>
         </section>
       </main>

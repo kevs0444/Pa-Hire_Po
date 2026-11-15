@@ -19,6 +19,7 @@ export interface SetupStatus {
   message: string;
   vercelEnv?: string;
   personalApiConfigured?: boolean;
+  allowLocalAdmin?: boolean;
 }
 
 export interface AdminUsersApiResponse {

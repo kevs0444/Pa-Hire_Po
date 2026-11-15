@@ -405,14 +405,16 @@ export function AdminDashboardView({
               <span
                 className={cn(
                   'rounded border px-2 py-0.5 font-mono text-[11px] font-semibold',
-                  data.schemaReady
+                  (setupStatus?.schemaReady ?? data.schemaReady)
                     ? tokens.isDark
                       ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
                       : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                     : tokens.secondaryBtn
                 )}
               >
-                {data.schemaReady ? '✓ Supabase Cloud Live' : 'Schema Setup Pending'}
+                {(setupStatus?.schemaReady ?? data.schemaReady)
+                  ? '✓ Supabase Cloud Live'
+                  : 'Schema Setup Pending'}
               </span>
               <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
                 Vercel Store: supabase-erin-elephant ({data.projectRef})

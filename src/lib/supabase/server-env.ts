@@ -10,6 +10,7 @@ export interface ServerSupabaseConfig {
   url: string;
   anonKey: string;
   serviceRoleKey: string;
+  postgresUrl: string;
   projectRef: string;
   isConfigured: boolean;
   hasServiceRole: boolean;
@@ -80,6 +81,13 @@ export function getServerSupabaseConfig(): ServerSupabaseConfig {
     fileEnv.SUPABASE_SECRET_KEY ||
     ''
   ).trim();
+  const postgresUrl = (
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.POSTGRES_URL ||
+    fileEnv.POSTGRES_URL_NON_POOLING ||
+    fileEnv.POSTGRES_URL ||
+    ''
+  ).trim();
 
   const rawAdmins =
     process.env.ADMIN_EMAILS ||
@@ -101,6 +109,7 @@ export function getServerSupabaseConfig(): ServerSupabaseConfig {
     url,
     anonKey,
     serviceRoleKey,
+    postgresUrl,
     projectRef: extractSupabaseProjectRef(url),
     isConfigured: Boolean(url && anonKey),
     hasServiceRole: Boolean(url && serviceRoleKey),

@@ -7,6 +7,7 @@ import {
   PRIMARY_ADMIN_EMAIL,
   extractSupabaseProjectRef,
 } from '@/lib/supabase/config';
+import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { getServerSupabaseConfig } from '@/lib/supabase/server-env';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
@@ -19,7 +20,8 @@ interface SetupProbeResult {
 
 async function probeSupabaseProject(
   url: string,
-  anonKey: string
+  anonKey: string,
+  serviceRoleKey = ''
 ): Promise<SetupProbeResult> {
   if (!url || !anonKey) {
     return {
@@ -66,14 +68,15 @@ async function probeSupabaseProject(
   }
 
   let schemaReady = false;
+  const restKey = serviceRoleKey || anonKey;
   try {
     const tableRes = await fetch(
       `${url}/rest/v1/user_profiles?select=id&limit=1`,
       {
         headers: {
-          apikey: anonKey,
-          ...(anonKey.startsWith('eyJ')
-            ? { Authorization: `Bearer ${anonKey}` }
+          apikey: restKey,
+          ...(restKey.startsWith('eyJ')
+            ? { Authorization: `Bearer ${restKey}` }
             : {}),
         },
         cache: 'no-store',
@@ -150,10 +153,19 @@ async function upsertEnvVariables(updates: Record<string, string>) {
 
 export async function GET() {
   const cfg = getServerSupabaseConfig();
-  const probe = await probeSupabaseProject(cfg.url, cfg.anonKey);
+  const probe = await probeSupabaseProject(
+    cfg.url,
+    cfg.anonKey,
+    cfg.serviceRoleKey
+  );
   const vercelEnv =
     process.env.VERCEL_ENV || (process.env.VERCEL === '1' ? 'production' : 'local');
   const personalApiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
+  const allowLocalAdmin =
+    process.env.VERCEL !== '1' ||
+    !cfg.isConfigured ||
+    !probe.keyValid ||
+    !probe.schemaReady;
 
   return NextResponse.json({
     url: cfg.url,
@@ -168,16 +180,21 @@ export async function GET() {
     adminEmail: PRIMARY_ADMIN_EMAIL,
     vercelEnv,
     personalApiConfigured,
+    allowLocalAdmin,
   });
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
-      action?: 'save-keys' | 'enable-local-admin' | 'signout';
+      action?: 'save-keys' | 'enable-local-admin' | 'signout' | 'signup';
       url?: string;
       anonKey?: string;
       serviceRoleKey?: string;
+      email?: string;
+      password?: string;
+      fullName?: string;
+      primaryRole?: string;
     };
 
     if (body.action === 'signout') {
@@ -190,10 +207,65 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
+    if (body.action === 'signup') {
+      const cleanEmail = (body.email || '').trim().toLowerCase();
+      const password = body.password || '';
+      if (!cleanEmail || !cleanEmail.includes('@') || password.length < 6) {
+        return NextResponse.json(
+          { error: 'Enter a valid email address and a password with at least 6 characters.' },
+          { status: 400 }
+        );
+      }
+
+      const adminClient = createAdminSupabaseClient();
+      if (!adminClient) {
+        return NextResponse.json({ ok: false, fallbackClientSignup: true });
+      }
+
+      const fullName =
+        (body.fullName || '').trim() || cleanEmail.split('@')[0] || 'User';
+      const primaryRole =
+        (body.primaryRole || '').trim() || 'Data Analyst / Junior Data Analyst';
+
+      const { error } = await adminClient.auth.admin.createUser({
+        email: cleanEmail,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          full_name: fullName,
+          primary_role: primaryRole,
+        },
+      });
+
+      if (error) {
+        const msg = error.message || 'Could not create account.';
+        const isExisting = msg.toLowerCase().includes('already');
+        return NextResponse.json(
+          {
+            error: isExisting
+              ? 'An account with this email already exists. Use Password sign-in or Reset Password.'
+              : msg,
+          },
+          { status: isExisting ? 409 : 400 }
+        );
+      }
+
+      return NextResponse.json({ ok: true, confirmed: true });
+    }
+
     if (body.action === 'enable-local-admin') {
       const cfg = getServerSupabaseConfig();
-      const probe = await probeSupabaseProject(cfg.url, cfg.anonKey);
-      if (cfg.isConfigured && probe.keyValid && probe.schemaReady) {
+      const probe = await probeSupabaseProject(
+        cfg.url,
+        cfg.anonKey,
+        cfg.serviceRoleKey
+      );
+      if (
+        process.env.VERCEL === '1' &&
+        cfg.isConfigured &&
+        probe.keyValid &&
+        probe.schemaReady
+      ) {
         return NextResponse.json(
           {
             error:
@@ -228,7 +300,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const probe = await probeSupabaseProject(targetUrl, anonKey);
+    const probe = await probeSupabaseProject(targetUrl, anonKey, serviceRoleKey);
     if (!probe.keyValid) {
       return NextResponse.json({ error: probe.message }, { status: 400 });
     }
