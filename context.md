@@ -152,3 +152,70 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 - **Single Vercel Store Backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`):** All authentication, Postgres RLS storage, and Storage buckets point strictly to the Vercel-integrated Supabase instance (`https://muftcprpqnzuzfosvftz.supabase.co`). Multi-project switchers and separate direct Supabase presets are permanently removed.
 - **Clean Public `/login` Screen (`AuthScreen.tsx`):** Centered single-column sign-in UI (`Password`, `Create Account`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with all Supabase setup checklists, key forms, and `schema.sql` copy panels hidden from public visitors. Only an automatic fallback button (`Continue as Admin`) appears when `keyValid` or `schemaReady` is incomplete.
 - **Admin-Only Supabase Cloud Settings (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`):** Live 4-step health diagnostics (`1. API Key (.env)`, `2. SQL Tables & RLS`, `3. Admin User Directory Key`, `4. Backend Runtime & Gemini AI`), 1-click `Copy schema.sql`, `Open SQL Editor`, and `.env` credential management live inside the **Admin Control Center**.
+
+
+---
+
+## 10. Legal & Compliance Infrastructure (`/privacy`, `/terms`)
+
+**Core files:** `src/app/privacy/page.tsx`, `src/app/terms/page.tsx`, `src/features/legal/components/LegalPageShell.tsx`, `src/features/auth/components/AuthScreen.tsx`
+
+- **Sub-Feature 10.1 — Official Privacy Policy (`/privacy`):**
+  - **Google API Services User Data Policy Compliance**: Explicitly details the requested OAuth scopes (`openid`, `profile`, `email`), user authentication and session association purpose, and strict non-selling, non-advertising, and non-AI-model-training guarantees.
+  - **Data Storage & PostgreSQL Row-Level Security (RLS)**: Discloses that user profiles, resumes, and saved job applications are protected by PostgreSQL RLS where users can only access their own records.
+  - **Enterprise Gemini AI Processing Disclosure**: Outlines how Resume Studio uses Google Gemini API (`gemini-3.1-flash-lite`) exclusively upon direct user invocation for stateless resume tailoring without data retention or model training.
+  - **Philippine Data Privacy Act (RA 10173) & GDPR Compliance**: Details user rights (access, rectification, export, erasure) with data deletion requests handled via `markevinalcantara40@gmail.com`.
+- **Sub-Feature 10.2 — Official Terms of Service (`/terms`):**
+  - **Civic Career Utility Disclaimer**: Clarifies that Pa-Hire Po is a search and drafting utility, not an employer, recruiting firm, or job placement agency.
+  - **Nominative Third-Party Trademark Disclaimers**: Discloses independent status and lack of affiliation or endorsement with external job portals (LinkedIn, JobStreet, Indeed).
+  - **AI Resume Advisory Notice**: Establishes that AI tailoring suggestions are advisory and job seekers remain solely responsible for the factual accuracy of their resumes and applications.
+  - **Intellectual Property**: Affirms that users retain 100% exclusive ownership over their resume content and work history.
+- **Sub-Feature 10.3 — Civic Legal Page Shell (`LegalPageShell.tsx`):**
+  - Shared client shell enforcing `Plus Jakarta Sans` headings, `Source Sans 3` body prose, `JetBrains Mono` code/dates, sticky navigation with instant Light/Dark mode toggling, and interactive anchor-linked Table of Contents.
+  - Prerendered statically by Next.js (`○ /privacy`, `○ /terms`) for instant loading and SEO crawling.
+- **Sub-Feature 10.4 — Public Legal Footer Links (`AuthScreen.tsx`):**
+  - Centered, accessible links to `/privacy` and `/terms` rendered directly below the sign-in card on `/login`.
+
+---
+
+## 11. Multi-Provider Social OAuth Engine (Google Cloud & GitHub)
+
+**Core files:** `src/features/auth/components/AuthScreen.tsx`, `src/lib/supabase/config.ts`, `src/app/api/supabase/setup/route.ts`, `.env`
+
+- **Sub-Feature 11.1 — Google OAuth 2.0 Integration & Testing Mode Safeguards:**
+  - Registered in Google Cloud Console (`pa-hire-po`, Client ID `250527894392-qsbvgolaggk77pdqo28lf4ha5i43623j.apps.googleusercontent.com`).
+  - Configured with `muftcprpqnzuzfosvftz.supabase.co` callback.
+  - **Testing Mode Strategy**: In Google Cloud Console, `supabase.co` is retained as the sole authorized domain (avoiding the Mozilla Public Suffix List `must be a top private domain` error triggered by `.vercel.app`). Test users are whitelisted directly under Audience/Test Users (supporting up to 100 testers without requiring full brand verification or custom domains).
+- **Sub-Feature 11.2 — GitHub OAuth 2.0 Integration (Zero-Friction Global OAuth):**
+  - Registered GitHub OAuth App (`GITHUB_CLIENT_ID="Ov23liSE1RfoLy2321xB"`, Secret `eebfc9d8c0454780542a72ebf63dfa8915ef1344`).
+  - Callback: `https://muftcprpqnzuzfosvftz.supabase.co/auth/v1/callback`.
+  - Zero domain restrictions, zero testing user limits; instantly live for all GitHub users worldwide.
+- **Sub-Feature 11.3 — Dynamic Provider Filtering & Localhost Redirect Protection:**
+  - `AuthScreen.tsx` queries `/api/supabase/setup` (`/auth/v1/settings`) dynamically so only configured providers (`Google ✓`, `GitHub ✓`) render buttons, preventing `Unsupported provider` runtime errors.
+  - **Supabase URL Configuration Safeguard**: Set Supabase **Site URL** to `https://pa-hire-po.vercel.app` and added `https://pa-hire-po.vercel.app/**` to **Redirect URLs** (Allow List), eliminating `localhost refused to connect` (`ERR_CONNECTION_REFUSED`) redirection errors on Vercel production.
+  - **Magic Link / OTP Fallback**: Built-in passwordless authentication requiring zero third-party developer consoles.
+
+---
+
+## 12. Active Progress Ledger, Verification State & Next Milestones
+
+- **Verified Production Deployment**:
+  - **Latest Git Commit**: `44fd508` (`feat(legal): add Privacy Policy and Terms of Service pages for Google OAuth publishing`) pushed to `https://github.com/kevs0444/Pa-Hire_Po.git` on branch `main`.
+  - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
+  - **Verified Routes**:
+    - `https://pa-hire-po.vercel.app/` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/login` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)
+- **Active Verified Capabilities**:
+  - Multi-board concurrent job scraping (LinkedIn, JobStreet, Indeed).
+  - Smart weighted match scoring (28–98%) against user profile and inferred target roles.
+  - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, and A4/Letter ATS font printing.
+  - LinkedIn-style profile with client-side canvas compression (`320×320` avatar, `1200×360` banner).
+  - Vercel Store Supabase backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`) with hardened RLS, automated keep-alive cron (`0 8 */4 * *`), and Admin Control Center (`/admin`).
+  - Google OAuth (Testing Mode) + GitHub OAuth + Password + Magic Link / OTP.
+- **Next Strategic Milestones**:
+  - [ ] **Custom Domain Setup**: Acquire/connect a custom domain (e.g. `pahirepo.com`) to Vercel and Google Cloud Console to publish Google OAuth to the global public without test user lists.
+  - [ ] **Auto-Apply Queue Expansion**: Automated form filling assistant for external job boards.
+  - [ ] **Interview Prep Module**: AI-powered mock interview question generator based on saved jobs and user's tailored resume.

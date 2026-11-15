@@ -69,3 +69,17 @@ Never introduce any of the following into components or styles:
 - **Single Backend Store (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`)**: **Pa-Hire Po** exclusively uses the Vercel-integrated Supabase project (`https://muftcprpqnzuzfosvftz.supabase.co`). Do NOT add alternate direct Supabase project switchers or multi-project preset selectors anywhere in the UI or schema headers.
 - **Clean Public `/login` Route (`AuthScreen.tsx`)**: Never render Supabase setup checklists, project URLs, `.env` API key inputs, or `schema.sql` snippets on the public `/login` screen. Keep `/login` strictly focused on authentication (`Password`, `Create Account`, `Magic Link / OTP`, `Reset Password`, and Social OAuth), plus a conditional local Admin sandbox button only when `keyValid` or `schemaReady` is incomplete (or when running locally in development).
 - **Admin-Only Supabase Settings (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`)**: All live Supabase connection health checks (`1. API Key (.env)`, `2. SQL Tables & RLS`, `3. Admin User Directory Key`, `4. Backend Runtime & Gemini AI`), `Copy schema.sql`, and `.env` key configuration belong strictly inside the **Admin Control Center**.
+
+### 7. Project Mission, System Architecture & Persistent Memory Protocol
+- **North Star Mission**: Pa-Hire Po is a high-contrast, distraction-free **Civic Career Utility** built for entry-to-mid career job seekers (especially Data Analysts, BI Analysts, Junior Engineers, and Tech Professionals in Southeast Asia & Globally) to discover jobs across LinkedIn, JobStreet, and Indeed with honest match scoring, and tailor ATS-optimized resumes via Google Gemini AI (`gemini-3.1-flash-lite`).
+- **Core Technology Stack**:
+  - **Framework**: Next.js 16 (App Router, Turbopack, Partial Prerendering, `@vercel/analytics`).
+  - **Styling**: Tailwind CSS v4, custom Civic Career Utility tokens (`getThemeTokens`).
+  - **Backend & Database**: Vercel-linked Supabase PostgreSQL (`muftcprpqnzuzfosvftz`), Row-Level Security (RLS) on all user data, GoTrue OAuth (Google, GitHub, Magic Link).
+  - **AI Engine**: Google Gemini API (`gemini-3.1-flash-lite`, enterprise non-training terms).
+  - **Desktop Shell**: Electron with modular IPC handlers (`electron/{main,preload,ipc-handlers,config}.cjs`).
+- **Persistent AI Memory & Living Ledger Protocol**:
+  - **`context.md` is the Living Single Source of Truth**: All AI assistants working on Pa-Hire Po MUST consult `context.md` before making architectural decisions or proposing new features.
+  - **Keep Memory Updated**: Whenever a feature is added, modified, or verified, update the relevant feature sections and the Progress Ledger in `context.md`.
+  - **Keep `AGENTS.md` Focused on Rules**: Do not dump transient daily logs into `AGENTS.md`. Keep `AGENTS.md` reserved for permanent rules, architectural invariants, and design system constraints that must be injected into every agent prompt turn.
+
