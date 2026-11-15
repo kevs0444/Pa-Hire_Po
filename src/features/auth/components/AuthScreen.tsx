@@ -202,12 +202,42 @@ export function AuthScreen({
           email: cleanEmail,
           password,
         });
-        if (error) {
-          setErrorMsg(error.message);
+        if (!error) {
+          router.push(safeNext);
+          router.refresh();
           return;
         }
-        router.push(safeNext);
-        router.refresh();
+
+        const assistRes = await fetch('/api/supabase/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'signin-assist',
+            email: cleanEmail,
+            password,
+          }),
+        });
+        const assistData = (await assistRes.json().catch(() => ({}))) as {
+          ok?: boolean;
+          confirmed?: boolean;
+          error?: string;
+        };
+
+        if (assistRes.ok && assistData.ok && assistData.confirmed) {
+          const { error: retryErr } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password,
+          });
+          if (!retryErr) {
+            router.push(safeNext);
+            router.refresh();
+            return;
+          }
+          setErrorMsg(retryErr.message);
+          return;
+        }
+
+        setErrorMsg(assistData.error || error.message);
         return;
       }
 
@@ -330,9 +360,27 @@ export function AuthScreen({
     }
   };
 
+  const enabledOAuthProviders = SUPABASE_OAUTH_PROVIDERS.filter((provider) => {
+    const shortKey = provider.id.replace('_oidc', '');
+    return setup.enabledProviders.some(
+      (p) => p === provider.id || p === shortKey
+    );
+  });
+
   const handleOAuthLogin = async (provider: SupportedOAuthProvider) => {
     setErrorMsg('');
     setSuccessMsg('');
+    const shortKey = provider.replace('_oidc', '');
+    const isEnabled = setup.enabledProviders.some(
+      (p) => p === provider || p === shortKey
+    );
+    if (!isEnabled) {
+      setErrorMsg(
+        `${provider} OAuth is not enabled in Supabase yet. Sign in with your Email & Password above, or enable ${provider} in Supabase Dashboard -> Authentication -> Providers.`
+      );
+      return;
+    }
+
     const supabase = getSupabase();
     if (!supabase) {
       setErrorMsg(
@@ -619,26 +667,20 @@ export function AuthScreen({
               </button>
             </form>
 
-            {/* Social / OAuth Section */}
-            <div className={cn('border-t pt-4 space-y-3', tokens.borderSubtle)}>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className={cn('text-xs font-semibold', tokens.strongText)}>
-                  One-Click Social &amp; OAuth Sign-In (Supabase)
-                </span>
-                {setup.enabledProviders.length > 0 && (
-                  <span className={cn('font-mono text-[11px]', tokens.mutedText)}>
-                    Enabled: {setup.enabledProviders.join(', ')}
+            {/* Social / OAuth Section — rendered only when enabled in Supabase Auth Providers */}
+            {enabledOAuthProviders.length > 0 && (
+              <div className={cn('border-t pt-4 space-y-3', tokens.borderSubtle)}>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={cn('text-xs font-semibold', tokens.strongText)}>
+                    One-Click Social &amp; OAuth Sign-In (Supabase)
                   </span>
-                )}
-              </div>
+                  <span className={cn('font-mono text-[11px]', tokens.mutedText)}>
+                    Enabled: {enabledOAuthProviders.map((p) => p.label).join(', ')}
+                  </span>
+                </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {SUPABASE_OAUTH_PROVIDERS.map((provider) => {
-                  const shortKey = provider.id.replace('_oidc', '');
-                  const isActiveInSupabase = setup.enabledProviders.some(
-                    (p) => p === provider.id || p === shortKey
-                  );
-                  return (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {enabledOAuthProviders.map((provider) => (
                     <button
                       key={provider.id}
                       type="button"
@@ -648,22 +690,16 @@ export function AuthScreen({
                         'inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
                         tokens.secondaryBtn
                       )}
-                      title={
-                        isActiveInSupabase
-                          ? `Continue with ${provider.label}`
-                          : `Continue with ${provider.label} (Enable under Supabase Auth Providers)`
-                      }
+                      title={`Continue with ${provider.label}`}
                     >
                       <OAuthProviderMark id={provider.id} />
                       <span>{provider.label}</span>
-                      {isActiveInSupabase && (
-                        <span className="text-[10px] text-[#057642]">✓</span>
-                      )}
+                      <span className="text-[10px] text-[#057642]">✓</span>
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {!loadingSetup &&
               (setup.allowLocalAdmin ?? (!setup.keyValid || !setup.schemaReady)) && (

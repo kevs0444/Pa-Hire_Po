@@ -647,6 +647,39 @@ export function AdminDashboardView({
               {setupStatus?.personalApiConfigured ? '✓ AI Active' : 'Smart Engine'}
             </span>
           </div>
+          <div className="flex items-center justify-between gap-2 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">5. Auth Sign-In Providers</span>
+              <a
+                href={`${dashboardBase}/auth/providers`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn('inline-flex items-center gap-1 text-[11px] hover:underline', tokens.mutedText)}
+              >
+                Configure OAuth
+                <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            </div>
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
+                setupStatus?.keyValid
+                  ? tokens.isDark
+                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : tokens.secondaryBtn
+              )}
+            >
+              {(() => {
+                const oauth = (setupStatus?.enabledProviders || []).filter(
+                  (p) => p !== 'email' && p !== 'phone'
+                );
+                return oauth.length > 0
+                  ? `Email + ${oauth.join(', ')} ✓`
+                  : 'Email + Password ✓ (OAuth: Off)';
+              })()}
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">

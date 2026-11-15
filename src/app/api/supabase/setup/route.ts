@@ -187,7 +187,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
-      action?: 'save-keys' | 'enable-local-admin' | 'signout' | 'signup';
+      action?: 'save-keys' | 'enable-local-admin' | 'signout' | 'signup' | 'signin-assist';
       url?: string;
       anonKey?: string;
       serviceRoleKey?: string;
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
-    if (body.action === 'signup') {
+    if (body.action === 'signup' || body.action === 'signin-assist') {
       const cleanEmail = (body.email || '').trim().toLowerCase();
       const password = body.password || '';
       if (!cleanEmail || !cleanEmail.includes('@') || password.length < 6) {
@@ -227,30 +227,57 @@ export async function POST(request: NextRequest) {
       const primaryRole =
         (body.primaryRole || '').trim() || 'Data Analyst / Junior Data Analyst';
 
-      const { error } = await adminClient.auth.admin.createUser({
-        email: cleanEmail,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          full_name: fullName,
-          primary_role: primaryRole,
-        },
-      });
+      const { data: createData, error: createError } =
+        await adminClient.auth.admin.createUser({
+          email: cleanEmail,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: fullName,
+            primary_role: primaryRole,
+          },
+        });
 
-      if (error) {
-        const msg = error.message || 'Could not create account.';
-        const isExisting = msg.toLowerCase().includes('already');
+      if (!createError && createData.user) {
+        return NextResponse.json({ ok: true, confirmed: true, created: true });
+      }
+
+      const msg = createError?.message || 'Could not create account.';
+      const isExisting = msg.toLowerCase().includes('already');
+      if (!isExisting) {
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+
+      const { data: listData } = await adminClient.auth.admin.listUsers({
+        page: 1,
+        perPage: 200,
+      });
+      const existingUser = listData?.users?.find(
+        (u) => (u.email || '').toLowerCase() === cleanEmail
+      );
+
+      if (existingUser && !existingUser.email_confirmed_at) {
+        await adminClient.auth.admin.updateUserById(existingUser.id, {
+          email_confirm: true,
+        });
+        return NextResponse.json({
+          ok: true,
+          confirmed: true,
+          autoConfirmedExisting: true,
+        });
+      }
+
+      if (body.action === 'signin-assist') {
         return NextResponse.json(
           {
-            error: isExisting
-              ? 'An account with this email already exists. Use Password sign-in or Reset Password.'
-              : msg,
+            error:
+              'Incorrect password for this account. Please try again or use Reset Password.',
           },
-          { status: isExisting ? 409 : 400 }
+          { status: 401 }
         );
       }
 
-      return NextResponse.json({ ok: true, confirmed: true });
+      return NextResponse.json({ ok: true, confirmed: true, existing: true });
     }
 
     if (body.action === 'enable-local-admin') {
