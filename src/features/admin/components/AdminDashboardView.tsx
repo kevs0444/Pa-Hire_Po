@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Ban,
   Check,
+  Copy,
   Database,
   ExternalLink,
   Eye,
@@ -26,6 +27,7 @@ import {
 import {
   AdminUsersApiResponse,
   InspectedUserPayload,
+  SetupStatus,
 } from '@/features/admin/types';
 import { AdminFreeTierCard } from '@/features/admin/components/AdminFreeTierCard';
 import { AdminSupabaseSetupDialog } from '@/features/admin/components/AdminSupabaseSetupDialog';
@@ -92,9 +94,9 @@ export function AdminDashboardView({
   >('profile');
 
   // Setup & SQL dialog + Free-Tier actions
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
-  const [targetUrlDraft, setTargetUrlDraft] = useState(DEFAULT_SUPABASE_URL);
   const [anonKeyDraft, setAnonKeyDraft] = useState('');
   const [serviceKeyDraft, setServiceKeyDraft] = useState('');
   const [savingKeys, setSavingKeys] = useState(false);
@@ -103,9 +105,12 @@ export function AdminDashboardView({
 
   const loadUsers = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/users', { cache: 'no-store' });
-      const payload = await res.json();
-      if (!res.ok) {
+      const [usersRes, setupRes] = await Promise.all([
+        fetch('/api/admin/users', { cache: 'no-store' }),
+        fetch('/api/supabase/setup', { cache: 'no-store' }).catch(() => null),
+      ]);
+      const payload = await usersRes.json();
+      if (!usersRes.ok) {
         setActionMsg({
           type: 'err',
           text: payload.error || 'Failed to load admin user directory.',
@@ -113,6 +118,10 @@ export function AdminDashboardView({
         return;
       }
       setData(payload as AdminUsersApiResponse);
+      if (setupRes && setupRes.ok) {
+        const setupPayload = (await setupRes.json()) as SetupStatus;
+        setSetupStatus(setupPayload);
+      }
     } catch {
       setActionMsg({
         type: 'err',
@@ -125,9 +134,16 @@ export function AdminDashboardView({
 
   useEffect(() => {
     let active = true;
-    fetch('/api/admin/users', { cache: 'no-store' })
-      .then(async (res) => ({ ok: res.ok, payload: await res.json() }))
-      .then(({ ok, payload }) => {
+    Promise.all([
+      fetch('/api/admin/users', { cache: 'no-store' }).then(async (res) => ({
+        ok: res.ok,
+        payload: await res.json(),
+      })),
+      fetch('/api/supabase/setup', { cache: 'no-store' })
+        .then(async (res) => (res.ok ? ((await res.json()) as SetupStatus) : null))
+        .catch(() => null),
+    ])
+      .then(([{ ok, payload }, setupPayload]) => {
         if (!active) return;
         if (!ok) {
           setActionMsg({
@@ -137,6 +153,9 @@ export function AdminDashboardView({
           return;
         }
         setData(payload as AdminUsersApiResponse);
+        if (setupPayload) {
+          setSetupStatus(setupPayload);
+        }
       })
       .catch(() => {
         if (active) {
@@ -250,7 +269,7 @@ export function AdminDashboardView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'save-keys',
-          url: targetUrlDraft || data.supabaseUrl,
+          url: DEFAULT_SUPABASE_URL,
           anonKey: anonKeyDraft,
           serviceRoleKey: serviceKeyDraft,
         }),
@@ -396,11 +415,11 @@ export function AdminDashboardView({
                 {data.schemaReady ? '✓ Supabase Cloud Live' : 'Schema Setup Pending'}
               </span>
               <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
-                Project: {data.projectRef}
+                Vercel Store: supabase-erin-elephant ({data.projectRef})
               </span>
             </div>
             <p className={cn('text-xs', tokens.mutedText)}>
-              Monitor total registered accounts, inspect user resumes and job pipelines, manage Admin roles, and manage Supabase project settings.
+              Monitor total registered accounts, inspect user resumes and job pipelines, manage Admin roles, and configure Vercel Store Supabase settings.
             </p>
           </div>
 
@@ -421,17 +440,14 @@ export function AdminDashboardView({
             </button>
             <button
               type="button"
-              onClick={() => {
-                setTargetUrlDraft(data.supabaseUrl);
-                setSetupModalOpen(true);
-              }}
+              onClick={() => setSetupModalOpen(true)}
               className={cn(
                 'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
                 tokens.secondaryBtn
               )}
             >
               <KeyRound className="h-3.5 w-3.5" />
-              SQL &amp; Keys
+              Supabase Settings
             </button>
             <a
               href={`${dashboardBase}/editor`}
@@ -498,6 +514,154 @@ export function AdminDashboardView({
             <span>{actionMsg.text}</span>
           </div>
         )}
+      </section>
+
+      {/* CONNECTED SUPABASE PROJECT & SETTINGS (VERCEL STORE) */}
+      <section className={cn('rounded-lg border p-5 space-y-4', tokens.cardSurface)}>
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <Database className="h-4 w-4 text-[#0a66c2]" />
+              <h3 className="text-sm font-bold tracking-tight">
+                Connected Supabase Project
+              </h3>
+              <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
+                supabase-erin-elephant (Vercel Store)
+              </span>
+            </div>
+            <p className={cn('font-mono text-xs break-all', tokens.mutedText)}>
+              {setupStatus?.url || data.supabaseUrl}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setLoading(true);
+                void loadUsers();
+              }}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                tokens.secondaryBtn
+              )}
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
+              Check
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleCopySql()}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                tokens.secondaryBtn
+              )}
+            >
+              {copiedSql ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-[#057642]" />
+                  Copied SQL
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy schema.sql
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setSetupModalOpen(true)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs',
+                tokens.primaryBtn
+              )}
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Supabase Key &amp; SQL Setup
+            </button>
+          </div>
+        </div>
+
+        <div className={cn('divide-y rounded-lg border text-xs', tokens.borderSubtle, tokens.subSurface)}>
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">1. API Key (.env)</span>
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
+                setupStatus?.keyValid
+                  ? tokens.isDark
+                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : tokens.secondaryBtn
+              )}
+            >
+              {setupStatus ? (setupStatus.keyValid ? '✓ Connected' : 'Key Needed') : 'Checking...'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">2. SQL Tables &amp; RLS</span>
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
+                (setupStatus?.schemaReady ?? data.schemaReady)
+                  ? tokens.isDark
+                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : tokens.secondaryBtn
+              )}
+            >
+              {(setupStatus?.schemaReady ?? data.schemaReady) ? '✓ Schema Live' : 'Run SQL Once'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">3. Admin User Directory Key</span>
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
+                (setupStatus?.hasServiceRole ?? data.hasServiceRole)
+                  ? tokens.isDark
+                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : tokens.secondaryBtn
+              )}
+            >
+              {(setupStatus?.hasServiceRole ?? data.hasServiceRole) ? '✓ Full Admin' : 'Optional'}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="font-medium">4. Backend Runtime &amp; Gemini AI</span>
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
+                setupStatus?.personalApiConfigured
+                  ? tokens.isDark
+                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : tokens.secondaryBtn
+              )}
+            >
+              {setupStatus?.vercelEnv || 'local'} •{' '}
+              {setupStatus?.personalApiConfigured ? '✓ AI Active' : 'Smart Engine'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+          <p className={tokens.mutedText}>
+            {setupStatus?.message ||
+              'Vercel Store Supabase (muftcprpqnzuzfosvftz) health checks load here.'}
+          </p>
+          <a
+            href={`${dashboardBase}/sql/new`}
+            target="_blank"
+            rel="noreferrer"
+            className={cn('inline-flex items-center gap-1 font-medium hover:underline', tokens.mutedText)}
+          >
+            Open SQL Editor
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
       </section>
 
       {/* PLATFORM KPI METRICS */}
@@ -792,15 +956,13 @@ export function AdminDashboardView({
       <AdminSupabaseSetupDialog
         theme={theme}
         isOpen={setupModalOpen}
-        supabaseUrl={data.supabaseUrl}
-        targetUrlDraft={targetUrlDraft}
+        supabaseUrl={DEFAULT_SUPABASE_URL}
         anonKeyDraft={anonKeyDraft}
         serviceKeyDraft={serviceKeyDraft}
         savingKeys={savingKeys}
         copiedSql={copiedSql}
         onClose={() => setSetupModalOpen(false)}
         onCopySql={() => void handleCopySql()}
-        onChangeTargetUrl={setTargetUrlDraft}
         onChangeAnonKey={setAnonKeyDraft}
         onChangeServiceKey={setServiceKeyDraft}
         onSaveKeys={(e) => void handleSaveKeys(e)}

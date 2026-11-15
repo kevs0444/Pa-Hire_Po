@@ -4,7 +4,8 @@ import { FormEvent, useId } from 'react';
 import { Check, Copy, ExternalLink, X } from 'lucide-react';
 import { MonochromeTheme } from '@/types/job';
 import {
-  SUPABASE_PROJECT_PRESETS,
+  DEFAULT_SUPABASE_PROJECT_REF,
+  DEFAULT_SUPABASE_URL,
   extractSupabaseProjectRef,
 } from '@/lib/supabase/config';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schema-sql';
@@ -16,14 +17,12 @@ interface AdminSupabaseSetupDialogProps {
   theme: MonochromeTheme;
   isOpen: boolean;
   supabaseUrl: string;
-  targetUrlDraft: string;
   anonKeyDraft: string;
   serviceKeyDraft: string;
   savingKeys: boolean;
   copiedSql: boolean;
   onClose: () => void;
   onCopySql: () => void;
-  onChangeTargetUrl: (url: string) => void;
   onChangeAnonKey: (val: string) => void;
   onChangeServiceKey: (val: string) => void;
   onSaveKeys: (e: FormEvent) => void;
@@ -33,14 +32,12 @@ export function AdminSupabaseSetupDialog({
   theme,
   isOpen,
   supabaseUrl,
-  targetUrlDraft,
   anonKeyDraft,
   serviceKeyDraft,
   savingKeys,
   copiedSql,
   onClose,
   onCopySql,
-  onChangeTargetUrl,
   onChangeAnonKey,
   onChangeServiceKey,
   onSaveKeys,
@@ -50,8 +47,8 @@ export function AdminSupabaseSetupDialog({
   const dialogRef = useNativeDialog(isOpen, onClose);
 
   const modalProjectRef = extractSupabaseProjectRef(
-    targetUrlDraft || supabaseUrl
-  );
+    supabaseUrl || DEFAULT_SUPABASE_URL
+  ) || DEFAULT_SUPABASE_PROJECT_REF;
   const modalDashboardBase = `https://supabase.com/dashboard/project/${modalProjectRef}`;
 
   return (
@@ -125,30 +122,20 @@ export function AdminSupabaseSetupDialog({
             <div className="font-semibold">
               Step 2: Save / Update Supabase API Keys (.env)
             </div>
-            <div className={cn('rounded-lg border p-3 space-y-2', tokens.subSurface)}>
-              <div className={cn('text-[11px] font-medium', tokens.mutedText)}>
-                Target Supabase Project Preset:
+            <div className={cn('rounded-lg border p-3 space-y-1.5', tokens.subSurface)}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className={cn('text-[11px] font-medium', tokens.mutedText)}>
+                  Vercel Store Supabase Target:
+                </span>
+                <span className="font-mono text-[11px] font-semibold">
+                  supabase-erin-elephant ({modalProjectRef})
+                </span>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {SUPABASE_PROJECT_PRESETS.map((preset) => {
-                  const selected = (targetUrlDraft || supabaseUrl) === preset.url;
-                  return (
-                    <button
-                      key={preset.ref}
-                      type="button"
-                      onClick={() => onChangeTargetUrl(preset.url)}
-                      className={cn(
-                        'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
-                        selected ? tokens.primaryBtn : tokens.secondaryBtn
-                      )}
-                    >
-                      {preset.label}
-                    </button>
-                  );
-                })}
+              <div className={cn('font-mono text-[11px] break-all', tokens.mutedText)}>
+                {DEFAULT_SUPABASE_URL}
               </div>
               <div className={cn('text-[11px]', tokens.mutedText)}>
-                Vercel store shortcut:{' '}
+                Vercel integration sync:{' '}
                 <code className="font-mono font-semibold">
                   npx vercel env pull .env.development.local
                 </code>

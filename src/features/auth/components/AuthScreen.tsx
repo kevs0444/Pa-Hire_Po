@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
@@ -11,6 +11,7 @@ import {
   Lock,
   Mail,
   Moon,
+  Shield,
   Sun,
   UserPlus,
 } from 'lucide-react';
@@ -23,11 +24,7 @@ import {
   SupportedOAuthProvider,
 } from '@/lib/supabase/config';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schema-sql';
-import {
-  SetupStatus,
-  SupabaseSetupPanel,
-} from '@/features/auth/components/SupabaseSetupPanel';
+import { SetupStatus } from '@/features/admin/types';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -116,21 +113,12 @@ export function AuthScreen({
     message: 'Checking Supabase connection...',
   });
   const [loadingSetup, setLoadingSetup] = useState(true);
-  const [showKeyForm, setShowKeyForm] = useState(false);
-
-  // Key setup inputs
-  const [anonKeyInput, setAnonKeyInput] = useState('');
-  const [serviceRoleInput, setServiceRoleInput] = useState('');
-  const [savingKeys, setSavingKeys] = useState(false);
-  const [copiedSql, setCopiedSql] = useState(false);
 
   // Auth form fields
-  const [email, setEmail] = useState(PRIMARY_ADMIN_EMAIL);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('Mar Kevin P. Alcantara');
-  const [primaryRole, setPrimaryRole] = useState(
-    'Data Analyst / Junior Data Analyst'
-  );
+  const [fullName, setFullName] = useState('');
+  const [primaryRole, setPrimaryRole] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
 
@@ -144,24 +132,6 @@ export function AuthScreen({
       ? nextPath
       : '/';
 
-  const loadSetupStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/supabase/setup', { cache: 'no-store' });
-      const data = (await res.json()) as SetupStatus;
-      setSetup(data);
-      if (data.anonKey) {
-        setAnonKeyInput((prev) => prev || data.anonKey);
-      }
-      if (!data.keyValid) {
-        setShowKeyForm(true);
-      }
-    } catch {
-      // Keep default status
-    } finally {
-      setLoadingSetup(false);
-    }
-  }, []);
-
   useEffect(() => {
     let active = true;
     fetch('/api/supabase/setup', { cache: 'no-store' })
@@ -169,12 +139,6 @@ export function AuthScreen({
       .then((data) => {
         if (!active) return;
         setSetup(data);
-        if (data.anonKey) {
-          setAnonKeyInput((prev) => prev || data.anonKey);
-        }
-        if (!data.keyValid) {
-          setShowKeyForm(true);
-        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -192,51 +156,6 @@ export function AuthScreen({
 
   const getSupabase = () => {
     return createBrowserSupabaseClient(setup.url, setup.anonKey);
-  };
-
-  const handleSaveKeys = async (e: FormEvent) => {
-    e.preventDefault();
-    setSavingKeys(true);
-    setErrorMsg('');
-    setSuccessMsg('');
-    try {
-      const res = await fetch('/api/supabase/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save-keys',
-          url: setup.url,
-          anonKey: anonKeyInput,
-          serviceRoleKey: serviceRoleInput,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Failed to save Supabase keys.');
-        return;
-      }
-      setSetup((prev) => ({ ...prev, ...data }));
-      setShowKeyForm(false);
-      setSuccessMsg(
-        data.schemaReady
-          ? 'Supabase project connected and schema verified! You can sign in now.'
-          : 'API key saved to .env! Next, copy and run supabase/schema.sql in your Supabase SQL Editor.'
-      );
-    } catch {
-      setErrorMsg('Unable to reach setup API.');
-    } finally {
-      setSavingKeys(false);
-    }
-  };
-
-  const handleCopySql = async () => {
-    try {
-      await navigator.clipboard.writeText(SUPABASE_SCHEMA_SQL);
-      setCopiedSql(true);
-      setTimeout(() => setCopiedSql(false), 2000);
-    } catch {
-      setErrorMsg('Clipboard access blocked. Open supabase/schema.sql directly in your repo.');
-    }
   };
 
   const handleLocalAdminLogin = async () => {
@@ -270,9 +189,8 @@ export function AuthScreen({
     const supabase = getSupabase();
     if (!supabase) {
       setErrorMsg(
-        'Paste your Supabase anon / publishable key on the left card first, or use Quick Admin Sandbox below.'
+        'Cloud sign-in is awaiting Supabase configuration. Sign in as Admin below to configure Cloud Settings in the Admin Control Center.'
       );
-      setShowKeyForm(true);
       return;
     }
 
@@ -376,9 +294,8 @@ export function AuthScreen({
     const supabase = getSupabase();
     if (!supabase) {
       setErrorMsg(
-        'Connect your Supabase anon / publishable key first to enable OAuth logins.'
+        'Cloud OAuth is awaiting Supabase configuration. Sign in as Admin below to open Cloud Settings.'
       );
-      setShowKeyForm(true);
       return;
     }
 
@@ -399,8 +316,6 @@ export function AuthScreen({
       setSubmitting(false);
     }
   };
-
-  const dashboardBase = `https://supabase.com/dashboard/project/${setup.projectRef}`;
 
   return (
     <div
@@ -430,8 +345,8 @@ export function AuthScreen({
               <h1 className="text-base font-bold tracking-tight leading-none">
                 Pa-Hire Po
               </h1>
-              <p className={cn('mt-0.5 font-mono text-[11px]', tokens.mutedText)}>
-                Supabase Cloud Portal • {setup.projectRef}
+              <p className={cn('mt-0.5 text-[11px]', tokens.mutedText)}>
+                Civic Career Utility • Job Explorer &amp; Resume Studio (AI)
               </p>
             </div>
           </div>
@@ -459,44 +374,8 @@ export function AuthScreen({
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-12">
-        <SupabaseSetupPanel
-          theme={theme}
-          setup={setup}
-          dashboardBase={dashboardBase}
-          loadingSetup={loadingSetup}
-          showKeyForm={showKeyForm}
-          anonKeyInput={anonKeyInput}
-          serviceRoleInput={serviceRoleInput}
-          savingKeys={savingKeys}
-          copiedSql={copiedSql}
-          submitting={submitting}
-          onSelectPreset={(presetUrl, presetRef) => {
-            setSetup((prev) => ({
-              ...prev,
-              url: presetUrl,
-              projectRef: presetRef,
-              keyValid: prev.url === presetUrl ? prev.keyValid : false,
-              schemaReady: prev.url === presetUrl ? prev.schemaReady : false,
-            }));
-            if (setup.url !== presetUrl) {
-              setShowKeyForm(true);
-            }
-          }}
-          onRefreshSetup={() => {
-            setLoadingSetup(true);
-            void loadSetupStatus();
-          }}
-          onToggleKeyForm={() => setShowKeyForm((v) => !v)}
-          onChangeAnonKey={setAnonKeyInput}
-          onChangeServiceRole={setServiceRoleInput}
-          onSaveKeys={(e) => void handleSaveKeys(e)}
-          onCopySql={() => void handleCopySql()}
-          onLocalAdminLogin={() => void handleLocalAdminLogin()}
-        />
-
-        {/* RIGHT COLUMN: SUPABASE AUTH FORM (ALL LOGIN METHODS) */}
-        <section className="lg:col-span-7">
+      <main className="mx-auto flex min-h-[calc(100vh-4.25rem)] max-w-xl flex-col justify-center px-4 py-8 sm:px-6">
+        <section className="w-full">
           <div className={cn('rounded-lg border p-6 space-y-5', tokens.cardSurface)}>
             <div className="space-y-1">
               <h2 className="text-xl font-bold tracking-tight">
@@ -743,6 +622,31 @@ export function AuthScreen({
                 })}
               </div>
             </div>
+
+            {!loadingSetup && (!setup.keyValid || !setup.schemaReady) && (
+              <div className={cn('border-t pt-4 space-y-2', tokens.borderSubtle)}>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className={tokens.mutedText}>
+                    Local workspace &amp; Admin settings access
+                  </span>
+                  <span className={cn('font-mono', tokens.mutedText)}>
+                    Setup Pending
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => void handleLocalAdminLogin()}
+                  className={cn(
+                    'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                    tokens.secondaryBtn
+                  )}
+                >
+                  <Shield className="h-3.5 w-3.5" />
+                  Continue as Admin ({PRIMARY_ADMIN_EMAIL})
+                </button>
+              </div>
+            )}
           </div>
         </section>
       </main>

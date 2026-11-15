@@ -57,7 +57,9 @@ export function getServerSupabaseConfig(): ServerSupabaseConfig {
   const fileEnv = readEnvFileFallbacks();
   const url = (
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.SUPABASE_URL ||
     fileEnv.NEXT_PUBLIC_SUPABASE_URL ||
+    fileEnv.SUPABASE_URL ||
     DEFAULT_SUPABASE_URL
   )
     .trim()

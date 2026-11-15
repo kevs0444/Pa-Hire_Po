@@ -7,6 +7,20 @@ import {
   UserRole,
 } from '@/types/job';
 
+export interface SetupStatus {
+  url: string;
+  projectRef: string;
+  anonKey: string;
+  isConfigured: boolean;
+  hasServiceRole: boolean;
+  keyValid: boolean;
+  schemaReady: boolean;
+  enabledProviders: string[];
+  message: string;
+  vercelEnv?: string;
+  personalApiConfigured?: boolean;
+}
+
 export interface AdminUsersApiResponse {
   mode: string;
   schemaReady: boolean;

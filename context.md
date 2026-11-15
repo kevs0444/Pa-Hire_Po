@@ -142,3 +142,13 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Banned Patterns:** Pure black (`#000000`) + neon orange (`#f97316`), `blur-3xl` glow orbs, purple/indigo AI gradients, `rounded-3xl` bubble cards, nested 3-layer cards, `Sparkles`/`Wand2` decorative icons, `Stage 1–4` / `01–03` filler cards, generic `Inter`/`Geist`/`system-ui` display typography, and `fixed inset-0` overlay `<div>` modals.
 - **Enforced Craft:** `Plus Jakarta Sans` + `Source Sans 3` + `JetBrains Mono` (`tabular-nums`), warm `#F3F2EF` / crisp `#FFFFFF` civic palette, hairline `divide-y` sections, native `<dialog>` modals, root `color-scheme: light dark`, non-color-only state cues (`✓` + explicit labels), uniform Civic action buttons (`rounded-lg border px-3 py-1.5 text-xs font-medium`), and client-side compressed LinkedIn profile media (`320×320` avatar, `1200×360` cover banner via `<Image unoptimized />`).
+
+---
+
+## 9. Vercel Store Supabase Lock, Clean Auth Surface & Admin Cloud Settings
+
+**Core files:** `src/lib/supabase/config.ts`, `src/lib/supabase/server-env.ts`, `src/app/api/supabase/setup/route.ts`, `src/features/auth/components/AuthScreen.tsx`, `src/features/admin/components/AdminDashboardView.tsx`, `src/features/admin/components/AdminSupabaseSetupDialog.tsx`
+
+- **Single Vercel Store Backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`):** All authentication, Postgres RLS storage, and Storage buckets point strictly to the Vercel-integrated Supabase instance (`https://muftcprpqnzuzfosvftz.supabase.co`). Multi-project switchers and separate direct Supabase presets are permanently removed.
+- **Clean Public `/login` Screen (`AuthScreen.tsx`):** Centered single-column sign-in UI (`Password`, `Create Account`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with all Supabase setup checklists, key forms, and `schema.sql` copy panels hidden from public visitors. Only an automatic fallback button (`Continue as Admin`) appears when `keyValid` or `schemaReady` is incomplete.
+- **Admin-Only Supabase Cloud Settings (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`):** Live 4-step health diagnostics (`1. API Key (.env)`, `2. SQL Tables & RLS`, `3. Admin User Directory Key`, `4. Backend Runtime & Gemini AI`), 1-click `Copy schema.sql`, `Open SQL Editor`, and `.env` credential management live inside the **Admin Control Center**.

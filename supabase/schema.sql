@@ -1,7 +1,6 @@
 -- Pa-Hire Po: Relational Supabase Schema, RLS, Auto-Admin Security & Resume Storage
 -- Run this once in Supabase Dashboard -> SQL Editor:
 --   Primary (Vercel supabase-erin-elephant): https://supabase.com/dashboard/project/muftcprpqnzuzfosvftz/sql/new
---   Alternate direct project:               https://supabase.com/dashboard/project/fndmgrllmmdmmopvcoew/sql/new
 
 create extension if not exists pgcrypto;
 

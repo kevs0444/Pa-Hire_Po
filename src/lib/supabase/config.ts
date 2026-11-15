@@ -10,11 +10,6 @@ export const SUPABASE_PROJECT_PRESETS = [
     label: 'supabase-erin-elephant (Vercel Store)',
     url: 'https://muftcprpqnzuzfosvftz.supabase.co',
   },
-  {
-    ref: 'fndmgrllmmdmmopvcoew',
-    label: 'Direct Supabase Project',
-    url: 'https://fndmgrllmmdmmopvcoew.supabase.co',
-  },
 ] as const;
 
 export interface SupabasePublicConfig {

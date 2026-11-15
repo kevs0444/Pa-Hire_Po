@@ -72,7 +72,9 @@ async function probeSupabaseProject(
       {
         headers: {
           apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          ...(anonKey.startsWith('eyJ')
+            ? { Authorization: `Bearer ${anonKey}` }
+            : {}),
         },
         cache: 'no-store',
       }
@@ -215,9 +217,7 @@ export async function POST(request: NextRequest) {
     }
 
     const cfg = getServerSupabaseConfig();
-    const targetUrl = (body.url || cfg.url || DEFAULT_SUPABASE_URL)
-      .trim()
-      .replace(/\/+$/, '');
+    const targetUrl = DEFAULT_SUPABASE_URL;
     const anonKey = (body.anonKey ?? cfg.anonKey).trim();
     const serviceRoleKey = (body.serviceRoleKey ?? cfg.serviceRoleKey).trim();
 
