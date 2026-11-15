@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { Analytics } from '@vercel/analytics/next';
 import {
   JetBrains_Mono,
   Plus_Jakarta_Sans,
@@ -51,6 +52,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
     >
       <body className="min-h-full bg-[var(--background)] text-[var(--foreground)] font-sans">
         {children}
+        <Analytics />
       </body>
     </html>
   );

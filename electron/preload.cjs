@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platform: process.platform,
   version: process.versions.electron || 'desktop',
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  getDesktopInfo: () => ipcRenderer.invoke('get-desktop-info'),
 });

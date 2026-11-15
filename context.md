@@ -114,8 +114,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 **Core files:** `src/features/profile/components/LinkedInProfileView.tsx`, `src/lib/default-profile.ts`, `src/app/api/resume/parse/route.ts`
 
-- **Sub-Feature 6.1 — LinkedIn-Style Header & Open-to-Work Card:**
-  - Clean slate cover banner, civic blue monogram avatar, target salary, experience level, and editable **Open to Work** role chips.
+- **Sub-Feature 6.1 — LinkedIn-Style Header, Cover/Profile Photos & Open-to-Work Card:**
+  - Custom uploaded **Cover Banner** (`1200×360` compressed, `#1e293b` Civic fallback) and circular **Profile Photo** (`320×320` compressed, monogram initials fallback) via client-side HTML5 `<canvas>` compression (`src/features/profile/lib/image-upload.ts`), with matching **Profile Photo**, **Cover Photo**, **Change Cover**, and **Reset Photos** Civic buttons synced to Supabase `profile_data` and `localStorage`, plus target salary, experience level, and editable **Open to Work** role chips.
 - **Sub-Feature 6.2 — Full Inline CRUD Synced 2-Way with Resume Studio (`AI`):**
   - Edit **Experience**, **Projects**, **Licenses & Certifications**, **Education**, **Technical Skills**, and **Career Journey Markdown Vault** with instant synchronization.
 - **Sub-Feature 6.3 — Resume File Upload & Parser (`/api/resume/parse`):**
@@ -141,4 +141,4 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 **Enforced across:** `AGENTS.md`, `src/app/layout.tsx`, `src/app/globals.css`, `src/lib/theme.ts`
 
 - **Banned Patterns:** Pure black (`#000000`) + neon orange (`#f97316`), `blur-3xl` glow orbs, purple/indigo AI gradients, `rounded-3xl` bubble cards, nested 3-layer cards, `Sparkles`/`Wand2` decorative icons, `Stage 1–4` / `01–03` filler cards, generic `Inter`/`Geist`/`system-ui` display typography, and `fixed inset-0` overlay `<div>` modals.
-- **Enforced Craft:** `Plus Jakarta Sans` + `Source Sans 3` + `JetBrains Mono` (`tabular-nums`), warm `#F3F2EF` / crisp `#FFFFFF` civic palette, hairline `divide-y` sections, native `<dialog>` modals, root `color-scheme: light dark`, and non-color-only state cues (`✓` + explicit labels).
+- **Enforced Craft:** `Plus Jakarta Sans` + `Source Sans 3` + `JetBrains Mono` (`tabular-nums`), warm `#F3F2EF` / crisp `#FFFFFF` civic palette, hairline `divide-y` sections, native `<dialog>` modals, root `color-scheme: light dark`, non-color-only state cues (`✓` + explicit labels), uniform Civic action buttons (`rounded-lg border px-3 py-1.5 text-xs font-medium`), and client-side compressed LinkedIn profile media (`320×320` avatar, `1200×360` cover banner via `<Image unoptimized />`).

@@ -1,23 +1,28 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import {
   Award,
   BookOpen,
   Briefcase,
+  Camera,
   Check,
   Edit3,
   FileText,
   FolderGit2,
   GraduationCap,
+  ImagePlus,
   KeyRound,
   MapPin,
   Plus,
+  RotateCcw,
   Trash2,
   Upload,
   UserPlus,
   X,
 } from 'lucide-react';
+import { compressImageFileToDataUrl } from '@/features/profile/lib/image-upload';
 import {
   COUNTRY_CONFIGS,
   CountryCode,
@@ -267,6 +272,58 @@ export function LinkedInProfileView({
     }
   };
 
+  const handleProfileImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    kind: 'avatar' | 'cover'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageFileToDataUrl(
+        file,
+        kind === 'avatar'
+          ? {
+              maxWidth: 320,
+              maxHeight: 320,
+              quality: 0.84,
+              cropMode: 'cover',
+              backgroundColor: '#ffffff',
+            }
+          : {
+              maxWidth: 1200,
+              maxHeight: 360,
+              quality: 0.84,
+              cropMode: 'cover',
+              backgroundColor: '#1e293b',
+            }
+      );
+      onUpdateProfile({
+        ...profile,
+        ...(kind === 'avatar' ? { avatarUrl: dataUrl } : { coverUrl: dataUrl }),
+      });
+      setUploadStatus(
+        kind === 'avatar'
+          ? 'Updated LinkedIn profile photo (compressed for instant cloud sync).'
+          : 'Updated LinkedIn cover banner photo.'
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to process the selected image.';
+      setUploadStatus(message);
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleResetPhotos = () => {
+    onUpdateProfile({
+      ...profile,
+      avatarUrl: null,
+      coverUrl: null,
+    });
+    setUploadStatus('Reset profile and cover photos to default Civic theme.');
+  };
+
   return (
     <div className="no-print mx-auto max-w-5xl space-y-4">
       {/* Profile Switcher Bar */}
@@ -388,13 +445,41 @@ export function LinkedInProfileView({
       <section className={cn('overflow-hidden rounded-lg border', cardClass)}>
         <div
           className={cn(
-            'relative h-28 w-full border-b',
+            'relative h-32 sm:h-36 w-full overflow-hidden border-b',
             isDark
               ? 'border-slate-800 bg-slate-900'
               : 'border-slate-200 bg-[#1e293b]'
           )}
         >
-          <div className="absolute right-4 top-3.5">
+          {profile.coverUrl && (
+            <>
+              <Image
+                src={profile.coverUrl}
+                alt={`${profile.name} cover banner`}
+                fill
+                unoptimized
+                sizes="(max-width: 1024px) 100vw, 1024px"
+                className="object-cover"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-slate-950/20" />
+            </>
+          )}
+
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-4 pt-3.5">
+            <label
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-white/25 bg-slate-950/65 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-slate-950/85"
+              title="Upload LinkedIn-style cover banner (1200×360 recommended)"
+            >
+              <ImagePlus className="h-3.5 w-3.5" />
+              <span>{profile.coverUrl ? 'Change Cover' : 'Add Cover Photo'}</span>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => handleProfileImageUpload(e, 'cover')}
+                className="hidden"
+              />
+            </label>
+
             <span className="rounded border border-white/20 bg-slate-950/60 px-2.5 py-1 text-[11px] font-medium text-slate-100">
               Synced 2-way with Resume Studio (AI)
             </span>
@@ -402,28 +487,88 @@ export function LinkedInProfileView({
         </div>
 
         <div className="px-6 pb-6">
-          <div className="-mt-11 flex flex-wrap items-end justify-between gap-4">
-            <div
-              className={cn(
-                'flex h-22 w-22 items-center justify-center rounded-full border-4 text-xl font-bold',
-                isDark
-                  ? 'border-[#111827] bg-[#2563eb] text-white'
-                  : 'border-white bg-[#0a66c2] text-white'
-              )}
-            >
-              {initials}
+          <div className="relative z-10 -mt-12 flex flex-wrap items-end justify-between gap-4">
+            <div className="relative shrink-0">
+              <div
+                className={cn(
+                  'relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 text-xl font-bold',
+                  isDark
+                    ? 'border-[#111827] bg-[#2563eb] text-white'
+                    : 'border-white bg-[#0a66c2] text-white'
+                )}
+              >
+                {profile.avatarUrl ? (
+                  <Image
+                    src={profile.avatarUrl}
+                    alt={profile.name}
+                    fill
+                    unoptimized
+                    sizes="96px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span>{initials}</span>
+                )}
+              </div>
+
+              <label
+                className={cn(
+                  'absolute bottom-0 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border transition-colors',
+                  secondaryBtn
+                )}
+                title="Upload LinkedIn profile photo"
+                aria-label="Upload LinkedIn profile photo"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => handleProfileImageUpload(e, 'avatar')}
+                  className="hidden"
+                />
+              </label>
             </div>
 
-            <div className="flex flex-wrap gap-2 pt-2">
+            <div className="flex flex-wrap items-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setEditingHeader((v) => !v)}
-                className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
+                className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}
               >
                 <Edit3 className="h-3.5 w-3.5" />
                 {editingHeader ? 'Close Editor' : 'Edit Profile Info'}
               </button>
-              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}>
+              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}>
+                <Camera className="h-3.5 w-3.5" />
+                Profile Photo
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => handleProfileImageUpload(e, 'avatar')}
+                  className="hidden"
+                />
+              </label>
+              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}>
+                <ImagePlus className="h-3.5 w-3.5" />
+                Cover Photo
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => handleProfileImageUpload(e, 'cover')}
+                  className="hidden"
+                />
+              </label>
+              {(profile.avatarUrl || profile.coverUrl) && (
+                <button
+                  type="button"
+                  onClick={handleResetPhotos}
+                  className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset Photos
+                </button>
+              )}
+              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}>
                 <Upload className="h-3.5 w-3.5" />
                 Import CV File
                 <input

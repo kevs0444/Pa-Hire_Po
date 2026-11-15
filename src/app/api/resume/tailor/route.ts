@@ -7,6 +7,8 @@ import {
 } from '@/types/job';
 import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
 import { tailorResumeLocally } from '@/features/resume/lib/resume-tailor';
+import { FREE_TIER_LIMITS } from '@/lib/supabase/free-tier-limits';
+import { resolveServerSession } from '@/lib/supabase/session';
 
 interface TailorRequestBody {
   profile?: UserProfile;
@@ -186,6 +188,58 @@ export async function GET() {
   });
 }
 
+async function saveTailoredSnapshot(params: {
+  targetJob?: JobListing | null;
+  targetRole?: string;
+  method: string;
+  resume: StructuredResume;
+}) {
+  try {
+    const session = await resolveServerSession();
+    if (
+      !session.authenticated ||
+      session.mode !== 'supabase' ||
+      !session.dbClient ||
+      !session.authUser
+    ) {
+      return;
+    }
+
+    await session.dbClient.from('tailored_resumes').insert({
+      user_id: session.authUser.id,
+      job_id: params.targetJob?.id || null,
+      job_title:
+        params.targetJob?.title ||
+        params.targetRole ||
+        params.resume.tailoredForJobTitle ||
+        null,
+      company:
+        params.targetJob?.company || params.resume.tailoredForCompany || null,
+      tailor_method: params.method,
+      resume_data: params.resume,
+    });
+
+    // Free-tier cap: retain newest tailored snapshots per user
+    const { data: overflowRows } = await session.dbClient
+      .from('tailored_resumes')
+      .select('id')
+      .eq('user_id', session.authUser.id)
+      .order('created_at', { ascending: false })
+      .range(FREE_TIER_LIMITS.maxTailoredSnapshotsPerUser, 500);
+
+    const overflowIds = (overflowRows || []).map((row: { id: string }) => row.id);
+    if (overflowIds.length > 0) {
+      await session.dbClient
+        .from('tailored_resumes')
+        .delete()
+        .eq('user_id', session.authUser.id)
+        .in('id', overflowIds);
+    }
+  } catch {
+    // Non-blocking snapshot log
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as TailorRequestBody;
@@ -204,6 +258,12 @@ export async function POST(request: NextRequest) {
           body.targetRole,
           pageSize
         );
+        await saveTailoredSnapshot({
+          targetJob: body.targetJob,
+          targetRole: body.targetRole,
+          method: 'gemini-ai',
+          resume: geminiResume,
+        });
         return NextResponse.json({
           resume: geminiResume,
           method: 'gemini-ai',
@@ -215,19 +275,26 @@ export async function POST(request: NextRequest) {
           body.targetJob,
           body.targetRole
         );
+        const fallbackResume: StructuredResume = {
+          ...fallback,
+          pageSize: profile.structuredResume?.pageSize || pageSize,
+          density: profile.structuredResume?.density || 'standard',
+          fontFamily: profile.structuredResume?.fontFamily || 'calibri',
+          tailorNotes: [
+            ...(fallback.tailorNotes || []),
+            `Gemini AI fallback triggered (${
+              err instanceof Error ? err.message : 'unavailable'
+            }); used Smart Career Journey Tailor instead.`,
+          ],
+        };
+        await saveTailoredSnapshot({
+          targetJob: body.targetJob,
+          targetRole: body.targetRole,
+          method: 'smart-engine',
+          resume: fallbackResume,
+        });
         return NextResponse.json({
-          resume: {
-            ...fallback,
-            pageSize: profile.structuredResume?.pageSize || pageSize,
-            density: profile.structuredResume?.density || 'standard',
-            fontFamily: profile.structuredResume?.fontFamily || 'calibri',
-            tailorNotes: [
-              ...(fallback.tailorNotes || []),
-              `Gemini AI fallback triggered (${
-                err instanceof Error ? err.message : 'unavailable'
-              }); used Smart Career Journey Tailor instead.`,
-            ],
-          },
+          resume: fallbackResume,
           method: 'smart-engine',
           personalApiUsed: false,
         });
@@ -239,13 +306,20 @@ export async function POST(request: NextRequest) {
       body.targetJob,
       body.targetRole
     );
+    const localResume: StructuredResume = {
+      ...tailored,
+      pageSize: profile.structuredResume?.pageSize || pageSize,
+      density: profile.structuredResume?.density || 'standard',
+      fontFamily: profile.structuredResume?.fontFamily || 'calibri',
+    };
+    await saveTailoredSnapshot({
+      targetJob: body.targetJob,
+      targetRole: body.targetRole,
+      method: 'smart-engine',
+      resume: localResume,
+    });
     return NextResponse.json({
-      resume: {
-        ...tailored,
-        pageSize: profile.structuredResume?.pageSize || pageSize,
-        density: profile.structuredResume?.density || 'standard',
-        fontFamily: profile.structuredResume?.fontFamily || 'calibri',
-      },
+      resume: localResume,
       method: 'smart-engine',
       personalApiUsed: false,
     });

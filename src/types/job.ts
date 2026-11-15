@@ -8,106 +8,9 @@ export type WorkType = 'any' | 'remote' | 'hybrid' | 'onsite';
 
 export type ExperienceLevel = 'any' | 'entry' | 'mid' | 'senior';
 
-export type MonochromeTheme = 'dark' | 'light' | 'orange';
-
-export type ResumePageSize = 'a4' | 'letter' | 'legal' | 'auto';
-
-export type ResumeDensity = 'compact' | 'standard' | 'comfortable';
-
-export type ResumeFontFamily =
-  | 'calibri'
-  | 'helvetica'
-  | 'garamond'
-  | 'arial'
-  | 'georgia';
-
 export type DateFilterOption = 'all' | '24h' | '7d' | '30d';
 
 export type JobSortOption = 'match' | 'newest' | 'oldest';
-
-export interface ResumeExperienceItem {
-  id: string;
-  role: string;
-  company: string;
-  location: string;
-  period: string;
-  bullets: string[];
-}
-
-export interface ResumeProjectItem {
-  id: string;
-  name: string;
-  subtitle: string;
-  period: string;
-  bullets: string[];
-}
-
-export interface ResumeSkillCategory {
-  category: string;
-  items: string;
-}
-
-export interface ResumeEducationItem {
-  degree: string;
-  school: string;
-  period: string;
-  honors: string;
-}
-
-export interface StructuredResume {
-  fullName: string;
-  targetHeadline: string;
-  tailoredSummary: string | null;
-  email: string;
-  phones: string[];
-  location: string;
-  linkedin: string;
-  github: string;
-  portfolio: string;
-  experience: ResumeExperienceItem[];
-  projects: ResumeProjectItem[];
-  skillCategories: ResumeSkillCategory[];
-  certifications: string[];
-  education: ResumeEducationItem[];
-  tailoredForJobTitle?: string | null;
-  tailoredForCompany?: string | null;
-  tailorMethod?: 'base' | 'smart-engine' | 'gemini-ai';
-  tailorNotes?: string[];
-  pageSize?: ResumePageSize;
-  density?: ResumeDensity;
-  fontFamily?: ResumeFontFamily;
-}
-
-export interface UserProfile {
-  id: string;
-  name: string;
-  title: string;
-  summary: string;
-  resumeText: string;
-  resumeFileName: string | null;
-  skills: string[];
-  primaryRole: string;
-  preferredRoles: string[];
-  customRoles: string[];
-  autoPivotRoles: boolean;
-  pivotFrequency: number;
-  experienceLevel: ExperienceLevel;
-  country: CountryCode;
-  location: string;
-  workType: WorkType;
-  salaryExpectation: string;
-  autoScanIntervalMinutes: number;
-  careerJourneyMarkdown: string;
-  structuredResume: StructuredResume;
-}
-
-export interface DynamicRoleSuggestion {
-  role: string;
-  overlapPercent: number;
-  matchedSkills: string[];
-  rationale: string;
-  category: string;
-}
 
 export interface RawScrapedJob {
   externalId: string;
@@ -148,44 +51,6 @@ export interface JobListing {
   tailoringTips: string[];
   status: JobStatus;
   discoveredAt: string;
-}
-
-export interface ScanSourceMeta {
-  source: JobSource;
-  status: 'live' | 'fallback' | 'error';
-  count: number;
-  message?: string;
-  durationMs: number;
-}
-
-export interface ScanHistoryEntry {
-  id: string;
-  timestamp: string;
-  searchedRoles: string[];
-  totalFound: number;
-  newAdded: number;
-  meta: ScanSourceMeta[];
-}
-
-export interface AutoApplyConfig {
-  expectedSalary: string;
-  noticePeriod: string;
-  workAuthorization: string;
-  willingToRelocate: string;
-  autoTailorResume: boolean;
-  humanReviewBeforeSubmit: boolean;
-}
-
-export interface AppStoreState {
-  users: UserProfile[];
-  activeUserId: string;
-  theme: MonochromeTheme;
-  geminiApiKey?: string;
-  jobs: JobListing[];
-  queuedJobIds?: string[];
-  autoApplyConfig?: AutoApplyConfig;
-  scanHistory: ScanHistoryEntry[];
-  lastScannedAt: string | null;
 }
 
 export interface CountryConfig {
@@ -261,3 +126,9 @@ export const COUNTRY_CONFIGS: Record<CountryCode, CountryConfig> = {
     jobstreetSiteKey: 'PH-Main',
   },
 };
+
+export * from './auth';
+export * from './admin';
+export * from './resume';
+export * from './profile';
+export * from './store';

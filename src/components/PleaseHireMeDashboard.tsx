@@ -1,29 +1,23 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   ArrowUpDown,
-  BarChart3,
   Briefcase,
   Calendar,
   Clock,
   Compass,
-  FileText,
   Filter,
-  HelpCircle,
-  Home,
-  Moon,
   RefreshCw,
   Search,
-  Sun,
   Trash2,
-  UserCheck,
-  UserCircle2,
 } from 'lucide-react';
 import {
+  ActiveTab,
   AppStoreState,
+  AuthSessionUser,
   AutoApplyConfig,
   COUNTRY_CONFIGS,
   DateFilterOption,
@@ -53,7 +47,9 @@ import {
   saveLocalState,
   syncStateToServer,
 } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { A4ResumePreview } from '@/features/resume/components/A4ResumePreview';
+import { AdminDashboardView } from '@/features/admin/components/AdminDashboardView';
 import { createDefaultAutoApplyConfig } from '@/features/auto-apply/types';
 import { JobAnalyticsView } from '@/features/analytics/components/JobAnalyticsView';
 import { ApplyFlowModal } from '@/features/jobs/components/ApplyFlowModal';
@@ -62,11 +58,12 @@ import { JobDetailPane } from '@/features/jobs/components/JobDetailPane';
 import { TopChoicesSpotlight } from '@/features/jobs/components/TopChoicesSpotlight';
 import { LinkedInProfileView } from '@/features/profile/components/LinkedInProfileView';
 import { LandingPageView } from '@/components/LandingPageView';
+import { AppTopNavbar } from '@/components/layout/AppTopNavbar';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-export type ActiveTab = 'home' | 'jobs' | 'analytics' | 'profile' | 'resume';
+export type { ActiveTab };
 
 const REFRESH_OPTIONS = [
   { label: 'Off', seconds: 0 },
@@ -113,10 +110,14 @@ export function PleaseHireMeDashboard({
 }: {
   initialTab?: ActiveTab;
 }) {
+  const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
   const [clientNow, setClientNow] = useState<number | null>(null);
   const [isDesktopApp, setIsDesktopApp] = useState(false);
   const [store, setStore] = useState<AppStoreState>(getDefaultStoreState);
+  const [authUser, setAuthUser] = useState<AuthSessionUser | null>(null);
+  const [adminUserCount, setAdminUserCount] = useState<number | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [storageMode, setStorageMode] = useState<string>('browser-only');
   const [personalApiConfigured, setPersonalApiConfigured] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
@@ -158,6 +159,7 @@ export function PleaseHireMeDashboard({
 
   const initialAutoScanRan = useRef(false);
   const scanInFlightRef = useRef(false);
+  const authUserIdRef = useRef<string | null>(null);
 
   const activeProfile = useMemo(() => getActiveUser(store), [store]);
   const theme = store.theme;
@@ -173,13 +175,16 @@ export function PleaseHireMeDashboard({
     [activeProfile, store.autoApplyConfig]
   );
 
-  const persistStore = useCallback((next: AppStoreState) => {
-    setStore(next);
-    saveLocalState(next);
-    void syncStateToServer(next).then((mode) => {
-      if (mode) setStorageMode(mode);
-    });
-  }, []);
+  const persistStore = useCallback(
+    (next: AppStoreState, syncScope: 'full' | 'profile-only' = 'full') => {
+      setStore(next);
+      saveLocalState(next, authUserIdRef.current);
+      void syncStateToServer(next, syncScope).then((mode) => {
+        if (mode) setStorageMode(mode);
+      });
+    },
+    []
+  );
 
   const updateActiveUserProfile = useCallback(
     (nextProfile: UserProfile, rescore = true) => {
@@ -196,8 +201,8 @@ export function PleaseHireMeDashboard({
           users: nextUsers,
           jobs: nextJobs,
         };
-        saveLocalState(nextState);
-        void syncStateToServer(nextState);
+        saveLocalState(nextState, authUserIdRef.current);
+        void syncStateToServer(nextState, rescore ? 'full' : 'profile-only');
         return nextState;
       });
     },
@@ -296,7 +301,7 @@ export function PleaseHireMeDashboard({
             ],
           };
 
-          saveLocalState(nextState);
+          saveLocalState(nextState, authUserIdRef.current);
           void syncStateToServer(nextState);
           return nextState;
         });
@@ -317,9 +322,22 @@ export function PleaseHireMeDashboard({
     let active = true;
 
     async function hydrate() {
-      const local = loadLocalState();
       const server = await fetchServerState();
       if (!active) return;
+
+      if (server.unauthorized) {
+        router.replace('/login');
+        return;
+      }
+
+      authUserIdRef.current = server.authUser?.id || null;
+      setAuthUser(server.authUser);
+
+      if (activeTab === 'admin' && !server.authUser?.isAdmin) {
+        setActiveTab('home');
+      }
+
+      const local = loadLocalState(server.authUser?.id);
 
       setIsDesktopApp(
         Boolean(
@@ -330,15 +348,28 @@ export function PleaseHireMeDashboard({
       setStorageMode(server.storageMode);
       setPersonalApiConfigured(server.personalApiConfigured);
       const chosen =
-        server.state && server.state.jobs.length >= local.jobs.length
+        server.storageMode === 'supabase-cloud' && server.state
           ? server.state
-          : local;
+          : server.state && server.state.jobs.length >= local.jobs.length
+            ? server.state
+            : local;
 
       const user = getActiveUser(chosen);
       setStore(chosen);
       setRoleDraft(user.primaryRole);
       setHydrated(true);
       setClientNow(Date.now());
+
+      if (server.authUser?.isAdmin) {
+        void fetch('/api/admin/users', { cache: 'no-store' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (active && d?.stats && typeof d.stats.totalUsers === 'number') {
+              setAdminUserCount(d.stats.totalUsers);
+            }
+          })
+          .catch(() => undefined);
+      }
 
       if (chosen.jobs.length === 0 && !initialAutoScanRan.current) {
         initialAutoScanRan.current = true;
@@ -357,6 +388,31 @@ export function PleaseHireMeDashboard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      const setupRes = await fetch('/api/supabase/setup', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      const supabase = createBrowserSupabaseClient(
+        setupRes?.url,
+        setupRes?.anonKey
+      );
+      if (supabase) {
+        await supabase.auth.signOut().catch(() => undefined);
+      }
+      await fetch('/api/supabase/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'signout' }),
+      });
+    } finally {
+      router.replace('/login');
+      router.refresh();
+      setSigningOut(false);
+    }
+  };
 
   // Non-overlapping 5s / 15s / 30s Live Auto-Refresh Loop
   useEffect(() => {
@@ -434,7 +490,7 @@ export function PleaseHireMeDashboard({
     const nextQueue = exists
       ? queuedJobIds.filter((id) => id !== jobId)
       : [...queuedJobIds, jobId];
-    persistStore({ ...store, queuedJobIds: nextQueue });
+    persistStore({ ...store, queuedJobIds: nextQueue }, 'profile-only');
   };
 
   const handleAddSkillToProfile = (skill: string) => {
@@ -571,7 +627,7 @@ export function PleaseHireMeDashboard({
   const handleQueueTopChoices = () => {
     const topIds = top3Choices.map((j) => j.id);
     const merged = Array.from(new Set([...queuedJobIds, ...topIds]));
-    persistStore({ ...store, queuedJobIds: merged });
+    persistStore({ ...store, queuedJobIds: merged }, 'profile-only');
   };
 
   const selectedJob = useMemo(() => {
@@ -598,7 +654,6 @@ export function PleaseHireMeDashboard({
   const {
     isDark,
     pageBg,
-    navBg,
     cardSurface,
     subSurface,
     inputSurface,
@@ -607,7 +662,6 @@ export function PleaseHireMeDashboard({
     selectedCard,
     mutedText,
     strongText,
-    navTrack,
     borderSubtle,
   } = getThemeTokens(theme);
 
@@ -615,208 +669,35 @@ export function PleaseHireMeDashboard({
     document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
   }, [isDark]);
 
-  const activeNavTabClass = isDark
-    ? 'border-b-2 border-zinc-200 text-zinc-100 font-semibold'
-    : 'border-b-2 border-[#0a66c2] text-[#0a66c2] font-semibold';
-
-  const inactiveNavTabClass = cn(
-    'border-b-2 border-transparent font-medium transition-colors',
-    mutedText,
-    isDark ? 'hover:text-slate-100' : 'hover:text-slate-900'
-  );
-
   return (
     <div
       className={cn('min-h-screen transition-colors', pageBg)}
       style={{ colorScheme: isDark ? 'dark' : 'light' }}
     >
-      {/* Top Navbar */}
-      <header className={cn('no-print sticky top-0 z-30 border-b', navBg)}>
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 sm:px-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab('home')}
-            className="flex items-center gap-2.5 py-2 text-left transition-opacity hover:opacity-85"
-            title="Go to Pa-Hire Po Overview"
-          >
-            <div
-              className={cn(
-                'relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border bg-white shadow-xs',
-                borderSubtle
-              )}
-            >
-              <Image
-                src="/pa-hire-po-logo.jpg"
-                alt="Pa-Hire Po Logo"
-                fill
-                sizes="36px"
-                className="object-cover"
-                priority
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-base font-bold tracking-tight leading-none">
-                  Pa-Hire Po
-                </h1>
-                {isDesktopApp && (
-                  <span className="rounded-full border border-orange-500/30 bg-orange-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-orange-400">
-                    Desktop
-                  </span>
-                )}
-              </div>
-              <p className={cn('hidden xl:block mt-0.5 text-[11px] leading-none', mutedText)}>
-                {activeProfile.name} • {activeProfile.primaryRole}
-              </p>
-            </div>
-          </button>
-
-          {/* Primary Navigation Tabs */}
-          <nav className="flex flex-wrap items-center gap-1 sm:gap-2" aria-label="Primary sections">
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
-                activeTab === 'home' ? activeNavTabClass : inactiveNavTabClass
-              )}
-            >
-              <Home className="h-3.5 w-3.5" />
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('jobs')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
-                activeTab === 'jobs' ? activeNavTabClass : inactiveNavTabClass
-              )}
-            >
-              <Briefcase className="h-3.5 w-3.5" />
-              Find Jobs
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('analytics')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
-                activeTab === 'analytics' ? activeNavTabClass : inactiveNavTabClass
-              )}
-            >
-              <BarChart3 className="h-3.5 w-3.5" />
-              Analytics
-              {hydrated && activeJobsCount > 0 && (
-                <span className="font-mono text-[11px] tabular-nums opacity-80">
-                  ({activeJobsCount})
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('profile')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
-                activeTab === 'profile' ? activeNavTabClass : inactiveNavTabClass
-              )}
-            >
-              <UserCircle2 className="h-3.5 w-3.5" />
-              My Profile
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('resume')}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
-                activeTab === 'resume' ? activeNavTabClass : inactiveNavTabClass
-              )}
-            >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Resume Studio</span>
-              <span
-                className={cn(
-                  'rounded border px-1 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
-                  isDark
-                    ? 'border-zinc-700 bg-zinc-800 text-zinc-200'
-                    : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
-                )}
-              >
-                AI
-              </span>
-            </button>
-          </nav>
-
-          {/* Utility Controls */}
-          <div className="flex flex-wrap items-center gap-2 py-2">
-            <button
-              type="button"
-              onClick={() => setHowItWorksOpen(true)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                secondaryBtn
-              )}
-            >
-              <HelpCircle className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">How It Works</span>
-            </button>
-
-            <div className="flex items-center gap-1">
-              <UserCheck className={cn('h-3.5 w-3.5', mutedText)} />
-              <select
-                value={activeProfile.id}
-                onChange={(e) => handleSelectUser(e.target.value)}
-                aria-label="Switch user profile"
-                className={cn(
-                  'rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none',
-                  inputSurface
-                )}
-              >
-                {store.users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Light / Dark Theme Switcher */}
-            <div
-              className={cn('inline-flex items-center rounded-lg border p-0.5', navTrack)}
-              role="group"
-              aria-label="Color theme switcher"
-            >
-              {(
-                [
-                  { id: 'light', label: 'Light', icon: Sun, title: 'Light Mode' },
-                  { id: 'dark', label: 'Dark', icon: Moon, title: 'Dark Mode' },
-                ] as const
-              ).map((opt) => {
-                const Icon = opt.icon;
-                const active = (theme === 'dark' ? 'dark' : 'light') === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    onClick={() =>
-                      persistStore({
-                        ...store,
-                        theme: opt.id,
-                      })
-                    }
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors',
-                      active ? primaryBtn : mutedText
-                    )}
-                    title={opt.title}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </header>
+      <AppTopNavbar
+        theme={theme}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        activeProfile={activeProfile}
+        isDesktopApp={isDesktopApp}
+        hydrated={hydrated}
+        activeJobsCount={activeJobsCount}
+        authUser={authUser}
+        storageMode={storageMode}
+        adminUserCount={adminUserCount}
+        signingOut={signingOut}
+        onSignOut={() => void handleSignOut()}
+        onOpenHowItWorks={() => setHowItWorksOpen(true)}
+        onChangeTheme={(nextTheme) =>
+          persistStore(
+            {
+              ...store,
+              theme: nextTheme,
+            },
+            'profile-only'
+          )
+        }
+      />
 
       <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6">
         {/* TAB 0: OVERVIEW */}
@@ -824,10 +705,13 @@ export function PleaseHireMeDashboard({
           <LandingPageView
             theme={theme}
             onChangeTheme={(nextTheme) =>
-              persistStore({
-                ...store,
-                theme: nextTheme,
-              })
+              persistStore(
+                {
+                  ...store,
+                  theme: nextTheme,
+                },
+                'profile-only'
+              )
             }
             activeProfile={activeProfile}
             totalJobsCount={activeJobsCount}
@@ -1053,7 +937,11 @@ export function PleaseHireMeDashboard({
                   {store.lastScannedAt && hydrated && (
                     <span>
                       Updated {new Date(store.lastScannedAt).toLocaleTimeString()} •{' '}
-                      {storageMode === 'local-file' ? 'Local + Browser' : 'Browser'}
+                      {storageMode === 'supabase-cloud'
+                        ? 'Supabase Cloud'
+                        : storageMode === 'local-file'
+                          ? 'Local + Browser'
+                          : 'Browser'}
                     </span>
                   )}
                 </div>
@@ -1415,7 +1303,7 @@ export function PleaseHireMeDashboard({
             scanning={scanning}
             onTriggerScan={() => void runJobScan()}
             onUpdateAutoApplyConfig={(next) =>
-              persistStore({ ...store, autoApplyConfig: next })
+              persistStore({ ...store, autoApplyConfig: next }, 'profile-only')
             }
             onToggleQueueJob={handleToggleQueueJob}
             onQueueTopChoices={handleQueueTopChoices}
@@ -1446,7 +1334,7 @@ export function PleaseHireMeDashboard({
             onSelectUser={handleSelectUser}
             onCreateUser={handleCreateUser}
             onUpdateGeminiKey={(key) =>
-              persistStore({ ...store, geminiApiKey: key })
+              persistStore({ ...store, geminiApiKey: key }, 'profile-only')
             }
             onUpdateProfile={(next) => updateActiveUserProfile(next, true)}
             onOpenA4Studio={() => setActiveTab('resume')}
@@ -1465,7 +1353,7 @@ export function PleaseHireMeDashboard({
               personalApiConfigured={personalApiConfigured}
               tailoring={tailoring}
               onUpdateGeminiKey={(key) =>
-                persistStore({ ...store, geminiApiKey: key })
+                persistStore({ ...store, geminiApiKey: key }, 'profile-only')
               }
               onTailorResume={(job, role) => void handleTailorInStudio(job, role)}
               onUpdateResume={(nextResume) => {
@@ -1495,6 +1383,11 @@ export function PleaseHireMeDashboard({
             />
           </div>
         )}
+
+        {/* TAB 5: ADMIN CONTROL CENTER */}
+        {activeTab === 'admin' && authUser?.isAdmin && (
+          <AdminDashboardView theme={store.theme} authUser={authUser} />
+        )}
       </main>
 
       {/* STEP-BY-STEP APPLY & RESUME STUDIO AI MODAL */}
@@ -1507,7 +1400,7 @@ export function PleaseHireMeDashboard({
         onClose={() => setApplyModalJob(null)}
         onMarkApplied={(id) => handleUpdateJobStatus(id, 'applied')}
         onUpdateGeminiKey={(key) =>
-          persistStore({ ...store, geminiApiKey: key })
+          persistStore({ ...store, geminiApiKey: key }, 'profile-only')
         }
       />
 

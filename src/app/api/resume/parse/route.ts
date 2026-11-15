@@ -4,6 +4,8 @@ import {
   extractSummaryFromResume,
   inferDynamicRoles,
 } from '@/features/resume/lib/resume-analyzer';
+import { FREE_TIER_LIMITS } from '@/lib/supabase/free-tier-limits';
+import { resolveServerSession } from '@/lib/supabase/session';
 
 function extractReadableTextFromPdfBuffer(buffer: Buffer): string {
   const raw = buffer.toString('latin1');
@@ -51,6 +53,8 @@ export async function POST(request: NextRequest) {
     let resumeText = '';
     let fileName: string | null = null;
     let primaryRole = '';
+    let uploadedFileBuffer: Buffer | null = null;
+    let uploadedMimeType = 'application/octet-stream';
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -63,9 +67,21 @@ export async function POST(request: NextRequest) {
       }
 
       if (file instanceof File) {
+        if (file.size > FREE_TIER_LIMITS.maxResumeUploadBytes) {
+          return NextResponse.json(
+            {
+              error:
+                'Resume file exceeds the 4.5 MB free-tier upload limit. Please upload a compact PDF or paste text directly.',
+            },
+            { status: 413 }
+          );
+        }
+
         fileName = file.name;
+        uploadedMimeType = file.type || uploadedMimeType;
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        uploadedFileBuffer = buffer;
 
         if (file.name.toLowerCase().endsWith('.pdf')) {
           resumeText = extractReadableTextFromPdfBuffer(buffer);
@@ -101,6 +117,60 @@ export async function POST(request: NextRequest) {
     const summary = extractSummaryFromResume(cleanText);
     const suggestedRoles = inferDynamicRoles(cleanText, skills, primaryRole).slice(0, 8);
 
+    // Upload raw resume file to Supabase Storage bucket 'resumes' when authenticated
+    let storagePath: string | null = null;
+    if (uploadedFileBuffer && fileName) {
+      try {
+        const session = await resolveServerSession();
+        if (
+          session.authenticated &&
+          session.mode === 'supabase' &&
+          session.dbClient &&
+          session.authUser
+        ) {
+          const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+          const objectPath = `${session.authUser.id}/latest-${safeName}`;
+
+          // Single-slot Storage optimization: delete previous CV object so Storage stays minimal
+          const { data: existingProfile } = await session.dbClient
+            .from('user_profiles')
+            .select('resume_file_path')
+            .eq('id', session.authUser.id)
+            .maybeSingle<{ resume_file_path: string | null }>();
+
+          if (
+            existingProfile?.resume_file_path &&
+            existingProfile.resume_file_path !== objectPath
+          ) {
+            await session.dbClient.storage
+              .from('resumes')
+              .remove([existingProfile.resume_file_path]);
+          }
+
+          const { error: uploadErr } = await session.dbClient.storage
+            .from('resumes')
+            .upload(objectPath, uploadedFileBuffer, {
+              contentType: uploadedMimeType,
+              upsert: true,
+            });
+
+          if (!uploadErr) {
+            storagePath = objectPath;
+            await session.dbClient
+              .from('user_profiles')
+              .update({
+                resume_file_path: objectPath,
+                resume_file_name: fileName,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', session.authUser.id);
+          }
+        }
+      } catch {
+        // Non-blocking: parsing succeeds even if Storage bucket isn't initialized yet
+      }
+    }
+
     const warning =
       fileName?.toLowerCase().endsWith('.pdf') && skills.length === 0
         ? 'Compressed PDF streams can hide some formatting—verify or paste your plain-text resume below for best accuracy.'
@@ -109,6 +179,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       resumeText: cleanText,
       fileName,
+      storagePath,
       summary,
       skills,
       suggestedRoles,
