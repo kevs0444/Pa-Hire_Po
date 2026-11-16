@@ -5,7 +5,7 @@ import {
   StructuredResume,
   UserProfile,
 } from '@/types/job';
-import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
+import { MAR_KEVIN_PROFILE, createBlankUserProfile } from '@/lib/default-profile';
 import { tailorResumeLocally } from '@/features/resume/lib/resume-tailor';
 import { FREE_TIER_LIMITS } from '@/lib/supabase/free-tier-limits';
 import { resolveServerSession } from '@/lib/supabase/session';
@@ -182,8 +182,10 @@ STRICT GROUNDING RULES:
 }
 
 export async function GET() {
+  const session = await resolveServerSession();
+  const isAdmin = Boolean(session.authenticated && session.authUser?.isAdmin);
   return NextResponse.json({
-    personalApiConfigured: Boolean(process.env.GEMINI_API_KEY?.trim()),
+    personalApiConfigured: isAdmin && Boolean(process.env.GEMINI_API_KEY?.trim()),
     primaryModel: GEMINI_TAILOR_MODELS[0],
   });
 }
@@ -248,12 +250,27 @@ async function saveTailoredSnapshot(params: {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await resolveServerSession();
+    if (!session.authenticated || !session.authUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = (await request.json().catch(() => ({}))) as TailorRequestBody;
-    const profile: UserProfile = body.profile || MAR_KEVIN_PROFILE;
+    const profile: UserProfile =
+      body.profile ||
+      (session.authUser.isAdmin
+        ? MAR_KEVIN_PROFILE
+        : createBlankUserProfile({
+            name: session.authUser.fullName,
+            email: session.authUser.email,
+            primaryRole: 'Data Analyst / Junior Data Analyst',
+          }));
     const pageSize: ResumePageSize =
       body.pageSize || profile.structuredResume?.pageSize || 'a4';
-    const apiKey =
-      process.env.GEMINI_API_KEY?.trim() || body.geminiApiKey?.trim() || '';
+    const serverAdminKey = session.authUser.isAdmin
+      ? process.env.GEMINI_API_KEY?.trim() || ''
+      : '';
+    const apiKey = serverAdminKey || body.geminiApiKey?.trim() || '';
 
     if (apiKey) {
       try {
@@ -274,7 +291,7 @@ export async function POST(request: NextRequest) {
           resume: geminiResume,
           method: 'gemini-ai',
           snapshotId,
-          personalApiUsed: Boolean(process.env.GEMINI_API_KEY?.trim()),
+          personalApiUsed: Boolean(serverAdminKey),
         });
       } catch (err) {
         const fallback = tailorResumeLocally(

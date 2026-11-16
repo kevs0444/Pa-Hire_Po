@@ -4,20 +4,30 @@ import {
   JobListing,
   UserProfile,
 } from '@/types/job';
-import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
+import { createBlankUserProfile } from '@/lib/default-profile';
 import { pruneStateForFreeTier } from '@/lib/supabase/free-tier-limits';
 
 const STORAGE_KEY_PREFIX = 'pahirepo_state_v1';
 const LEGACY_STORAGE_KEY = 'pleasehireme_state_v2';
+
+function createNeutralStarterProfile(): UserProfile {
+  return createBlankUserProfile({
+    id: 'starter-profile',
+    name: 'Applicant',
+    email: '',
+    primaryRole: 'Data Analyst / Junior Data Analyst',
+  });
+}
 
 function getStorageKey(userId?: string | null): string {
   return userId ? `${STORAGE_KEY_PREFIX}:${userId}` : STORAGE_KEY_PREFIX;
 }
 
 export function getDefaultStoreState(): AppStoreState {
+  const starter = createNeutralStarterProfile();
   return {
-    users: [MAR_KEVIN_PROFILE],
-    activeUserId: MAR_KEVIN_PROFILE.id,
+    users: [starter],
+    activeUserId: starter.id,
     theme: 'light',
     geminiApiKey: '',
     jobs: [],
@@ -31,7 +41,7 @@ export function getActiveUser(state: AppStoreState): UserProfile {
   return (
     state.users.find((u) => u.id === state.activeUserId) ||
     state.users[0] ||
-    MAR_KEVIN_PROFILE
+    createNeutralStarterProfile()
   );
 }
 
@@ -39,14 +49,15 @@ export function normalizeStoreState(
   raw: Partial<AppStoreState> & { profile?: Partial<UserProfile> }
 ): AppStoreState {
   const defaults = getDefaultStoreState();
+  const neutralTemplate = createNeutralStarterProfile();
   const users: UserProfile[] =
     Array.isArray(raw.users) && raw.users.length > 0
       ? raw.users.map((u) => {
           const merged: UserProfile = {
-            ...MAR_KEVIN_PROFILE,
+            ...neutralTemplate,
             ...u,
             structuredResume: {
-              ...MAR_KEVIN_PROFILE.structuredResume,
+              ...neutralTemplate.structuredResume,
               ...(u.structuredResume || {}),
             },
           };
@@ -75,7 +86,7 @@ export function normalizeStoreState(
                   'Data Analyst / Junior Data Analyst',
                   ...(Array.isArray(merged.preferredRoles)
                     ? merged.preferredRoles
-                    : MAR_KEVIN_PROFILE.preferredRoles),
+                    : [normalizedPrimaryRole]),
                 ])
               ).filter(Boolean),
             };
@@ -83,7 +94,7 @@ export function normalizeStoreState(
 
           return merged;
         })
-      : [MAR_KEVIN_PROFILE];
+      : [neutralTemplate];
 
   const activeUserId = users.some((u) => u.id === raw.activeUserId)
     ? (raw.activeUserId as string)
@@ -142,6 +153,16 @@ export function saveLocalState(
     window.localStorage.setItem(getStorageKey(userId), JSON.stringify(state));
   } catch {
     // Ignore storage quota errors
+  }
+}
+
+export function clearLegacyUnscopedLocalState(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY_PREFIX);
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
   }
 }
 
@@ -272,6 +293,22 @@ export async function syncSingleJobToServer(job: JobListing): Promise<{
       error: err instanceof Error ? err.message : 'Network error',
     };
   }
+}
+
+/**
+ * Ensures any pending debounced full-state sync reflects the latest single-job status update
+ * so an older queued scan payload never overwrites saved/applied/hidden changes.
+ */
+export function patchPendingSyncJob(updatedJob: JobListing): void {
+  if (!pendingSyncState) return;
+  const exists = pendingSyncState.jobs.some((j) => j.id === updatedJob.id);
+  const nextJobs = exists
+    ? pendingSyncState.jobs.map((j) => (j.id === updatedJob.id ? updatedJob : j))
+    : [updatedJob, ...pendingSyncState.jobs];
+  pendingSyncState = pruneStateForFreeTier({
+    ...pendingSyncState,
+    jobs: nextJobs,
+  });
 }
 
 export function syncStateToServer(

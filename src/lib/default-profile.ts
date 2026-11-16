@@ -262,6 +262,7 @@ export const MAR_KEVIN_PROFILE: UserProfile = {
 };
 
 export function createBlankUserProfile(params: {
+  id?: string;
   name: string;
   email?: string;
   primaryRole: string;
@@ -270,7 +271,7 @@ export function createBlankUserProfile(params: {
   resumeText?: string;
   skills?: string[];
 }): UserProfile {
-  const id = `user-${Date.now().toString(36)}`;
+  const id = params.id || `user-${Date.now().toString(36)}`;
   const role = params.primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
   const preferred =
     params.preferredRoles && params.preferredRoles.length > 0

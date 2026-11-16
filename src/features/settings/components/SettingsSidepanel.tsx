@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from 'react';
 import {
+  AlertCircle,
   ArrowDown,
   ArrowUp,
   Briefcase,
@@ -9,15 +10,18 @@ import {
   Copy,
   Download,
   Laptop,
+  Link2,
   Loader2,
   Plus,
   Search,
   Settings,
   Star,
+  Unlink,
   User,
   Wallet,
   X,
 } from 'lucide-react';
+import type { UserIdentity } from '@supabase/supabase-js';
 import {
   AutoApplyConfig,
   COUNTRY_CONFIGS,
@@ -35,11 +39,18 @@ import {
   RECOMMENDED_TARGET_ROLES_MIN,
   formatTargetSalaryLabel,
 } from '@/features/roles/lib/role-library';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { SupportedOAuthProvider } from '@/lib/supabase/config';
 import { resumeToPlainText } from '@/lib/default-profile';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-export type SettingsSection = 'personal' | 'salary' | 'roles' | 'desktop';
+export type SettingsSection =
+  | 'personal'
+  | 'salary'
+  | 'roles'
+  | 'accounts'
+  | 'desktop';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -54,6 +65,7 @@ interface SettingsSidepanelProps {
   profile: UserProfile;
   autoApplyConfig: AutoApplyConfig;
   isDesktopApp: boolean;
+  isAdmin?: boolean;
   storageMode: string;
   onClose: () => void;
   onSaveProfile: (next: UserProfile, rescore?: boolean) => void;
@@ -95,6 +107,7 @@ export function SettingsSidepanel({
   profile,
   autoApplyConfig,
   isDesktopApp,
+  isAdmin = false,
   storageMode,
   onClose,
   onSaveProfile,
@@ -129,6 +142,134 @@ export function SettingsSidepanel({
   const [installPrompt, setInstallPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [pwaInstalledMsg, setPwaInstalledMsg] = useState<string | null>(null);
+
+  // Connected OAuth Identities State (Google / GitHub)
+  const [identities, setIdentities] = useState<UserIdentity[]>([]);
+  const [authAccountEmail, setAuthAccountEmail] = useState<string>('');
+  const [enabledOAuth, setEnabledOAuth] = useState<string[]>([]);
+  const [loadingIdentities, setLoadingIdentities] = useState(false);
+  const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
+  const [identityError, setIdentityError] = useState<string | null>(null);
+  const [identitySuccess, setIdentitySuccess] = useState<string | null>(null);
+  const [supabaseConfigCache, setSupabaseConfigCache] = useState<{
+    url: string;
+    anonKey: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || section !== 'accounts') return;
+    let active = true;
+
+    async function loadIdentities() {
+      await Promise.resolve();
+      if (!active) return;
+      setLoadingIdentities(true);
+      setIdentityError(null);
+
+      try {
+        const res = await fetch('/api/supabase/setup', { cache: 'no-store' });
+        const cfg = (res.ok ? await res.json() : null) as {
+          url?: string;
+          anonKey?: string;
+          enabledProviders?: string[];
+        } | null;
+        if (!active || !cfg?.url || !cfg?.anonKey) return;
+
+        setSupabaseConfigCache({ url: cfg.url, anonKey: cfg.anonKey });
+        setEnabledOAuth(
+          Array.isArray(cfg.enabledProviders) ? cfg.enabledProviders : []
+        );
+
+        const supabase = createBrowserSupabaseClient(cfg.url, cfg.anonKey);
+        if (!supabase) return;
+
+        const [{ data: userData }, { data: idData, error: idErr }] =
+          await Promise.all([
+            supabase.auth.getUser(),
+            supabase.auth.getUserIdentities(),
+          ]);
+        if (!active) return;
+        if (userData?.user?.email) {
+          setAuthAccountEmail(userData.user.email);
+        }
+        if (idErr) {
+          setIdentityError(idErr.message);
+        } else {
+          setIdentities(idData?.identities || []);
+        }
+      } catch {
+        if (active) {
+          setIdentityError('Unable to load connected login methods.');
+        }
+      } finally {
+        if (active) setLoadingIdentities(false);
+      }
+    }
+
+    void loadIdentities();
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, section]);
+
+  const handleLinkOAuthProvider = async (provider: SupportedOAuthProvider) => {
+    if (!supabaseConfigCache) return;
+    const supabase = createBrowserSupabaseClient(
+      supabaseConfigCache.url,
+      supabaseConfigCache.anonKey
+    );
+    if (!supabase) return;
+
+    setLinkingProvider(provider);
+    setIdentityError(null);
+    setIdentitySuccess(null);
+    try {
+      const { error } = await supabase.auth.linkIdentity({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?next=/`,
+        },
+      });
+      if (error) {
+        setIdentityError(
+          error.message.toLowerCase().includes('manual linking')
+            ? isAdmin
+              ? `${error.message}. Enable "Allow manual linking" in Supabase Dashboard -> Authentication -> Sign In / Providers.`
+              : 'Account linking is currently unavailable. Please contact support or try again later.'
+            : error.message
+        );
+      }
+    } finally {
+      setLinkingProvider(null);
+    }
+  };
+
+  const handleUnlinkOAuthProvider = async (identity: UserIdentity) => {
+    if (!supabaseConfigCache) return;
+    const supabase = createBrowserSupabaseClient(
+      supabaseConfigCache.url,
+      supabaseConfigCache.anonKey
+    );
+    if (!supabase) return;
+
+    setLinkingProvider(identity.provider);
+    setIdentityError(null);
+    setIdentitySuccess(null);
+    try {
+      const { error } = await supabase.auth.unlinkIdentity(identity);
+      if (error) {
+        setIdentityError(error.message);
+        return;
+      }
+      setIdentities((prev) =>
+        prev.filter((item) => item.id !== identity.id)
+      );
+      setIdentitySuccess(`Disconnected ${identity.provider} from your account.`);
+    } finally {
+      setLinkingProvider(null);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -393,9 +534,11 @@ export function SettingsSidepanel({
               </h2>
               <p className={cn('text-xs', mutedText)}>
                 Saved to{' '}
-                {storageMode === 'supabase-cloud'
-                  ? 'Supabase Cloud Database'
-                  : 'Local Workspace'}
+                {isAdmin
+                  ? storageMode === 'supabase-cloud'
+                    ? 'Supabase Cloud Database'
+                    : 'Local Workspace'
+                  : 'Cloud Account'}
               </p>
             </div>
           </div>
@@ -421,6 +564,7 @@ export function SettingsSidepanel({
                 label: `Job Roles (${profile.preferredRoles.length}/10)`,
                 icon: Briefcase,
               },
+              { id: 'accounts', label: 'Connected Logins', icon: Link2 },
               { id: 'desktop', label: 'Desktop App', icon: Laptop },
             ] as const
           ).map((item) => {
@@ -448,7 +592,7 @@ export function SettingsSidepanel({
           {section === 'personal' && (
             <div className="space-y-3">
               <p className={cn('text-xs', mutedText)}>
-                Your personal contact details sync across My Profile, Resume Studio (AI), and Supabase `user_profiles`.
+                Your personal contact details sync across My Profile, Resume Studio (AI), and your saved applications.
               </p>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1015,6 +1159,180 @@ export function SettingsSidepanel({
             </div>
           )}
 
+          {section === 'accounts' && (
+            <div className="space-y-4">
+              <div className={cn('rounded-lg border p-4 space-y-2', subSurface)}>
+                <h3 className="text-xs font-semibold">
+                  Connected Login Providers (Google &amp; GitHub)
+                </h3>
+                <p className={cn('text-xs leading-relaxed', mutedText)}>
+                  Link Google or GitHub to your{' '}
+                  <strong className={tokens.strongText}>
+                    {authAccountEmail || resume.email || 'account'}
+                  </strong>{' '}
+                  so you can use one-click OAuth sign-in on the login page.
+                </p>
+              </div>
+
+              {identityError && (
+                <div
+                  className={cn(
+                    'flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium',
+                    isDark
+                      ? 'border-red-500/40 bg-red-950/50 text-red-200'
+                      : 'border-red-300 bg-red-50 text-red-800'
+                  )}
+                >
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{identityError}</span>
+                </div>
+              )}
+
+              {identitySuccess && (
+                <div
+                  className={cn(
+                    'flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-medium',
+                    isDark
+                      ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-200'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  )}
+                >
+                  <Check className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{identitySuccess}</span>
+                </div>
+              )}
+
+              {loadingIdentities ? (
+                <div className="flex items-center gap-2 py-4 text-xs">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className={mutedText}>Loading linked accounts...</span>
+                </div>
+              ) : (
+                <div className={cn('divide-y rounded-lg border', borderSubtle, cardSurface)}>
+                  {(
+                    [
+                      {
+                        id: 'google' as SupportedOAuthProvider,
+                        label: 'Google',
+                        desc: 'Sign in with your Google account',
+                      },
+                      {
+                        id: 'github' as SupportedOAuthProvider,
+                        label: 'GitHub',
+                        desc: 'Sign in with your GitHub developer account',
+                      },
+                    ] as const
+                  ).map((provider) => {
+                    const linked = identities.find(
+                      (item) => item.provider === provider.id
+                    );
+                    const isEnabled = enabledOAuth.includes(provider.id);
+                    const isBusy = linkingProvider === provider.id;
+                    const linkedEmail =
+                      (linked?.identity_data?.email as string | undefined) ||
+                      (linked?.identity_data?.user_name as string | undefined);
+
+                    return (
+                      <div
+                        key={provider.id}
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
+                      >
+                        <div className="min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold">
+                              {provider.label}
+                            </span>
+                            {linked ? (
+                              <span
+                                className={cn(
+                                  'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold',
+                                  isDark
+                                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                                )}
+                              >
+                                ✓ Connected
+                              </span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  'rounded border px-1.5 py-0.5 font-mono text-[10px]',
+                                  subSurface,
+                                  mutedText
+                                )}
+                              >
+                                Not linked
+                              </span>
+                            )}
+                          </div>
+                          <p className={cn('text-[11px]', mutedText)}>
+                            {linked
+                              ? linkedEmail
+                                ? `Linked as ${linkedEmail}`
+                                : `Ready for ${provider.label} login`
+                              : provider.desc}
+                          </p>
+                        </div>
+
+                        {linked ? (
+                          <button
+                            type="button"
+                            disabled={isBusy || identities.length <= 1}
+                            onClick={() => void handleUnlinkOAuthProvider(linked)}
+                            title={
+                              identities.length <= 1
+                                ? 'Add another login method before disconnecting this one'
+                                : `Disconnect ${provider.label}`
+                            }
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-50',
+                              secondaryBtn
+                            )}
+                          >
+                            <Unlink className="h-3.5 w-3.5" />
+                            {isBusy ? 'Updating...' : 'Disconnect'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isBusy || !isEnabled}
+                            onClick={() => void handleLinkOAuthProvider(provider.id)}
+                            title={
+                              isEnabled
+                                ? `Link ${provider.label} to your account`
+                                : `${provider.label} sign-in is currently unavailable`
+                            }
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium disabled:opacity-50',
+                              primaryBtn
+                            )}
+                          >
+                            <Link2 className="h-3.5 w-3.5" />
+                            {isBusy
+                              ? 'Connecting...'
+                              : isEnabled
+                                ? `Connect ${provider.label}`
+                                : 'Unavailable'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {isAdmin && (
+                <p className={cn('text-[11px] leading-relaxed', mutedText)}>
+                  Admin note: If linking returns a manual-linking error, enable{' '}
+                  <strong className={tokens.strongText}>
+                    Allow manual linking
+                  </strong>{' '}
+                  in Supabase Dashboard → Authentication → Sign In / Providers.
+                </p>
+              )}
+            </div>
+          )}
+
           {section === 'desktop' && (
             <div className="space-y-4">
               <div className={cn('rounded-lg border p-4 space-y-3', subSurface)}>
@@ -1043,7 +1361,7 @@ export function SettingsSidepanel({
 
                 <p className={cn('text-xs leading-relaxed', mutedText)}>
                   {isDesktopApp
-                    ? 'You are running Pa-Hire Po inside the dedicated Desktop App. Your saved jobs, applications, and tailored resumes sync automatically with Supabase Cloud.'
+                    ? 'You are running Pa-Hire Po inside the dedicated Desktop App. Your saved jobs, applications, and tailored resumes sync automatically with your cloud account.'
                     : 'Download or install the Pa-Hire Po Desktop App for a distraction-free taskbar window with one-click resume printing and live cloud sync.'}
                 </p>
 

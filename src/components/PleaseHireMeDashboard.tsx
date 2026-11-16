@@ -4,14 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
+  ArrowUp,
   ArrowUpDown,
   Briefcase,
   Calendar,
   Clock,
   Compass,
   Filter,
-  RefreshCw,
   Search,
+  SlidersHorizontal,
   Trash2,
 } from 'lucide-react';
 import {
@@ -42,10 +43,12 @@ import {
 } from '@/lib/default-profile';
 import { scoreJobAgainstProfile } from '@/features/resume/lib/resume-analyzer';
 import {
+  clearLegacyUnscopedLocalState,
   fetchServerState,
   getActiveUser,
   getDefaultStoreState,
   loadLocalState,
+  patchPendingSyncJob,
   saveLocalState,
   syncSingleJobToServer,
   syncStateToServer,
@@ -77,12 +80,7 @@ import { cn } from '@/lib/utils';
 
 export type { ActiveTab };
 
-const REFRESH_OPTIONS = [
-  { label: 'Off', seconds: 0 },
-  { label: '5s Live', seconds: 5 },
-  { label: '15s', seconds: 15 },
-  { label: '30s', seconds: 30 },
-];
+const AUTO_REFRESH_INTERVAL_SECONDS = 60;
 
 function rescoreJobsWithProfile(
   jobs: JobListing[],
@@ -138,7 +136,7 @@ export function PleaseHireMeDashboard({
   const [adminUserCount, setAdminUserCount] = useState<number | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [storageMode, setStorageMode] = useState<string>('browser-only');
-  const [personalApiConfigured, setPersonalApiConfigured] = useState(true);
+  const [personalApiConfigured, setPersonalApiConfigured] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>(initialTab);
 
   const [enabledSources, setEnabledSources] = useState<JobSource[]>([
@@ -154,8 +152,8 @@ export function PleaseHireMeDashboard({
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [autoRefreshSeconds, setAutoRefreshSeconds] = useState<number>(0);
-  const [countdown, setCountdown] = useState<number>(5);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [countdown, setCountdown] = useState<number>(AUTO_REFRESH_INTERVAL_SECONDS);
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [applyModalJob, setApplyModalJob] = useState<JobListing | null>(null);
@@ -205,6 +203,13 @@ export function PleaseHireMeDashboard({
   const scanInFlightRef = useRef(false);
   const authUserIdRef = useRef<string | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const storeRef = useRef<AppStoreState>(store);
+  const detailPaneRef = useRef<HTMLDivElement | null>(null);
+  const jobListRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    storeRef.current = store;
+  }, [store]);
 
   const pushNotification = useCallback(
     (
@@ -249,6 +254,7 @@ export function PleaseHireMeDashboard({
       syncScope: 'full' | 'profile-only' = 'full',
       options?: { immediate?: boolean }
     ) => {
+      storeRef.current = next;
       setStore(next);
       saveLocalState(next, authUserIdRef.current);
       setDbSyncCount((c) => c + 1);
@@ -285,22 +291,22 @@ export function PleaseHireMeDashboard({
   const updateActiveUserProfile = useCallback(
     (nextProfile: UserProfile, rescore = true) => {
       setRoleDraft(nextProfile.primaryRole);
-      setStore((prev) => {
-        const nextUsers = prev.users.map((u) =>
-          u.id === nextProfile.id ? nextProfile : u
-        );
-        const nextJobs = rescore
-          ? rescoreJobsWithProfile(prev.jobs, nextProfile)
-          : prev.jobs;
-        const nextState: AppStoreState = {
-          ...prev,
-          users: nextUsers,
-          jobs: nextJobs,
-        };
-        saveLocalState(nextState, authUserIdRef.current);
-        void syncStateToServer(nextState, rescore ? 'full' : 'profile-only');
-        return nextState;
-      });
+      const prev = storeRef.current;
+      const nextUsers = prev.users.map((u) =>
+        u.id === nextProfile.id ? nextProfile : u
+      );
+      const nextJobs = rescore
+        ? rescoreJobsWithProfile(prev.jobs, nextProfile)
+        : prev.jobs;
+      const nextState: AppStoreState = {
+        ...prev,
+        users: nextUsers,
+        jobs: nextJobs,
+      };
+      storeRef.current = nextState;
+      setStore(nextState);
+      saveLocalState(nextState, authUserIdRef.current);
+      void syncStateToServer(nextState, rescore ? 'full' : 'profile-only');
     },
     []
   );
@@ -308,7 +314,7 @@ export function PleaseHireMeDashboard({
   const runJobScan = useCallback(
     async (overrideProfile?: UserProfile, explicitRoles?: string[]) => {
       if (scanInFlightRef.current) return;
-      const targetProfile = overrideProfile || activeProfile;
+      const targetProfile = overrideProfile || getActiveUser(storeRef.current);
       if (enabledSources.length === 0) {
         setScanError(
           'Enable at least one board (LinkedIn, JobStreet, or Indeed).'
@@ -344,77 +350,79 @@ export function PleaseHireMeDashboard({
         setBoardMeta(meta);
         setLastSearchedRoles(searchedRoles);
 
-        setStore((prev) => {
-          const existingById = new Map(prev.jobs.map((j) => [j.id, j]));
-          let newAdded = 0;
+        // Read latest state from storeRef AFTER await so any Save/Applied/Hidden clicks
+        // made while the scrape was in-flight are strictly preserved.
+        const prev = storeRef.current;
+        const existingById = new Map(prev.jobs.map((j) => [j.id, j]));
+        let newAdded = 0;
 
-          for (const item of incoming) {
-            const old = existingById.get(item.id);
-            if (old) {
-              existingById.set(item.id, {
-                ...item,
-                status: old.status,
-                discoveredAt: old.discoveredAt,
-                savedAt: old.savedAt ?? null,
-                appliedAt: old.appliedAt ?? null,
-                hiddenAt: old.hiddenAt ?? null,
-                applicationStage: old.applicationStage || 'applied',
-                applicationNotes: old.applicationNotes || '',
-                tailoredResumeId: old.tailoredResumeId ?? null,
-                statusUpdatedAt: old.statusUpdatedAt ?? null,
-              });
-            } else {
-              newAdded += 1;
-              existingById.set(item.id, item);
-            }
+        for (const item of incoming) {
+          const old = existingById.get(item.id);
+          if (old) {
+            existingById.set(item.id, {
+              ...item,
+              status: old.status,
+              discoveredAt: old.discoveredAt,
+              savedAt: old.savedAt ?? null,
+              appliedAt: old.appliedAt ?? null,
+              hiddenAt: old.hiddenAt ?? null,
+              applicationStage: old.applicationStage || 'applied',
+              applicationNotes: old.applicationNotes || '',
+              tailoredResumeId: old.tailoredResumeId ?? null,
+              statusUpdatedAt: old.statusUpdatedAt ?? null,
+            });
+          } else {
+            newAdded += 1;
+            existingById.set(item.id, item);
           }
+        }
 
-          const liveBoards = new Set(
-            Array.from(existingById.values())
-              .filter((j) => !j.isFallback)
-              .map((j) => j.source)
-          );
-          const mergedJobs = Array.from(existingById.values())
-            .filter((j) => !j.isFallback || !liveBoards.has(j.source))
-            .sort((a, b) => {
-              if (Boolean(a.isFallback) !== Boolean(b.isFallback)) {
-                return a.isFallback ? 1 : -1;
-              }
-              return b.matchScore - a.matchScore;
-            });
+        const liveBoards = new Set(
+          Array.from(existingById.values())
+            .filter((j) => !j.isFallback)
+            .map((j) => j.source)
+        );
+        const mergedJobs = Array.from(existingById.values())
+          .filter((j) => !j.isFallback || !liveBoards.has(j.source))
+          .sort((a, b) => {
+            if (Boolean(a.isFallback) !== Boolean(b.isFallback)) {
+              return a.isFallback ? 1 : -1;
+            }
+            return b.matchScore - a.matchScore;
+          });
 
-          const scannedAt = data.scannedAt || new Date().toISOString();
-          const nextState: AppStoreState = {
-            ...prev,
-            users: prev.users.map((u) =>
-              u.id === targetProfile.id ? targetProfile : u
-            ),
-            jobs: mergedJobs,
-            lastScannedAt: scannedAt,
-            scanHistory: [
-              {
-                id: `${Date.now()}`,
-                timestamp: scannedAt,
-                searchedRoles: searchedRoles.map((r) => r.role),
-                totalFound: incoming.length,
-                newAdded,
-                meta,
-              },
-              ...prev.scanHistory.slice(0, 14),
-            ],
-          };
+        const scannedAt = data.scannedAt || new Date().toISOString();
+        const nextState: AppStoreState = {
+          ...prev,
+          users: prev.users.map((u) =>
+            u.id === targetProfile.id ? targetProfile : u
+          ),
+          jobs: mergedJobs,
+          lastScannedAt: scannedAt,
+          scanHistory: [
+            {
+              id: `${Date.now()}`,
+              timestamp: scannedAt,
+              searchedRoles: searchedRoles.map((r) => r.role),
+              totalFound: incoming.length,
+              newAdded,
+              meta,
+            },
+            ...prev.scanHistory.slice(0, 14),
+          ],
+        };
 
-          saveLocalState(nextState, authUserIdRef.current);
-          setDbSyncCount((c) => c + 1);
-          void syncStateToServer(nextState)
-            .then((mode) => {
-              if (mode) setStorageMode(mode);
-            })
-            .finally(() => {
-              setDbSyncCount((c) => Math.max(0, c - 1));
-            });
-          return nextState;
-        });
+        storeRef.current = nextState;
+        setStore(nextState);
+        saveLocalState(nextState, authUserIdRef.current);
+        setDbSyncCount((c) => c + 1);
+        void syncStateToServer(nextState)
+          .then((mode) => {
+            if (mode) setStorageMode(mode);
+          })
+          .finally(() => {
+            setDbSyncCount((c) => Math.max(0, c - 1));
+          });
 
         if (incoming.length > 0) {
           pushNotification({
@@ -431,9 +439,10 @@ export function PleaseHireMeDashboard({
       } finally {
         scanInFlightRef.current = false;
         setScanning(false);
+        setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
       }
     },
-    [activeProfile, enabledSources, pushNotification]
+    [enabledSources, pushNotification]
   );
 
   // Hydrate initial state + detect Electron Desktop host
@@ -474,6 +483,7 @@ export function PleaseHireMeDashboard({
             : local;
 
       const user = getActiveUser(chosen);
+      storeRef.current = chosen;
       setStore(chosen);
       setRoleDraft(user.primaryRole);
       setHydrated(true);
@@ -491,7 +501,7 @@ export function PleaseHireMeDashboard({
           .catch(() => undefined);
       }
 
-      if (chosen.jobs.length === 0 && !initialAutoScanRan.current) {
+      if (!initialAutoScanRan.current) {
         initialAutoScanRan.current = true;
         void runJobScan(user);
       }
@@ -657,6 +667,7 @@ export function PleaseHireMeDashboard({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'signout' }),
       });
+      clearLegacyUnscopedLocalState();
     } finally {
       router.replace('/login');
       router.refresh();
@@ -664,23 +675,26 @@ export function PleaseHireMeDashboard({
     }
   };
 
-  // Non-overlapping 5s / 15s / 30s Live Auto-Refresh Loop
+  // Non-overlapping 1-Minute (60s) Default Auto-Refresh Loop (paused when tab hidden)
   useEffect(() => {
-    if (autoRefreshSeconds <= 0) return;
+    if (!hydrated) return;
 
     const timer = setInterval(() => {
       if (scanInFlightRef.current) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       setCountdown((prev) => {
         if (prev <= 1) {
           void runJobScan();
-          return autoRefreshSeconds;
+          return AUTO_REFRESH_INTERVAL_SECONDS;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [autoRefreshSeconds, runJobScan]);
+  }, [hydrated, runJobScan]);
 
   const handleApplyPrimaryRole = (role: string, triggerScan = true) => {
     const clean = role.trim();
@@ -734,46 +748,50 @@ export function PleaseHireMeDashboard({
     tailoredResumeId?: string | null
   ) => {
     const nowIso = new Date().toISOString();
+    const prev = storeRef.current;
     let updatedJob: JobListing | null = null;
 
-    setStore((prev) => {
-      const nextJobs = prev.jobs.map((j) => {
-        if (j.id !== jobId) return j;
-        updatedJob = {
-          ...j,
-          status,
-          statusUpdatedAt: nowIso,
-          savedAt: status === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
-          appliedAt:
-            status === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
-          hiddenAt:
-            status === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
-          applicationStage:
-            status === 'applied'
-              ? j.applicationStage || 'applied'
-              : j.applicationStage,
-          tailoredResumeId:
-            tailoredResumeId !== undefined
-              ? tailoredResumeId
-              : j.tailoredResumeId ?? null,
-        };
-        return updatedJob;
-      });
-      const nextState: AppStoreState = { ...prev, jobs: nextJobs };
-      saveLocalState(nextState, authUserIdRef.current);
-      return nextState;
+    const nextJobs = prev.jobs.map((j) => {
+      if (j.id !== jobId) return j;
+      updatedJob = {
+        ...j,
+        status,
+        statusUpdatedAt: nowIso,
+        savedAt: status === 'saved' ? j.savedAt || nowIso : null,
+        appliedAt: status === 'applied' ? j.appliedAt || nowIso : null,
+        hiddenAt: status === 'hidden' ? j.hiddenAt || nowIso : null,
+        applicationStage:
+          status === 'applied'
+            ? j.applicationStage || 'applied'
+            : j.applicationStage,
+        tailoredResumeId:
+          tailoredResumeId !== undefined
+            ? tailoredResumeId
+            : j.tailoredResumeId ?? null,
+      };
+      return updatedJob;
     });
+
+    const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+    storeRef.current = nextState;
+    setStore(nextState);
+    saveLocalState(nextState, authUserIdRef.current);
 
     if (updatedJob) {
       const savedTarget: JobListing = updatedJob;
+      patchPendingSyncJob(savedTarget);
       setDbSyncCount((c) => c + 1);
       void syncSingleJobToServer(savedTarget)
         .then((res) => {
           if (res.saved) {
             setStorageMode(res.storageMode);
             setSyncError(null);
-          } else if (res.error) {
-            setSyncError(`Cloud save failed: ${res.error}`);
+          } else {
+            setSyncError(
+              res.error
+                ? `Cloud save failed: ${res.error}`
+                : 'Unable to save job status to cloud database.'
+            );
           }
         })
         .finally(() => {
@@ -810,40 +828,43 @@ export function PleaseHireMeDashboard({
     }
   ) => {
     const nowIso = new Date().toISOString();
+    const prev = storeRef.current;
     let updatedJob: JobListing | null = null;
 
-    setStore((prev) => {
-      const nextJobs = prev.jobs.map((j) => {
-        if (j.id !== jobId) return j;
-        const nextStatus = patch.status ?? j.status;
-        updatedJob = {
-          ...j,
-          ...patch,
-          status: nextStatus,
-          statusUpdatedAt: nowIso,
-          savedAt:
-            nextStatus === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
-          appliedAt:
-            nextStatus === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
-          hiddenAt:
-            nextStatus === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
-        };
-        return updatedJob;
-      });
-      const nextState: AppStoreState = { ...prev, jobs: nextJobs };
-      saveLocalState(nextState, authUserIdRef.current);
-      return nextState;
+    const nextJobs = prev.jobs.map((j) => {
+      if (j.id !== jobId) return j;
+      const nextStatus = patch.status ?? j.status;
+      updatedJob = {
+        ...j,
+        ...patch,
+        status: nextStatus,
+        statusUpdatedAt: nowIso,
+        savedAt: nextStatus === 'saved' ? j.savedAt || nowIso : null,
+        appliedAt: nextStatus === 'applied' ? j.appliedAt || nowIso : null,
+        hiddenAt: nextStatus === 'hidden' ? j.hiddenAt || nowIso : null,
+      };
+      return updatedJob;
     });
 
+    const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+    storeRef.current = nextState;
+    setStore(nextState);
+    saveLocalState(nextState, authUserIdRef.current);
+
     if (updatedJob) {
+      patchPendingSyncJob(updatedJob);
       setDbSyncCount((c) => c + 1);
       void syncSingleJobToServer(updatedJob)
         .then((res) => {
           if (res.saved) {
             setStorageMode(res.storageMode);
             setSyncError(null);
-          } else if (res.error) {
-            setSyncError(`Cloud save failed: ${res.error}`);
+          } else {
+            setSyncError(
+              res.error
+                ? `Cloud save failed: ${res.error}`
+                : 'Unable to save application changes to cloud database.'
+            );
           }
         })
         .finally(() => {
@@ -966,14 +987,15 @@ export function PleaseHireMeDashboard({
         statusUpdatedAt: nowIso,
       };
 
-      setStore((prev) => {
-        const nextState: AppStoreState = {
-          ...prev,
-          jobs: [newJob, ...prev.jobs],
-        };
-        saveLocalState(nextState, authUserIdRef.current);
-        return nextState;
-      });
+      const prev = storeRef.current;
+      const nextState: AppStoreState = {
+        ...prev,
+        jobs: [newJob, ...prev.jobs],
+      };
+      storeRef.current = nextState;
+      setStore(nextState);
+      saveLocalState(nextState, authUserIdRef.current);
+      patchPendingSyncJob(newJob);
       await syncSingleJobToServer(newJob);
       await loadResumeHistory();
       pushNotification({
@@ -1372,11 +1394,11 @@ export function PleaseHireMeDashboard({
                 </div>
 
                 {/* WHERE */}
-                <div className="lg:col-span-4">
+                <div className="lg:col-span-5">
                   <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
                     Location
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <select
                       value={activeProfile.country}
                       onChange={(e) => {
@@ -1387,7 +1409,7 @@ export function PleaseHireMeDashboard({
                           location: COUNTRY_CONFIGS[code].defaultLocation,
                         });
                       }}
-                      className={cn('rounded-lg border px-2.5 py-2 text-xs font-medium focus:outline-none', inputSurface)}
+                      className={cn('w-full rounded-lg border px-2.5 py-2 text-xs font-medium focus:outline-none sm:w-auto', inputSurface)}
                     >
                       {Object.values(COUNTRY_CONFIGS).map((c) => (
                         <option key={c.code} value={c.code}>
@@ -1410,51 +1432,20 @@ export function PleaseHireMeDashboard({
                   </div>
                 </div>
 
-                {/* MANUAL + AUTO-REFRESH CONTROLS */}
-                <div className="flex flex-col justify-end lg:col-span-3">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={scanning}
-                      onClick={() => handleApplyPrimaryRole(roleDraft, true)}
-                      className={cn(
-                        'inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors disabled:opacity-60',
-                        primaryBtn
-                      )}
-                    >
-                      <RefreshCw className={cn('h-3.5 w-3.5', scanning && 'animate-spin')} />
-                      {scanning ? 'Finding...' : 'Find Jobs'}
-                    </button>
-
-                    <div className={cn('inline-flex items-center rounded-lg border p-0.5', subSurface)}>
-                      {REFRESH_OPTIONS.map((opt) => {
-                        const active = autoRefreshSeconds === opt.seconds;
-                        return (
-                          <button
-                            key={opt.seconds}
-                            type="button"
-                            onClick={() => {
-                              setAutoRefreshSeconds(opt.seconds);
-                              setCountdown(opt.seconds || 5);
-                            }}
-                            className={cn(
-                              'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
-                              active ? primaryBtn : mutedText
-                            )}
-                            title={
-                              opt.seconds === 0
-                                ? 'Manual refresh only'
-                                : `Auto-refresh every ${opt.seconds} seconds`
-                            }
-                          >
-                            {opt.seconds > 0 && active
-                              ? `${countdown}s`
-                              : opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {/* SEARCH ACTION (Auto-refresh runs silently every 1m + on page load) */}
+                <div className="flex flex-col justify-end lg:col-span-2">
+                  <button
+                    type="button"
+                    disabled={scanning}
+                    onClick={() => handleApplyPrimaryRole(roleDraft, true)}
+                    className={cn(
+                      'inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors disabled:opacity-60',
+                      primaryBtn
+                    )}
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    {scanning ? 'Searching...' : 'Search Jobs'}
+                  </button>
                 </div>
               </div>
 
@@ -1535,28 +1526,32 @@ export function PleaseHireMeDashboard({
                 </div>
               </div>
 
-              {(lastSearchedRoles.length > 0 || autoRefreshSeconds > 0) && (
+              {(lastSearchedRoles.length > 0 || hydrated) && (
                 <div className={cn('flex flex-wrap items-center justify-between gap-2 text-xs', mutedText)}>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Activity className="h-3.5 w-3.5" />
-                    Last queried:{' '}
-                    {lastSearchedRoles
-                      .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
-                      .join(' • ')}
-                    {autoRefreshSeconds > 0 && (
-                      <strong className="ml-2 font-semibold">
-                        • Auto-refreshing every {autoRefreshSeconds}s (next in {countdown}s)
-                      </strong>
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <Activity className="h-3.5 w-3.5 shrink-0" />
+                    {lastSearchedRoles.length > 0 && (
+                      <span>
+                        Last queried:{' '}
+                        {lastSearchedRoles
+                          .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
+                          .join(' • ')}
+                      </span>
                     )}
+                    <strong className="font-semibold">
+                      {lastSearchedRoles.length > 0 ? '• ' : ''}Auto-refreshes every 1m (next in {countdown}s)
+                    </strong>
                   </span>
                   {store.lastScannedAt && hydrated && (
                     <span>
                       Updated {new Date(store.lastScannedAt).toLocaleTimeString()} •{' '}
-                      {storageMode === 'supabase-cloud'
-                        ? 'Supabase Cloud'
-                        : storageMode === 'local-file'
-                          ? 'Local + Browser'
-                          : 'Browser'}
+                      {authUser?.isAdmin
+                        ? storageMode === 'supabase-cloud'
+                          ? 'Supabase Cloud'
+                          : storageMode === 'local-file'
+                            ? 'Local + Browser'
+                            : 'Browser'
+                        : 'Cloud Synced'}
                     </span>
                   )}
                 </div>
@@ -1584,184 +1579,233 @@ export function PleaseHireMeDashboard({
               experienceLevel={activeProfile.experienceLevel}
               theme={theme}
               queuedJobIds={queuedJobIds}
-              onSelectJob={(id) => setSelectedJobId(id)}
+              onSelectJob={(id) => {
+                setSelectedJobId(id);
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  requestAnimationFrame(() => {
+                    detailPaneRef.current?.scrollIntoView({
+                      behavior: 'smooth',
+                      block: 'start',
+                    });
+                  });
+                }
+              }}
               onOpenApplyModal={(job) => setApplyModalJob(job)}
               onToggleQueueJob={handleToggleQueueJob}
             />
 
             {/* FILTER BAR */}
-            <section className={cn('flex flex-wrap items-center justify-between gap-2.5 rounded-lg border px-3 py-2.5', cardSurface)}>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(
-                  [
-                    { key: 'active', label: 'All Active', count: activeJobsCount },
-                    {
-                      key: 'saved',
-                      label: 'Saved',
-                      count: store.jobs.filter((j) => j.status === 'saved').length,
-                    },
-                    {
-                      key: 'applied',
-                      label: 'Applied',
-                      count: store.jobs.filter((j) => j.status === 'applied').length,
-                    },
-                    {
-                      key: 'hidden',
-                      label: 'Hidden',
-                      count: store.jobs.filter((j) => j.status === 'hidden').length,
-                    },
-                  ] as const
-                ).map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setStatusFilter(t.key)}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      statusFilter === t.key ? primaryBtn : secondaryBtn
-                    )}
-                  >
-                    <span>{t.label}</span>
-                    {hydrated && t.count > 0 && (
-                      <span className="font-mono text-[11px] tabular-nums opacity-85">
-                        ({t.count})
-                      </span>
-                    )}
-                  </button>
-                ))}
-
-                <div className={cn('mx-1 h-4 w-px', isDark ? 'bg-slate-700' : 'bg-slate-300')} />
-
-                <button
-                  type="button"
-                  onClick={() => setSourceFilter('all')}
-                  className={cn(
-                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                    sourceFilter === 'all' ? primaryBtn : secondaryBtn
-                  )}
-                >
-                  All Sites ({store.jobs.length})
-                </button>
-                {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((src) => (
-                  <button
-                    key={src}
-                    type="button"
-                    onClick={() => setSourceFilter(src)}
-                    className={cn(
-                      'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      sourceFilter === src ? primaryBtn : secondaryBtn
-                    )}
-                  >
-                    <BoardLogo source={src} theme={theme} size="sm" />
-                  </button>
-                ))}
+            <section className={cn('space-y-2.5 rounded-lg border px-3 py-2.5', cardSurface)}>
+              {/* Row 1 (Always Visible): Status Tabs + Mobile Filter Toggle */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
+                  {(
+                    [
+                      { key: 'active', label: 'All Active', count: activeJobsCount },
+                      {
+                        key: 'saved',
+                        label: 'Saved',
+                        count: store.jobs.filter((j) => j.status === 'saved').length,
+                      },
+                      {
+                        key: 'applied',
+                        label: 'Applied',
+                        count: store.jobs.filter((j) => j.status === 'applied').length,
+                      },
+                      {
+                        key: 'hidden',
+                        label: 'Hidden',
+                        count: store.jobs.filter((j) => j.status === 'hidden').length,
+                      },
+                    ] as const
+                  ).map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setStatusFilter(t.key)}
+                      className={cn(
+                        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                        statusFilter === t.key ? primaryBtn : secondaryBtn
+                      )}
+                    >
+                      <span>{t.label}</span>
+                      {hydrated && t.count > 0 && (
+                        <span className="font-mono text-[11px] tabular-nums opacity-85">
+                          ({t.count})
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
-                  }
+                  onClick={() => setMobileFiltersOpen((v) => !v)}
+                  aria-expanded={mobileFiltersOpen}
                   className={cn(
-                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                    fitFilter === 'applicable' ? primaryBtn : secondaryBtn
+                    'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium sm:hidden',
+                    mobileFiltersOpen ||
+                      sourceFilter !== 'all' ||
+                      fitFilter !== 'all' ||
+                      dateFilter !== 'all' ||
+                      sortBy !== 'match' ||
+                      minScore > 0 ||
+                      searchQuery.trim()
+                      ? primaryBtn
+                      : secondaryBtn
                   )}
                 >
-                  {fitFilter === 'applicable'
-                    ? '✓ Applicable Exp Only'
-                    : 'Entry / Applicable Exp'}
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  <span>Filters</span>
                 </button>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="relative">
-                  <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filter results..."
-                    className={cn('w-36 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none sm:w-44', inputSurface)}
-                  />
-                </div>
-
-                {/* DATE RECENCY FILTER */}
-                <div className="relative flex items-center">
-                  <Calendar className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                  <select
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value as DateFilterOption)}
-                    aria-label="Filter jobs by date posted"
-                    className={cn(
-                      'rounded-lg border py-1.5 pl-8 pr-2.5 text-xs font-medium focus:outline-none',
-                      inputSurface
-                    )}
-                  >
-                    <option value="all">All Dates</option>
-                    <option value="24h">Past 24 Hours / Today</option>
-                    <option value="7d">Past Week</option>
-                    <option value="30d">Past Month</option>
-                  </select>
-                </div>
-
-                {/* SORT STRATEGY */}
-                <div className="relative flex items-center">
-                  <ArrowUpDown className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as JobSortOption)}
-                    aria-label="Sort jobs"
-                    className={cn(
-                      'rounded-lg border py-1.5 pl-8 pr-2.5 text-xs font-medium focus:outline-none',
-                      inputSurface
-                    )}
-                  >
-                    <option value="match">Sort: Best Match</option>
-                    <option value="newest">Sort: Newest First</option>
-                    <option value="oldest">Sort: Oldest First</option>
-                  </select>
-                </div>
-
-                <label className={cn('flex items-center gap-1.5 text-xs', mutedText)}>
-                  <Filter className="h-3.5 w-3.5" />
-                  <span className="font-mono text-[11px] tabular-nums">Min {minScore}%</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={80}
-                    step={5}
-                    value={minScore}
-                    onChange={(e) => setMinScore(Number(e.target.value))}
-                    className="w-20"
-                  />
-                </label>
-
-                {store.jobs.length > 0 && (
+              {/* Row 2 (Collapsible on Mobile, Always Open on sm+) */}
+              <div
+                className={cn(
+                  'flex-col gap-2.5 border-t pt-2.5 lg:flex-row lg:items-center lg:justify-between',
+                  borderSubtle,
+                  mobileFiltersOpen ? 'flex' : 'hidden sm:flex'
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      const kept = store.jobs.filter(
-                        (j) =>
-                          j.status === 'saved' ||
-                          j.status === 'applied' ||
-                          j.status === 'hidden'
-                      );
-                      persistStore({ ...store, jobs: kept }, 'full', {
-                        immediate: true,
-                      });
-                    }}
-                    className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                    onClick={() => setSourceFilter('all')}
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      sourceFilter === 'all' ? primaryBtn : secondaryBtn
+                    )}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Clear
+                    All Sites ({store.jobs.length})
                   </button>
-                )}
+                  {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((src) => (
+                    <button
+                      key={src}
+                      type="button"
+                      onClick={() => setSourceFilter(src)}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                        sourceFilter === src ? primaryBtn : secondaryBtn
+                      )}
+                    >
+                      <BoardLogo source={src} theme={theme} size="sm" />
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
+                    }
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      fitFilter === 'applicable' ? primaryBtn : secondaryBtn
+                    )}
+                  >
+                    {fitFilter === 'applicable'
+                      ? '✓ Applicable Exp Only'
+                      : 'Entry / Applicable Exp'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                  <div className="relative">
+                    <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Filter results..."
+                      className={cn('w-full rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none sm:w-44', inputSurface)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+                    {/* DATE RECENCY FILTER */}
+                    <div className="relative flex items-center">
+                      <Calendar className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
+                      <select
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value as DateFilterOption)}
+                        aria-label="Filter jobs by date posted"
+                        className={cn(
+                          'w-full rounded-lg border py-1.5 pl-8 pr-2 text-xs font-medium focus:outline-none sm:w-auto',
+                          inputSurface
+                        )}
+                      >
+                        <option value="all">All Dates</option>
+                        <option value="24h">Past 24 Hours / Today</option>
+                        <option value="7d">Past Week</option>
+                        <option value="30d">Past Month</option>
+                      </select>
+                    </div>
+
+                    {/* SORT STRATEGY */}
+                    <div className="relative flex items-center">
+                      <ArrowUpDown className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as JobSortOption)}
+                        aria-label="Sort jobs"
+                        className={cn(
+                          'w-full rounded-lg border py-1.5 pl-8 pr-2 text-xs font-medium focus:outline-none sm:w-auto',
+                          inputSurface
+                        )}
+                      >
+                        <option value="match">Sort: Best Match</option>
+                        <option value="newest">Sort: Newest First</option>
+                        <option value="oldest">Sort: Oldest First</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={cn('flex flex-1 items-center gap-1.5 text-xs', mutedText)}>
+                      <Filter className="h-3.5 w-3.5 shrink-0" />
+                      <span className="font-mono text-[11px] tabular-nums">Min {minScore}%</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={80}
+                        step={5}
+                        value={minScore}
+                        onChange={(e) => setMinScore(Number(e.target.value))}
+                        className="w-full max-w-[140px] sm:w-20"
+                      />
+                    </label>
+
+                    {store.jobs.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const queuedSet = new Set(queuedJobIds);
+                          const kept = store.jobs.filter(
+                            (j) =>
+                              j.status === 'saved' ||
+                              j.status === 'applied' ||
+                              j.status === 'hidden' ||
+                              queuedSet.has(j.id)
+                          );
+                          persistStore({ ...store, jobs: kept }, 'full', {
+                            immediate: true,
+                          });
+                        }}
+                        className={cn('inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </section>
 
             {/* JOBSTREET 2-COLUMN MASTER-DETAIL EXPLORER */}
             <section className="grid items-start gap-5 lg:grid-cols-12">
               {/* LEFT COLUMN: JOB LIST */}
-              <div className="space-y-2 lg:col-span-5">
+              <div ref={jobListRef} className="space-y-2 lg:col-span-5">
                 {store.jobs.length > 0 && (
                   <div className={cn('flex items-center justify-between px-1 text-xs', mutedText)}>
                     <span>
@@ -1795,14 +1839,14 @@ export function PleaseHireMeDashboard({
                     <Briefcase className={cn('mx-auto h-7 w-7', mutedText)} />
                     <p className="text-sm font-semibold">No matching jobs yet</p>
                     <p className={cn('text-xs', mutedText)}>
-                      Click &ldquo;Find Jobs&rdquo; to search LinkedIn, JobStreet, and Indeed.
+                      Click &ldquo;Search Jobs&rdquo; to search LinkedIn, JobStreet, and Indeed.
                     </p>
                     <button
                       type="button"
                       onClick={() => void runJobScan()}
                       className={cn('rounded-lg px-4 py-2 text-xs', primaryBtn)}
                     >
-                      Find Jobs
+                      Search Jobs
                     </button>
                   </div>
                 ) : (
@@ -1824,19 +1868,44 @@ export function PleaseHireMeDashboard({
                     return (
                       <article
                         key={job.id}
-                        onClick={() => setSelectedJobId(job.id)}
+                        onClick={() => {
+                          setSelectedJobId(job.id);
+                          if (
+                            typeof window !== 'undefined' &&
+                            window.innerWidth < 1024
+                          ) {
+                            requestAnimationFrame(() => {
+                              detailPaneRef.current?.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start',
+                              });
+                            });
+                          }
+                        }}
                         className={cn(
                           'cursor-pointer space-y-2 rounded-lg border p-3.5 transition-colors',
                           isSelected ? selectedCard : cardSurface
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <BoardLogo source={job.source} theme={theme} size="sm" />
                             {job.isPivotSuggestion && (
                               <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium', secondaryBtn)}>
                                 <Compass className="h-3 w-3" />
                                 Pivot
+                              </span>
+                            )}
+                            {job.status === 'saved' && (
+                              <span
+                                className={cn(
+                                  'rounded border px-1.5 py-0.5 text-[11px] font-semibold',
+                                  isDark
+                                    ? 'border-blue-700/70 bg-blue-950/60 text-blue-300'
+                                    : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
+                                )}
+                              >
+                                Saved
                               </span>
                             )}
                             {job.status === 'applied' && (
@@ -1910,7 +1979,28 @@ export function PleaseHireMeDashboard({
               </div>
 
               {/* RIGHT COLUMN: STICKY JOB DETAILS PANE */}
-              <div className="lg:sticky lg:top-16 lg:col-span-7">
+              <div
+                ref={detailPaneRef}
+                className="scroll-mt-20 space-y-2 lg:sticky lg:top-16 lg:col-span-7"
+              >
+                <div className="flex justify-end lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      jobListRef.current?.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                      })
+                    }
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                      secondaryBtn
+                    )}
+                  >
+                    <ArrowUp className="h-3.5 w-3.5" />
+                    Back to Job List
+                  </button>
+                </div>
                 <JobDetailPane
                   job={selectedJob}
                   activeProfileName={activeProfile.name}
@@ -2082,6 +2172,7 @@ export function PleaseHireMeDashboard({
         profile={activeProfile}
         autoApplyConfig={autoApplyConfig}
         isDesktopApp={isDesktopApp}
+        isAdmin={Boolean(authUser?.isAdmin)}
         storageMode={storageMode}
         onClose={() => setSettingsOpen(false)}
         onSaveProfile={(next, rescore = false) =>

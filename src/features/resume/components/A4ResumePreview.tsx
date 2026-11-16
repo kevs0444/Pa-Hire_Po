@@ -638,7 +638,7 @@ export function A4ResumePreview({
   activeTailorJob,
   theme,
   geminiApiKey,
-  personalApiConfigured = true,
+  personalApiConfigured = false,
   tailoring,
   onUpdateGeminiKey,
   onTailorResume,
@@ -1249,7 +1249,11 @@ export function A4ResumePreview({
               type="password"
               value={geminiApiKey}
               onChange={(e) => onUpdateGeminiKey(e.target.value)}
-              placeholder="Optional browser override key — leave blank to use your personal .env GEMINI_API_KEY"
+              placeholder={
+                personalApiConfigured
+                  ? 'Optional browser override key — leave blank to use your personal .env GEMINI_API_KEY'
+                  : 'Optional Gemini API Key — leave blank to use built-in Smart Tailor'
+              }
               className={cn(
                 'flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
                 tokens.inputSurface

@@ -1,0 +1,18 @@
+filters:
+  and:
+    - type == "feature"
+views:
+  - type: table
+    name: Core Features
+    order:
+      - file.name
+      - area
+      - status
+      - milestone
+      - commit_ref
+      - updated
+    sort:
+      - property: area
+        direction: ASC
+      - property: file.name
+        direction: ASC

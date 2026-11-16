@@ -42,3 +42,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# obsidian volatile local state (keep shared .obsidian configs & vault notes tracked)
+Pa-Hire Po/.obsidian/workspace.json
+Pa-Hire Po/.obsidian/workspace-mobile.json
+Pa-Hire Po/.obsidian/cache

@@ -9,14 +9,15 @@ import {
 
 export interface SetupStatus {
   url: string;
-  projectRef: string;
   anonKey: string;
-  isConfigured: boolean;
-  hasServiceRole: boolean;
-  keyValid: boolean;
-  schemaReady: boolean;
   enabledProviders: string[];
-  message: string;
+  projectName?: string;
+  projectRef?: string;
+  isConfigured?: boolean;
+  hasServiceRole?: boolean;
+  keyValid?: boolean;
+  schemaReady?: boolean;
+  message?: string;
   vercelEnv?: string;
   personalApiConfigured?: boolean;
   allowLocalAdmin?: boolean;

@@ -63,7 +63,7 @@ export function LinkedInProfileView({
   profile,
   theme,
   geminiApiKey,
-  personalApiConfigured = true,
+  personalApiConfigured = false,
   onSelectUser,
   onCreateUser,
   onUpdateGeminiKey,
@@ -1235,7 +1235,11 @@ export function LinkedInProfileView({
               type="password"
               value={geminiApiKey}
               onChange={(e) => onUpdateGeminiKey(e.target.value)}
-              placeholder="Optional browser Gemini API Key override — leave blank to use personal .env key"
+              placeholder={
+                personalApiConfigured
+                  ? 'Optional browser Gemini API Key override — leave blank to use personal .env key'
+                  : 'Optional Gemini API Key — leave blank to use built-in Smart Tailor'
+              }
               className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
             />
           </div>

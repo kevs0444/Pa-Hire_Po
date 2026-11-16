@@ -105,11 +105,11 @@ export function AppTopNavbar({
 
   return (
     <header className={cn('no-print sticky top-0 z-30 border-b', navBg)}>
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 sm:px-6">
         <button
           type="button"
           onClick={() => onSelectTab('home')}
-          className="flex items-center gap-2.5 py-2 text-left transition-opacity hover:opacity-85"
+          className="flex items-center gap-2 py-2 text-left transition-opacity hover:opacity-85"
           title="Go to Pa-Hire Po Overview"
         >
           <div
@@ -152,12 +152,15 @@ export function AppTopNavbar({
         </button>
 
         {/* Primary Navigation Tabs */}
-        <nav className="flex flex-wrap items-center gap-1 sm:gap-2" aria-label="Primary sections">
+        <nav
+          className="order-3 flex w-full flex-nowrap items-center gap-1 overflow-x-auto border-t border-slate-200/40 pt-0.5 lg:order-none lg:w-auto lg:border-t-0 lg:pt-0 sm:gap-2"
+          aria-label="Primary sections"
+        >
           <button
             type="button"
             onClick={() => onSelectTab('home')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'home' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -168,7 +171,7 @@ export function AppTopNavbar({
             type="button"
             onClick={() => onSelectTab('jobs')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'jobs' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -179,7 +182,7 @@ export function AppTopNavbar({
             type="button"
             onClick={() => onSelectTab('applications')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'applications' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -195,7 +198,7 @@ export function AppTopNavbar({
             type="button"
             onClick={() => onSelectTab('analytics')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'analytics' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -211,7 +214,7 @@ export function AppTopNavbar({
             type="button"
             onClick={() => onSelectTab('profile')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'profile' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -235,7 +238,7 @@ export function AppTopNavbar({
             type="button"
             onClick={() => onSelectTab('resume')}
             className={cn(
-              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
               activeTab === 'resume' ? activeNavTabClass : inactiveNavTabClass
             )}
           >
@@ -257,7 +260,7 @@ export function AppTopNavbar({
               type="button"
               onClick={() => onSelectTab('admin')}
               className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+                'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-2.5 text-xs lg:px-3 lg:py-3.5',
                 activeTab === 'admin' ? activeNavTabClass : inactiveNavTabClass
               )}
             >
@@ -330,7 +333,11 @@ export function AppTopNavbar({
                 'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs',
                 subSurface
               )}
-              title={`${authUser.email} • ${storageMode === 'supabase-cloud' ? 'Synced to Supabase Cloud' : 'Local Storage Mode'}`}
+              title={
+                authUser.isAdmin
+                  ? `${authUser.email} • ${storageMode === 'supabase-cloud' ? 'Synced to Supabase Cloud' : 'Local Storage Mode'}`
+                  : `${authUser.email} • Cloud Synced`
+              }
             >
               <span className="max-w-[140px] truncate font-medium">
                 {authUser.fullName}

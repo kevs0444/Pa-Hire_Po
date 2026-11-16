@@ -33,7 +33,7 @@ export interface JobSearchServiceResult {
   cached: boolean;
 }
 
-const SCRAPE_CACHE_TTL_MS = 90_000;
+const SCRAPE_CACHE_TTL_MS = 50_000;
 const boardScrapeCache = new TtlCache<BoardScrapeResult>(250);
 
 async function runBoardScraper(

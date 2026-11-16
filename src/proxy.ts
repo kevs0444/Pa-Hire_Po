@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { LOCAL_ADMIN_COOKIE } from '@/lib/supabase/config';
 import { getServerSupabaseConfig } from '@/lib/supabase/server-env';
 
-const PUBLIC_PATHS = new Set(['/login', '/auth/callback']);
+const PUBLIC_PATHS = new Set(['/login', '/auth/callback', '/privacy', '/terms']);
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -15,11 +14,7 @@ export async function proxy(request: NextRequest) {
   });
 
   const cfg = getServerSupabaseConfig();
-  const hasLocalAdmin =
-    !process.env.VERCEL &&
-    request.cookies.get(LOCAL_ADMIN_COOKIE)?.value === '1';
-
-  let isAuthenticated = hasLocalAdmin;
+  let isAuthenticated = false;
   let isSuspended = false;
 
   if (cfg.isConfigured) {
@@ -76,7 +71,11 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isAuthenticated && pathname === '/login') {
+  if (
+    isAuthenticated &&
+    pathname === '/login' &&
+    request.nextUrl.searchParams.get('switch') !== '1'
+  ) {
     const targetUrl = request.nextUrl.clone();
     const nextPath = request.nextUrl.searchParams.get('next');
     targetUrl.pathname =

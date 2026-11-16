@@ -5,11 +5,12 @@ import {
   DEFAULT_SUPABASE_URL,
   LOCAL_ADMIN_COOKIE,
   PRIMARY_ADMIN_EMAIL,
+  SUPABASE_PROJECT_NAME,
   extractSupabaseProjectRef,
 } from '@/lib/supabase/config';
-import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { getServerSupabaseConfig } from '@/lib/supabase/server-env';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveServerSession } from '@/lib/supabase/session';
 
 interface SetupProbeResult {
   keyValid: boolean;
@@ -153,22 +154,28 @@ async function upsertEnvVariables(updates: Record<string, string>) {
 
 export async function GET() {
   const cfg = getServerSupabaseConfig();
-  const probe = await probeSupabaseProject(
-    cfg.url,
-    cfg.anonKey,
-    cfg.serviceRoleKey
-  );
+  const [probe, session] = await Promise.all([
+    probeSupabaseProject(cfg.url, cfg.anonKey, cfg.serviceRoleKey),
+    resolveServerSession(),
+  ]);
   const vercelEnv =
     process.env.VERCEL_ENV || (process.env.VERCEL === '1' ? 'production' : 'local');
-  const personalApiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
-  const allowLocalAdmin =
-    process.env.VERCEL !== '1' ||
-    !cfg.isConfigured ||
-    !probe.keyValid ||
-    !probe.schemaReady;
+  const isAdmin = Boolean(session.authenticated && session.authUser?.isAdmin);
+  const personalApiConfigured =
+    isAdmin && Boolean(process.env.GEMINI_API_KEY?.trim());
+
+  if (!isAdmin) {
+    return NextResponse.json({
+      url: cfg.url,
+      anonKey: cfg.anonKey,
+      enabledProviders: probe.enabledProviders,
+      allowLocalAdmin: false,
+    });
+  }
 
   return NextResponse.json({
     url: cfg.url,
+    projectName: SUPABASE_PROJECT_NAME,
     projectRef: cfg.projectRef,
     anonKey: cfg.anonKey,
     isConfigured: cfg.isConfigured,
@@ -180,21 +187,17 @@ export async function GET() {
     adminEmail: PRIMARY_ADMIN_EMAIL,
     vercelEnv,
     personalApiConfigured,
-    allowLocalAdmin,
+    allowLocalAdmin: false,
   });
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
-      action?: 'save-keys' | 'enable-local-admin' | 'signout' | 'signup' | 'signin-assist';
+      action?: 'save-keys' | 'enable-local-admin' | 'signout';
       url?: string;
       anonKey?: string;
       serviceRoleKey?: string;
-      email?: string;
-      password?: string;
-      fullName?: string;
-      primaryRole?: string;
     };
 
     if (body.action === 'signout') {
@@ -207,112 +210,22 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
-    if (body.action === 'signup' || body.action === 'signin-assist') {
-      const cleanEmail = (body.email || '').trim().toLowerCase();
-      const password = body.password || '';
-      if (!cleanEmail || !cleanEmail.includes('@') || password.length < 6) {
-        return NextResponse.json(
-          { error: 'Enter a valid email address and a password with at least 6 characters.' },
-          { status: 400 }
-        );
-      }
-
-      const adminClient = createAdminSupabaseClient();
-      if (!adminClient) {
-        return NextResponse.json({ ok: false, fallbackClientSignup: true });
-      }
-
-      const fullName =
-        (body.fullName || '').trim() || cleanEmail.split('@')[0] || 'User';
-      const primaryRole =
-        (body.primaryRole || '').trim() || 'Data Analyst / Junior Data Analyst';
-
-      const { data: createData, error: createError } =
-        await adminClient.auth.admin.createUser({
-          email: cleanEmail,
-          password,
-          email_confirm: true,
-          user_metadata: {
-            full_name: fullName,
-            primary_role: primaryRole,
-          },
-        });
-
-      if (!createError && createData.user) {
-        return NextResponse.json({ ok: true, confirmed: true, created: true });
-      }
-
-      const msg = createError?.message || 'Could not create account.';
-      const isExisting = msg.toLowerCase().includes('already');
-      if (!isExisting) {
-        return NextResponse.json({ error: msg }, { status: 400 });
-      }
-
-      const { data: listData } = await adminClient.auth.admin.listUsers({
-        page: 1,
-        perPage: 200,
-      });
-      const existingUser = listData?.users?.find(
-        (u) => (u.email || '').toLowerCase() === cleanEmail
+    if (body.action === 'enable-local-admin') {
+      return NextResponse.json(
+        {
+          error:
+            'Passwordless local Admin access is disabled for security. Sign in with your Supabase credentials.',
+        },
+        { status: 403 }
       );
-
-      if (existingUser && !existingUser.email_confirmed_at) {
-        await adminClient.auth.admin.updateUserById(existingUser.id, {
-          email_confirm: true,
-        });
-        return NextResponse.json({
-          ok: true,
-          confirmed: true,
-          autoConfirmedExisting: true,
-        });
-      }
-
-      if (body.action === 'signin-assist') {
-        return NextResponse.json(
-          {
-            error:
-              'Incorrect password for this account. Please try again or use Reset Password.',
-          },
-          { status: 401 }
-        );
-      }
-
-      return NextResponse.json({ ok: true, confirmed: true, existing: true });
     }
 
-    if (body.action === 'enable-local-admin') {
-      const cfg = getServerSupabaseConfig();
-      const probe = await probeSupabaseProject(
-        cfg.url,
-        cfg.anonKey,
-        cfg.serviceRoleKey
+    const session = await resolveServerSession();
+    if (!session.authenticated || !session.authUser?.isAdmin) {
+      return NextResponse.json(
+        { error: 'Admin authentication required to update Supabase keys.' },
+        { status: 403 }
       );
-      if (
-        process.env.VERCEL === '1' &&
-        cfg.isConfigured &&
-        probe.keyValid &&
-        probe.schemaReady
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              'Supabase Auth & Schema are ready. Please sign in with your Supabase account.',
-          },
-          { status: 400 }
-        );
-      }
-
-      const res = NextResponse.json({
-        ok: true,
-        mode: 'local-admin',
-      });
-      res.cookies.set(LOCAL_ADMIN_COOKIE, '1', {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 60 * 60 * 24 * 7,
-      });
-      return res;
     }
 
     const cfg = getServerSupabaseConfig();

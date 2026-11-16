@@ -192,7 +192,9 @@ export async function scrapeLinkedInJobs(
     });
 
     const jobs: RawScrapedJob[] = result.jobs.map((job, idx) => ({
-      externalId: job.id || `li-${idx}-${Date.now()}`,
+      externalId:
+        job.id ||
+        `li-${(job.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24)}-${(job.company || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)}-${idx}`,
       title: job.title,
       company: job.company || 'LinkedIn Employer',
       location: job.location || queryLocation,

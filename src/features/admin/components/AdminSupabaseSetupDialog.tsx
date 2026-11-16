@@ -1,13 +1,15 @@
 'use client';
 
-import { FormEvent, useId } from 'react';
-import { Check, Copy, ExternalLink, X } from 'lucide-react';
+import { FormEvent, useId, useState } from 'react';
+import { Check, Copy, ExternalLink, Mail, Shield, X } from 'lucide-react';
 import { MonochromeTheme } from '@/types/job';
 import {
   DEFAULT_SUPABASE_PROJECT_REF,
   DEFAULT_SUPABASE_URL,
+  SUPABASE_PROJECT_NAME,
   extractSupabaseProjectRef,
 } from '@/lib/supabase/config';
+import { SUPABASE_AUTH_EMAIL_TEMPLATES } from '@/lib/supabase/email-templates';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schema-sql';
 import { useNativeDialog } from '@/hooks/useNativeDialog';
 import { getThemeTokens } from '@/lib/theme';
@@ -45,11 +47,31 @@ export function AdminSupabaseSetupDialog({
   const tokens = getThemeTokens(theme);
   const titleId = useId();
   const dialogRef = useNativeDialog(isOpen, onClose);
+  const [copiedTemplateKey, setCopiedTemplateKey] = useState<string | null>(
+    null
+  );
+  const [templateCategory, setTemplateCategory] = useState<
+    'all' | 'authentication' | 'security'
+  >('all');
 
+  const effectiveUrl = supabaseUrl || DEFAULT_SUPABASE_URL;
   const modalProjectRef = extractSupabaseProjectRef(
-    supabaseUrl || DEFAULT_SUPABASE_URL
+    effectiveUrl
   ) || DEFAULT_SUPABASE_PROJECT_REF;
   const modalDashboardBase = `https://supabase.com/dashboard/project/${modalProjectRef}`;
+
+  const handleCopyText = async (key: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedTemplateKey(key);
+      setTimeout(
+        () => setCopiedTemplateKey((prev) => (prev === key ? null : prev)),
+        2000
+      );
+    } catch {
+      // Ignore clipboard restriction
+    }
+  };
 
   return (
     <dialog
@@ -128,11 +150,11 @@ export function AdminSupabaseSetupDialog({
                   Vercel Store Supabase Target:
                 </span>
                 <span className="font-mono text-[11px] font-semibold">
-                  supabase-erin-elephant ({modalProjectRef})
+                  {SUPABASE_PROJECT_NAME} ({modalProjectRef})
                 </span>
               </div>
               <div className={cn('font-mono text-[11px] break-all', tokens.mutedText)}>
-                {DEFAULT_SUPABASE_URL}
+                {effectiveUrl}
               </div>
               <div className={cn('text-[11px]', tokens.mutedText)}>
                 Vercel integration sync:{' '}
@@ -174,6 +196,144 @@ export function AdminSupabaseSetupDialog({
               {savingKeys ? 'Verifying & Saving...' : 'Verify & Save Keys to .env'}
             </button>
           </form>
+
+          {/* Step 3: Pa-Hire Po Auth & Security Email Templates (Civic UI) */}
+          <div className={cn('rounded-lg border p-3.5 space-y-3', tokens.subSurface)}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 font-semibold">
+                <Mail className="h-3.5 w-3.5 text-[#0a66c2]" />
+                <span>Step 3: Pa-Hire Po Auth &amp; Security Email Templates</span>
+              </div>
+              <a
+                href={`${modalDashboardBase}/auth/templates`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn('inline-flex items-center gap-1 rounded px-2.5 py-1', tokens.primaryBtn)}
+              >
+                Open Email Templates
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            <p className={cn('text-[11px] leading-relaxed', tokens.mutedText)}>
+              Paste these HTML templates into Supabase Authentication → Email Templates. Authentication emails include the 6-digit{' '}
+              <code className="font-mono">{'{{ .Token }}'}</code> OTP, and Security emails deliver high-contrast notifications for account changes.
+            </p>
+
+            {/* Category Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setTemplateCategory('all')}
+                className={cn(
+                  'rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  templateCategory === 'all'
+                    ? tokens.primaryBtn
+                    : tokens.secondaryBtn
+                )}
+              >
+                All (13)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateCategory('authentication')}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  templateCategory === 'authentication'
+                    ? tokens.primaryBtn
+                    : tokens.secondaryBtn
+                )}
+              >
+                <Mail className="h-3 w-3" />
+                Authentication (6)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTemplateCategory('security')}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
+                  templateCategory === 'security'
+                    ? tokens.primaryBtn
+                    : tokens.secondaryBtn
+                )}
+              >
+                <Shield className="h-3 w-3" />
+                Security Notifications (7)
+              </button>
+            </div>
+
+            <div className={cn('divide-y rounded-lg border', tokens.borderSubtle, tokens.cardSurface)}>
+              {SUPABASE_AUTH_EMAIL_TEMPLATES.filter(
+                (tpl) =>
+                  templateCategory === 'all' ||
+                  tpl.category === templateCategory
+              ).map((tpl) => (
+                <div key={tpl.id} className="space-y-1.5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{tpl.title}</span>
+                        <span
+                          className={cn(
+                            'rounded px-1.5 py-0.5 text-[10px] font-medium',
+                            tpl.category === 'security'
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                              : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          )}
+                        >
+                          {tpl.category === 'security' ? 'Security' : 'Auth'}
+                        </span>
+                      </div>
+                      <div className={cn('text-[11px]', tokens.mutedText)}>
+                        Tab: <strong className={tokens.strongText}>{tpl.supabaseTab}</strong> • Subject:{' '}
+                        <code className="font-mono">{tpl.suggestedSubject}</code>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCopyText(`${tpl.id}-subj`, tpl.suggestedSubject)
+                        }
+                        className={cn('inline-flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium', tokens.secondaryBtn)}
+                      >
+                        {copiedTemplateKey === `${tpl.id}-subj` ? (
+                          <>
+                            <Check className="h-3 w-3 text-[#057642]" />
+                            Subject Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" />
+                            Copy Subject
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCopyText(tpl.id, tpl.html)}
+                        className={cn('inline-flex items-center gap-1 rounded px-2.5 py-1 text-[11px] font-medium', tokens.primaryBtn)}
+                      >
+                        {copiedTemplateKey === tpl.id ? (
+                          <>
+                            <Check className="h-3 w-3" />
+                            HTML Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" />
+                            Copy HTML
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <p className={cn('text-[11px]', tokens.mutedText)}>
+                    {tpl.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </dialog>

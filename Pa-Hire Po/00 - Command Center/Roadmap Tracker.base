@@ -1,0 +1,17 @@
+filters:
+  and:
+    - type == "roadmap"
+views:
+  - type: table
+    name: Roadmap Prioritized
+    order:
+      - file.name
+      - priority
+      - status
+      - area
+      - updated
+    sort:
+      - property: priority
+        direction: ASC
+      - property: status
+        direction: ASC

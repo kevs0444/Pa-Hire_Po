@@ -65,7 +65,9 @@ export async function scrapeIndeedJobs(
     });
 
     const jobs: RawScrapedJob[] = result.jobs.map((job, idx) => ({
-      externalId: job.id || `ind-${idx}-${Date.now()}`,
+      externalId:
+        job.id ||
+        `ind-${(job.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24)}-${(job.company || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16)}-${idx}`,
       title: job.title,
       company: job.company || 'Indeed Employer',
       location: job.location || queryLocation,

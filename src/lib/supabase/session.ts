@@ -5,11 +5,6 @@ import {
   UserRole,
 } from '@/types/job';
 import {
-  LOCAL_ADMIN_COOKIE,
-  LOCAL_ADMIN_ID,
-  PRIMARY_ADMIN_EMAIL,
-} from '@/lib/supabase/config';
-import {
   getServerSupabaseConfig,
   isServerAdminEmail,
 } from '@/lib/supabase/server-env';
@@ -18,7 +13,7 @@ import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 
 export interface ResolvedSession {
   authenticated: boolean;
-  mode: 'supabase' | 'local-admin' | 'none';
+  mode: 'supabase' | 'none';
   authUser: AuthSessionUser | null;
   supabaseUser: User | null;
   supabase: SupabaseClient | null;
@@ -28,8 +23,7 @@ export interface ResolvedSession {
 
 export async function resolveServerSession(): Promise<ResolvedSession> {
   const cfg = getServerSupabaseConfig();
-  const cookieStore = await cookies();
-  const hasLocalCookie = cookieStore.get(LOCAL_ADMIN_COOKIE)?.value === '1';
+  await cookies();
   const adminClient = createAdminSupabaseClient();
 
   if (cfg.isConfigured) {
@@ -80,26 +74,6 @@ export async function resolveServerSession(): Promise<ResolvedSession> {
         };
       }
     }
-  }
-
-  if (hasLocalCookie && !process.env.VERCEL) {
-    return {
-      authenticated: true,
-      mode: 'local-admin',
-      supabaseUser: null,
-      supabase: null,
-      adminClient,
-      dbClient: adminClient,
-      authUser: {
-        id: LOCAL_ADMIN_ID,
-        email: PRIMARY_ADMIN_EMAIL,
-        fullName: 'Mar Kevin P. Alcantara',
-        role: 'admin',
-        isAdmin: true,
-        provider: 'local-admin',
-        mode: 'local-admin',
-      },
-    };
   }
 
   return {

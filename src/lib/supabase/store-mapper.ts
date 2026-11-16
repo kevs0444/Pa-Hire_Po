@@ -461,7 +461,11 @@ export async function syncUserStoreToSupabase(
   const toDeleteIds: string[] = [];
 
   for (const row of existingRowsRaw) {
-    if (!incomingJobIds.has(row.id)) {
+    if (
+      !incomingJobIds.has(row.id) &&
+      row.status !== 'saved' &&
+      row.status !== 'applied'
+    ) {
       toDeleteIds.push(row.id);
     } else {
       existingById.set(row.id, row);

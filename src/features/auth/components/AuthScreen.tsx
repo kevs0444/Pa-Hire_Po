@@ -10,21 +10,21 @@ import {
   Check,
   KeyRound,
   Lock,
+  LogOut,
   Mail,
   Moon,
-  Shield,
+  RefreshCw,
   Sun,
   UserPlus,
 } from 'lucide-react';
 import { MonochromeTheme } from '@/types/job';
 import {
-  DEFAULT_SUPABASE_PROJECT_REF,
   DEFAULT_SUPABASE_URL,
-  PRIMARY_ADMIN_EMAIL,
   SUPABASE_OAUTH_PROVIDERS,
   SupportedOAuthProvider,
 } from '@/lib/supabase/config';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { clearLegacyUnscopedLocalState } from '@/lib/storage';
 import { SetupStatus } from '@/features/admin/types';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -104,14 +104,8 @@ export function AuthScreen({
   const [mode, setMode] = useState<AuthMode>('signin');
   const [setup, setSetup] = useState<SetupStatus>({
     url: DEFAULT_SUPABASE_URL,
-    projectRef: DEFAULT_SUPABASE_PROJECT_REF,
     anonKey: '',
-    isConfigured: false,
-    hasServiceRole: false,
-    keyValid: false,
-    schemaReady: false,
     enabledProviders: [],
-    message: 'Checking Supabase connection...',
   });
   const [loadingSetup, setLoadingSetup] = useState(true);
 
@@ -122,6 +116,10 @@ export function AuthScreen({
   const [primaryRole, setPrimaryRole] = useState('');
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [signupOtpSent, setSignupOtpSent] = useState(false);
+  const [activeSessionEmail, setActiveSessionEmail] = useState<string | null>(
+    null
+  );
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(initialError);
@@ -137,9 +135,18 @@ export function AuthScreen({
     let active = true;
     fetch('/api/supabase/setup', { cache: 'no-store' })
       .then((res) => res.json() as Promise<SetupStatus>)
-      .then((data) => {
+      .then(async (data) => {
         if (!active) return;
         setSetup(data);
+        const sb = createBrowserSupabaseClient(data.url, data.anonKey);
+        if (sb) {
+          const {
+            data: { user },
+          } = await sb.auth.getUser().catch(() => ({ data: { user: null } }));
+          if (active && user?.email) {
+            setActiveSessionEmail(user.email);
+          }
+        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -159,24 +166,46 @@ export function AuthScreen({
     return createBrowserSupabaseClient(setup.url, setup.anonKey);
   };
 
-  const handleLocalAdminLogin = async () => {
+  const handleSwitchSignOut = async () => {
     setSubmitting(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/supabase/setup', {
+      const supabase = getSupabase();
+      if (supabase) {
+        await supabase.auth.signOut().catch(() => undefined);
+      }
+      await fetch('/api/supabase/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'enable-local-admin' }),
+        body: JSON.stringify({ action: 'signout' }),
+      }).catch(() => undefined);
+      clearLegacyUnscopedLocalState();
+      setActiveSessionEmail(null);
+      setSuccessMsg('Signed out. You can now sign in with another account.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleResendSignupOtp = async () => {
+    const supabase = getSupabase();
+    const cleanEmail = email.trim();
+    if (!supabase || !cleanEmail) return;
+    setSubmitting(true);
+    setErrorMsg('');
+    setSuccessMsg('');
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: cleanEmail,
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Please sign in with Supabase Auth.');
+      if (error) {
+        setErrorMsg(error.message);
         return;
       }
-      router.push(safeNext);
-      router.refresh();
-    } catch {
-      setErrorMsg('Unable to activate local Admin session.');
+      setSuccessMsg(
+        `A new 6-digit verification code was sent to ${cleanEmail}.`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -190,7 +219,7 @@ export function AuthScreen({
     const supabase = getSupabase();
     if (!supabase) {
       setErrorMsg(
-        'Cloud sign-in is awaiting Supabase configuration. Sign in as Admin below to configure Cloud Settings in the Admin Control Center.'
+        'Sign-in service is temporarily unavailable. Please try again shortly.'
       );
       return;
     }
@@ -203,87 +232,56 @@ export function AuthScreen({
           email: cleanEmail,
           password,
         });
-        if (!error) {
-          router.push(safeNext);
-          router.refresh();
+        if (error) {
+          setErrorMsg(error.message);
           return;
         }
-
-        const assistRes = await fetch('/api/supabase/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'signin-assist',
-            email: cleanEmail,
-            password,
-          }),
-        });
-        const assistData = (await assistRes.json().catch(() => ({}))) as {
-          ok?: boolean;
-          confirmed?: boolean;
-          error?: string;
-        };
-
-        if (assistRes.ok && assistData.ok && assistData.confirmed) {
-          const { error: retryErr } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          });
-          if (!retryErr) {
-            router.push(safeNext);
-            router.refresh();
-            return;
-          }
-          setErrorMsg(retryErr.message);
-          return;
-        }
-
-        setErrorMsg(assistData.error || error.message);
+        clearLegacyUnscopedLocalState();
+        router.push(safeNext);
+        router.refresh();
         return;
       }
 
       if (mode === 'signup') {
-        const cleanFullName =
-          fullName.trim() || cleanEmail.split('@')[0] || 'User';
-        const cleanPrimaryRole =
-          primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
-
-        const signupRes = await fetch('/api/supabase/setup', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'signup',
-            email: cleanEmail,
-            password,
-            fullName: cleanFullName,
-            primaryRole: cleanPrimaryRole,
-          }),
-        });
-        const signupData = (await signupRes.json().catch(() => ({}))) as {
-          ok?: boolean;
-          confirmed?: boolean;
-          fallbackClientSignup?: boolean;
-          error?: string;
-        };
-
-        if (!signupRes.ok) {
-          setErrorMsg(signupData.error || 'Could not create account.');
-          return;
-        }
-
-        if (signupData.ok && signupData.confirmed) {
-          const { error: signInErr } = await supabase.auth.signInWithPassword({
-            email: cleanEmail,
-            password,
-          });
-          if (signInErr) {
-            setErrorMsg(signInErr.message);
+        if (signupOtpSent) {
+          const cleanCode = otpCode.trim();
+          if (!cleanCode) {
+            setErrorMsg('Enter the 6-digit verification code sent to your email.');
             return;
           }
+
+          let verifyErr: { message: string } | null = null;
+          const signupRes = await supabase.auth.verifyOtp({
+            email: cleanEmail,
+            token: cleanCode,
+            type: 'signup',
+          });
+          verifyErr = signupRes.error;
+
+          if (verifyErr) {
+            const emailRes = await supabase.auth.verifyOtp({
+              email: cleanEmail,
+              token: cleanCode,
+              type: 'email',
+            });
+            verifyErr = emailRes.error;
+          }
+
+          if (verifyErr) {
+            setErrorMsg(verifyErr.message);
+            return;
+          }
+
+          clearLegacyUnscopedLocalState();
           router.push(safeNext);
           router.refresh();
           return;
         }
+
+        const cleanFullName =
+          fullName.trim() || cleanEmail.split('@')[0] || 'User';
+        const cleanPrimaryRole =
+          primaryRole.trim() || 'Data Analyst / Junior Data Analyst';
 
         const { data, error } = await supabase.auth.signUp({
           email: cleanEmail,
@@ -300,13 +298,26 @@ export function AuthScreen({
           setErrorMsg(error.message);
           return;
         }
+        if (
+          data.user &&
+          Array.isArray(data.user.identities) &&
+          data.user.identities.length === 0
+        ) {
+          setErrorMsg(
+            'An account with this email already exists. Sign in with Password, Magic Link / OTP, or Reset Password.'
+          );
+          return;
+        }
         if (data.session) {
+          clearLegacyUnscopedLocalState();
           router.push(safeNext);
           router.refresh();
           return;
         }
+        setSignupOtpSent(true);
+        setOtpCode('');
         setSuccessMsg(
-          'Account created! Check your email inbox to confirm your address before signing in.'
+          `Verification code sent to ${cleanEmail}! Enter the 6-digit OTP from your email (or click the confirmation link) to activate your account.`
         );
         return;
       }
@@ -322,6 +333,7 @@ export function AuthScreen({
             setErrorMsg(error.message);
             return;
           }
+          clearLegacyUnscopedLocalState();
           router.push(safeNext);
           router.refresh();
           return;
@@ -377,7 +389,7 @@ export function AuthScreen({
     );
     if (!isEnabled) {
       setErrorMsg(
-        `${provider} OAuth is not enabled in Supabase yet. Sign in with your Email & Password above, or enable ${provider} in Supabase Dashboard -> Authentication -> Providers.`
+        `${provider} sign-in is currently unavailable. Please use Email & Password or Magic Link / OTP above.`
       );
       return;
     }
@@ -385,7 +397,7 @@ export function AuthScreen({
     const supabase = getSupabase();
     if (!supabase) {
       setErrorMsg(
-        'Cloud OAuth is awaiting Supabase configuration. Sign in as Admin below to open Cloud Settings.'
+        'Sign-in service is temporarily unavailable. Please try again shortly.'
       );
       return;
     }
@@ -399,9 +411,7 @@ export function AuthScreen({
         },
       });
       if (error) {
-        setErrorMsg(
-          `${error.message}. Make sure this provider is enabled in Supabase Dashboard -> Authentication -> Providers.`
-        );
+        setErrorMsg(error.message);
       }
     } finally {
       setSubmitting(false);
@@ -477,6 +487,49 @@ export function AuthScreen({
               </p>
             </div>
 
+            {activeSessionEmail && (
+              <div
+                className={cn(
+                  'flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-xs',
+                  tokens.subSurface
+                )}
+              >
+                <span>
+                  Signed in as{' '}
+                  <strong className={tokens.strongText}>
+                    {activeSessionEmail}
+                  </strong>
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      router.push(safeNext);
+                      router.refresh();
+                    }}
+                    className={cn(
+                      'rounded-md px-2.5 py-1 text-xs font-medium',
+                      tokens.primaryBtn
+                    )}
+                  >
+                    Continue
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => void handleSwitchSignOut()}
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium',
+                      tokens.secondaryBtn
+                    )}
+                  >
+                    <LogOut className="h-3 w-3" />
+                    Switch Account
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Auth Method Switcher */}
             <div className={cn('grid grid-cols-2 gap-1 rounded-lg border p-1 sm:grid-cols-4', tokens.navTrack)}>
               {(
@@ -492,6 +545,9 @@ export function AuthScreen({
                   type="button"
                   onClick={() => {
                     setMode(tab.id);
+                    setOtpSent(false);
+                    setSignupOtpSent(false);
+                    setOtpCode('');
                     setErrorMsg('');
                     setSuccessMsg('');
                   }}
@@ -535,7 +591,7 @@ export function AuthScreen({
 
             {/* Main Auth Form */}
             <form onSubmit={(e) => void handleAuthSubmit(e)} className="space-y-3.5">
-              {mode === 'signup' && (
+              {mode === 'signup' && !signupOtpSent && (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className={cn('mb-1 block text-xs font-medium', tokens.mutedText)}>
@@ -591,7 +647,7 @@ export function AuthScreen({
                 </div>
               </div>
 
-              {(mode === 'signin' || mode === 'signup') && (
+              {(mode === 'signin' || (mode === 'signup' && !signupOtpSent)) && (
                 <div>
                   <label className={cn('mb-1 block text-xs font-medium', tokens.mutedText)}>
                     Password
@@ -614,13 +670,45 @@ export function AuthScreen({
                 </div>
               )}
 
-              {mode === 'magic' && otpSent && (
-                <div>
-                  <label className={cn('mb-1 block text-xs font-medium', tokens.mutedText)}>
-                    6-Digit OTP Code (from Email)
-                  </label>
+              {((mode === 'magic' && otpSent) ||
+                (mode === 'signup' && signupOtpSent)) && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className={cn('block text-xs font-medium', tokens.mutedText)}>
+                      6-Digit Verification Code (from Email)
+                    </label>
+                    {mode === 'signup' && signupOtpSent && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => {
+                            setSignupOtpSent(false);
+                            setOtpCode('');
+                            setErrorMsg('');
+                            setSuccessMsg('');
+                          }}
+                          className="text-[11px] font-medium text-slate-500 hover:underline disabled:opacity-50"
+                        >
+                          Edit Details
+                        </button>
+                        <button
+                          type="button"
+                          disabled={submitting}
+                          onClick={() => void handleResendSignupOtp()}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#0a66c2] hover:underline disabled:opacity-50"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          Resend Code
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required={mode === 'signup' && signupOtpSent}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value)}
                     placeholder="123456"
@@ -643,7 +731,13 @@ export function AuthScreen({
                 {mode === 'signup' ? (
                   <>
                     <UserPlus className="h-4 w-4" />
-                    {submitting ? 'Creating Account...' : 'Create Account'}
+                    {submitting
+                      ? signupOtpSent
+                        ? 'Verifying Code...'
+                        : 'Creating Account...'
+                      : signupOtpSent
+                        ? 'Verify Email OTP & Sign In'
+                        : 'Create Account & Send OTP'}
                   </>
                 ) : mode === 'magic' ? (
                   <>
@@ -668,15 +762,15 @@ export function AuthScreen({
               </button>
             </form>
 
-            {/* Social / OAuth Section — rendered only when enabled in Supabase Auth Providers */}
-            {enabledOAuthProviders.length > 0 && (
+            {/* Social / OAuth Section — rendered only for enabled providers */}
+            {!loadingSetup && enabledOAuthProviders.length > 0 && (
               <div className={cn('border-t pt-4 space-y-3', tokens.borderSubtle)}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className={cn('text-xs font-semibold', tokens.strongText)}>
-                    One-Click Social &amp; OAuth Sign-In (Supabase)
+                    Or continue with
                   </span>
                   <span className={cn('font-mono text-[11px]', tokens.mutedText)}>
-                    Enabled: {enabledOAuthProviders.map((p) => p.label).join(', ')}
+                    {enabledOAuthProviders.map((p) => p.label).join(' • ')}
                   </span>
                 </div>
 
@@ -701,41 +795,6 @@ export function AuthScreen({
                 </div>
               </div>
             )}
-
-            {!loadingSetup &&
-              (setup.allowLocalAdmin ?? (!setup.keyValid || !setup.schemaReady)) && (
-                <div className={cn('border-t pt-4 space-y-2', tokens.borderSubtle)}>
-                  <div className="flex items-center justify-between gap-2 text-[11px]">
-                    <span className={tokens.mutedText}>
-                      Local workspace &amp; Admin settings access
-                    </span>
-                    <span
-                      className={cn(
-                        'font-mono',
-                        setup.keyValid && setup.schemaReady
-                          ? 'font-medium text-[#057642]'
-                          : tokens.mutedText
-                      )}
-                    >
-                      {setup.keyValid && setup.schemaReady
-                        ? '✓ Cloud Connected'
-                        : 'Setup Pending'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={submitting}
-                    onClick={() => void handleLocalAdminLogin()}
-                    className={cn(
-                      'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
-                      tokens.secondaryBtn
-                    )}
-                  >
-                    <Shield className="h-3.5 w-3.5" />
-                    Continue as Admin ({PRIMARY_ADMIN_EMAIL})
-                  </button>
-                </div>
-              )}
           </div>
         </section>
 

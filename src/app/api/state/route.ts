@@ -33,8 +33,10 @@ async function writeLocalBackupStore(state: AppStoreState): Promise<boolean> {
 }
 
 export async function GET() {
-  const personalApiConfigured = Boolean(process.env.GEMINI_API_KEY?.trim());
   const session = await resolveServerSession();
+  const personalApiConfigured =
+    Boolean(session.authenticated && session.authUser?.isAdmin) &&
+    Boolean(process.env.GEMINI_API_KEY?.trim());
 
   if (!session.authenticated || !session.authUser) {
     return NextResponse.json(

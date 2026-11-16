@@ -36,6 +36,7 @@ import {
   DEFAULT_SUPABASE_PROJECT_REF,
   DEFAULT_SUPABASE_URL,
   PRIMARY_ADMIN_EMAIL,
+  SUPABASE_PROJECT_NAME,
 } from '@/lib/supabase/config';
 import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schema-sql';
 import { getThemeTokens } from '@/lib/theme';
@@ -528,7 +529,7 @@ export function AdminDashboardView({
                 Connected Supabase Project
               </h3>
               <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
-                supabase-erin-elephant (Vercel Store)
+                {setupStatus?.projectName || SUPABASE_PROJECT_NAME} (Vercel Store)
               </span>
             </div>
             <p className={cn('font-mono text-xs break-all', tokens.mutedText)}>
@@ -685,7 +686,7 @@ export function AdminDashboardView({
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
           <p className={tokens.mutedText}>
             {setupStatus?.message ||
-              'Vercel Store Supabase (muftcprpqnzuzfosvftz) health checks load here.'}
+              `${SUPABASE_PROJECT_NAME} Supabase (${data.projectRef || DEFAULT_SUPABASE_PROJECT_REF}) health checks load here.`}
           </p>
           <a
             href={`${dashboardBase}/sql/new`}
@@ -991,7 +992,7 @@ export function AdminDashboardView({
       <AdminSupabaseSetupDialog
         theme={theme}
         isOpen={setupModalOpen}
-        supabaseUrl={DEFAULT_SUPABASE_URL}
+        supabaseUrl={setupStatus?.url || data.supabaseUrl || DEFAULT_SUPABASE_URL}
         anonKeyDraft={anonKeyDraft}
         serviceKeyDraft={serviceKeyDraft}
         savingKeys={savingKeys}

@@ -26,9 +26,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **LinkedIn Scraper:** Queries LinkedIn's Guest Search API (`seeMoreJobPostings/search`) parsed with `cheerio`, enriches top listings via `jobPosting/{jobId}`, and falls back to `ts-jobspy`.
   - **JobStreet Scraper:** Queries the JobStreet v5 JSON API (`/api/jobsearch/v5/search`) across `PH-Main`, `MY-Main`, `SG-Main`, and `ID-Main`.
   - **Indeed Scraper:** Fetches live postings via `ts-jobspy` (`scrapeJobs`) mapped to regional Indeed country targets.
-- **Sub-Feature 1.2 — 5-Second Live Auto-Refresh + Manual Scan:**
-  - Manual **"Find Jobs Now"** button for instant on-demand scraping.
-  - Non-overlapping auto-refresh timer (`Off` | `5s Live` | `15s` | `30s`) with live second-by-second countdown (`scanInFlightRef` prevents overlapping requests).
+- **Sub-Feature 1.2 — 1-Minute Default Auto-Refresh + Page-Load Scan:**
+  - Automatically scans on initial page load/refresh and silently auto-refreshes every **60 seconds (`1m`)** when the tab is visible (with `scanInFlightRef` preventing overlapping scrapes and a clean `Search Jobs` trigger replacing the manual refresh toggle bar).
 - **Sub-Feature 1.3 — Dynamic Role Choices & Pivot Mode:**
   - Quick-switch pills for your target roles (default **`Data Analyst / Junior Data Analyst`**, plus `Data Analyst`, `Junior Data Analyst`, `Business Intelligence Analyst`, `Junior Data Engineer`, `Data Scientist`, `AI Engineer`, or any custom role). Compound `/` roles automatically expand into separate clean job-board search queries while scoring both title variants cleanly.
   - **Pivot Mode (`autoPivotRoles`):** Automatically rotates adjacent high-overlap roles (`selectRolesForScan` & `inferDynamicRoles`) into searches and tags them with a `Pivot` badge.
@@ -84,9 +83,9 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Uses native HTML `<dialog>` (`showModal()`, `closedby="any"` + pointer light-dismiss fallback, `aria-labelledby`, `overscroll-behavior: contain` backdrop containment).
   - **Step 1:** Offers direct board application or 1-click AI tailoring in **Resume Studio (`AI`)**.
   - **Step 2:** Renders live tailored resume preview with dynamic sizing, **Print / Save PDF**, and **Continue to [Board] & Mark Applied**.
-- **Sub-Feature 4.2 — Personal Gemini API (`gemini-3.1-flash-lite`) + Smart Local Fallback + Side-by-Side Diff:**
-  - Automatically prioritizes server-side personal `process.env.GEMINI_API_KEY` from `.env` (`GET /api/state` and `GET /api/resume/tailor` expose `personalApiConfigured` without ever leaking the secret to client bundles).
-  - Calls `gemini-3.1-flash-lite` (fallback `gemini-flash-lite-latest` → `gemini-2.5-flash` → deterministic `tailorResumeLocally`) with strict anti-hallucination grounding rules. Displays **Personal AI Active** badge in the studio toolbar.
+- **Sub-Feature 4.2 — Admin-Gated Personal Gemini API (`gemini-3.1-flash-lite`) + Smart Local Fallback + Side-by-Side Diff:**
+  - `POST /api/resume/tailor` requires an authenticated session (`401` otherwise). Server-side `process.env.GEMINI_API_KEY` is restricted exclusively to **Admin** accounts (`authUser.isAdmin`), while standard users use their own optional Gemini key or the built-in **Smart Career Journey Tailor** deterministic engine.
+  - Calls `gemini-3.1-flash-lite` (fallback `gemini-flash-lite-latest` → `gemini-2.5-flash` → deterministic `tailorResumeLocally`) with strict anti-hallucination grounding rules. Displays **Personal AI Active** badge only when authorized.
   - **Side-by-Side Comparison & AI Change Highlighting:** When tailored by AI, toggle **Side-by-Side Compare** (`Base Profile CV` vs. `AI Tailored CV`) and **Highlight AI Changes** (color-coded indicators + `✓ AI Tailored` / `↑ Reordered` tags on modified headlines, tailored summaries, rewritten bullets, skill updates, and bolded keywords, stripped cleanly during PDF printing).
 - **Sub-Feature 4.3 — Dynamic Resume Paper Sizing (Default A4 `210 × 297 mm`) & Top 5 AI-ATS / Researcher Fonts:**
   - Supports **A4 (Default • `210 × 297 mm`)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic (`Auto Fit Content`)**, plus **Density** (`Compact`, `Standard`, `Comfortable`).
@@ -149,9 +148,9 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 **Core files:** `src/lib/supabase/config.ts`, `src/lib/supabase/server-env.ts`, `src/app/api/supabase/setup/route.ts`, `src/features/auth/components/AuthScreen.tsx`, `src/features/admin/components/AdminDashboardView.tsx`, `src/features/admin/components/AdminSupabaseSetupDialog.tsx`
 
-- **Single Vercel Store Backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`):** All authentication, Postgres RLS storage, and Storage buckets point strictly to the Vercel-integrated Supabase instance (`https://muftcprpqnzuzfosvftz.supabase.co`). Multi-project switchers and separate direct Supabase presets are permanently removed.
-- **Clean Public `/login` Screen (`AuthScreen.tsx`):** Centered single-column sign-in UI (`Password`, `Create Account`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with all Supabase setup checklists, key forms, and `schema.sql` copy panels hidden from public visitors. Only an automatic fallback button (`Continue as Admin`) appears when `keyValid` or `schemaReady` is incomplete.
-- **Admin-Only Supabase Cloud Settings (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`):** Live 4-step health diagnostics (`1. API Key (.env)`, `2. SQL Tables & RLS`, `3. Admin User Directory Key`, `4. Backend Runtime & Gemini AI`), 1-click `Copy schema.sql`, `Open SQL Editor`, and `.env` credential management live inside the **Admin Control Center**.
+- **Single Vercel Store Backend (`Pa-Hire Po` • `muftcprpqnzuzfosvftz`):** All authentication, Postgres RLS storage, and Storage buckets point strictly to the Vercel-integrated Supabase instance (`https://muftcprpqnzuzfosvftz.supabase.co`, env-overridable via `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Multi-project switchers and separate direct Supabase presets are permanently removed.
+- **Clean Public `/login` & Admin-Only Infrastructure Visibility:** Centered single-column sign-in UI (`Password`, `Create Account` with 6-digit email OTP verification via `signUp` + `verifyOtp`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with zero passwordless Admin bypass (`allowLocalAdmin: false`), neutral blank starter profiles for non-admin users, and all Supabase/`.env`/storage diagnostics hidden from non-admin pages. Includes `/login?switch=1` active-session switching and **Settings → Connected Logins** (`linkIdentity` / `unlinkIdentity`) for linking Google or GitHub to email accounts.
+- **Admin-Only Supabase Cloud Settings & Branded Email Templates (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`):** Live 5-step health diagnostics, 1-click `Copy schema.sql`, `Open SQL Editor`, `.env` credential management, and 1-click copyable **Pa-Hire Po Auth Email Templates** (`supabase/email-templates/`, Civic Career Utility HTML with `{{ .Token }}` OTP cards) live strictly inside the **Admin Control Center**.
 
 
 ---
@@ -200,7 +199,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 ## 12. Active Progress Ledger, Verification State & Next Milestones
 
 - **Verified Production Deployment**:
-  - **Latest Git Commit**: `44fd508` (`feat(legal): add Privacy Policy and Terms of Service pages for Google OAuth publishing`) pushed to `https://github.com/kevs0444/Pa-Hire_Po.git` on branch `main`.
+  - **Latest Git Commit**: `a1059ca` (`feat(ux): fix saved jobs sync, add Show Resume popout modal, real-time bell, loading spinner, and changelog`) pushed to `https://github.com/kevs0444/Pa-Hire_Po.git` on branch `main`.
+  - **Obsidian Second Brain**: Full deep context, 20-commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
     - `https://pa-hire-po.vercel.app/` (`200 OK`)
@@ -217,7 +217,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Right-Side Settings Sidepanel (`SettingsSidepanel.tsx`)**: Personal Info & Contact, Target Salary & Preferences, ESCO + Cross-Industry Dynamic Role Library search (`Top 5–10` roles via `/api/roles/search`), and end-user **Desktop App Download & Setup** (Windows `.exe` packaging via `electron-builder.json`, PWA `manifest.ts` 1-click desktop install, and collapsed developer CLI disclosure).
   - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, manual version archiving (`Save Version`), and A4/Letter ATS font printing.
   - LinkedIn-style profile with client-side canvas compression (`320×320` avatar, `1200×360` banner).
-  - Vercel Store Supabase backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`) with hardened RLS, automated keep-alive cron (`0 8 */4 * *`), and Admin Control Center (`/admin`).
+  - Vercel Store Supabase backend (`Pa-Hire Po` • `muftcprpqnzuzfosvftz`) with hardened RLS, automated keep-alive cron (`0 8 */4 * *`), 13 modern Civic HTML email templates (`supabase/email-templates/` — 6 Authentication + 7 Security Notifications), and Admin Control Center (`/admin`) with category filtering and 1-click copy.
   - Google OAuth (Testing Mode) + GitHub OAuth + Password + Magic Link / OTP.
 - **Next Strategic Milestones**:
   - [ ] **Custom Domain Setup**: Acquire/connect a custom domain (e.g. `pahirepo.com`) to Vercel and Google Cloud Console to publish Google OAuth to the global public without test user lists.

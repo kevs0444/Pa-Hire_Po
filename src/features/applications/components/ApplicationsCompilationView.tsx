@@ -392,7 +392,7 @@ export function ApplicationsCompilationView({
               Applied Companies &amp; Edited Resume Compilation
             </h2>
             <p className={cn('text-xs', mutedText)}>
-              Every company you applied to, your Saved &amp; Hidden jobs synced to Supabase, and the exact resume version sent for each role.
+              Every company you applied to, your Saved &amp; Hidden jobs synced to your account, and the exact resume version sent for each role.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">

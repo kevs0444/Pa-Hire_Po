@@ -37,7 +37,7 @@ function ApplyFlowContent({
   profile,
   theme,
   geminiApiKey,
-  personalApiConfigured = true,
+  personalApiConfigured = false,
   titleId,
   onClose,
   onMarkApplied,
@@ -265,7 +265,7 @@ function ApplyFlowContent({
                 <p className={cn('mt-1 text-xs leading-relaxed', mutedText)}>
                   Reorders relevant experience and projects from{' '}
                   <strong className="font-semibold">{profile.name}</strong>&apos;s
-                  profile using your personal AI key to highlight requirements for{' '}
+                  profile using {personalApiConfigured ? 'your personal AI key' : 'Smart Tailor & AI Studio'} to highlight requirements for{' '}
                   <strong className="font-semibold">{job.title}</strong> at{' '}
                   <strong className="font-semibold">{job.company}</strong> (defaults to A4, resizable in Studio).
                 </p>
@@ -396,7 +396,7 @@ export function ApplyFlowModal({
   profile,
   theme,
   geminiApiKey,
-  personalApiConfigured = true,
+  personalApiConfigured = false,
   onClose,
   onMarkApplied,
   onUpdateGeminiKey,

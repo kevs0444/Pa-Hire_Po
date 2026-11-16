@@ -1,0 +1,15 @@
+filters:
+  and:
+    - type == "adr"
+views:
+  - type: table
+    name: Architecture Decisions
+    order:
+      - file.name
+      - status
+      - area
+      - commit_ref
+      - updated
+    sort:
+      - property: file.name
+        direction: ASC

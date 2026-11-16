@@ -1,0 +1,26 @@
+{
+	"nodes":[
+		{"id":"grp-client","type":"group","x":-620,"y":-320,"width":520,"height":640,"color":"5","label":"Client Surfaces (Next.js 16 + Electron + PWA)"},
+		{"id":"grp-api","type":"group","x":-20,"y":-320,"width":520,"height":640,"color":"4","label":"Server & API Layer (src/app/api + src/server)"},
+		{"id":"grp-data","type":"group","x":580,"y":-320,"width":500,"height":640,"color":"6","label":"Persistence, Auth & External Engines"},
+		{"id":"n-ui-pages","type":"text","x":-590,"y":-260,"width":460,"height":150,"color":"5","text":"### Next.js 16 App Router Pages\n- `/` Home Overview (`LandingPageView`)\n- `/jobs` 2-Column Explorer (`PleaseHireMeDashboard`)\n- `/applications` Applied & Resumes (`SubmittedResumeModal`)\n- `/analytics` Board & Skill Analytics\n- `/admin` Control Center · `/login` · `/privacy` · `/terms`"},
+		{"id":"n-ui-features","type":"text","x":-590,"y":-80,"width":460,"height":170,"color":"5","text":"### Interactive Studio & Sidepanels\n- **Resume Studio (`AI`)**: A4/Letter/Legal/Dynamic, Top 5 ATS Fonts, Side-by-Side Diff, Ligature-Free Print\n- **LinkedIn Profile**: `320x320` Avatar & `1200x360` Banner Canvas Compression\n- **Settings Sidepanel**: ESCO Role Library (`Top 5-10`), Salary, Desktop Guide\n- **NotificationBell**: Realtime + `BroadcastChannel`"},
+		{"id":"n-desktop","type":"text","x":-590,"y":120,"width":460,"height":160,"color":"2","text":"### Hybrid Desktop & PWA\n- **Electron (`electron/main.cjs`)**: IPC handlers, local `.data/store.json`, `--live` Vercel mode\n- **Windows Packaging (`electron-builder.json`)**: NSIS + Portable `.exe`\n- **PWA (`src/app/manifest.ts`)**: 1-click taskbar install"},
+		{"id":"n-api-jobs","type":"text","x":10,"y":-260,"width":460,"height":170,"color":"4","text":"### Job Discovery & Matching\n- `POST /api/jobs/search` (`maxDuration = 30`)\n- `api-rate-limiter.ts` (`30 req / 60s`, max `5000` buckets)\n- `TtlCache` (`90s` TTL, max `250` entries, single-flight dedupe)\n- `resume-analyzer.ts` (`28-98%` weighted scorer + Exp Extractor)\n- `GET /api/roles/search` (ESCO API + Local Catalog, `30m` TTL)"},
+		{"id":"n-api-resume","type":"text","x":10,"y":-60,"width":460,"height":160,"color":"4","text":"### Resume & Application Lifecycle\n- `POST /api/resume/tailor` (Gemini chain -> `tailorResumeLocally`)\n- `POST /api/resume/parse` (`.pdf`, `.txt`, `.md`, `.json`)\n- `POST /api/jobs/status` (`saved` / `applied` / `hidden` + stage/notes)\n- `GET|POST /api/resumes/history` (`tailored_resumes` archive)"},
+		{"id":"n-api-state","type":"text","x":10,"y":130,"width":460,"height":150,"color":"4","text":"### State, Auth & Operations\n- `src/proxy.ts`: Session & suspended-user guard\n- `GET|POST /api/state`: Hydrate & sync with free-tier pruning\n- `GET|PATCH|DELETE /api/admin/users/*`\n- `GET /api/supabase/keepalive` (Cron `0 8 */4 * *`)\n- `GET|POST /api/supabase/setup`"},
+		{"id":"n-ext-boards","type":"text","x":610,"y":-260,"width":440,"height":150,"color":"1","text":"### External Job & AI Providers\n- **LinkedIn**: Guest Search API + `cheerio` + `ts-jobspy` fallback\n- **JobStreet**: v5 Search JSON API (`PH`, `MY`, `SG`, `ID`)\n- **Indeed**: `ts-jobspy` regional queries\n- **Google Gemini**: `gemini-3.1-flash-lite` -> `gemini-flash-lite-latest` -> `gemini-2.5-flash`\n- **ESCO API**: European Skills & Occupations taxonomy"},
+		{"id":"n-supabase","type":"text","x":610,"y":-80,"width":440,"height":200,"color":"6","text":"### Supabase (`muftcprpqnzuzfosvftz`)\n- **Tables**: `user_profiles`, `user_jobs`, `scan_logs`, `tailored_resumes`\n- **Security**: RLS on all tables + `public.is_admin()` security definer\n- **Auth (GoTrue)**: Google OAuth (Testing Mode), GitHub OAuth, Email/Password, Magic Link/OTP\n- **Free-Tier Guards (`free-tier-limits.ts`)**: Max 150 suggested jobs, 50 snapshots, 25 scan logs, 3500-char description cap"},
+		{"id":"n-local-fallback","type":"text","x":610,"y":150,"width":440,"height":130,"color":"3","text":"### Local & Offline Fallback\n- Browser `localStorage` immediate workspace sync\n- Desktop `.data/store.json` (gitignored, Electron/Node local mode)\n- `BroadcastChannel` cross-tab notifications"}
+	],
+	"edges":[
+		{"id":"e1","fromNode":"n-ui-pages","fromSide":"right","toNode":"n-api-jobs","toSide":"left","label":"Scan & Filter"},
+		{"id":"e2","fromNode":"n-ui-features","fromSide":"right","toNode":"n-api-resume","toSide":"left","label":"Tailor & Track"},
+		{"id":"e3","fromNode":"n-desktop","fromSide":"right","toNode":"n-api-state","toSide":"left","label":"IPC / HTTP"},
+		{"id":"e4","fromNode":"n-api-jobs","fromSide":"right","toNode":"n-ext-boards","toSide":"left","label":"Concurrent Scrape"},
+		{"id":"e5","fromNode":"n-api-resume","fromSide":"right","toNode":"n-ext-boards","toSide":"left","label":"Gemini Prompt"},
+		{"id":"e6","fromNode":"n-api-state","fromSide":"right","toNode":"n-supabase","toSide":"left","label":"RLS + Service Role"},
+		{"id":"e7","fromNode":"n-api-resume","fromSide":"right","toNode":"n-supabase","toSide":"left","label":"Snapshots & Status"},
+		{"id":"e8","fromNode":"n-desktop","fromSide":"bottom","toNode":"n-local-fallback","toSide":"bottom","label":"Offline Sync"}
+	]
+}
