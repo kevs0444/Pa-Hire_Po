@@ -3,6 +3,7 @@ export type UserRole = 'admin' | 'user';
 export type ActiveTab =
   | 'home'
   | 'jobs'
+  | 'applications'
   | 'analytics'
   | 'profile'
   | 'resume'

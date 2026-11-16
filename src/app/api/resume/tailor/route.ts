@@ -193,7 +193,7 @@ async function saveTailoredSnapshot(params: {
   targetRole?: string;
   method: string;
   resume: StructuredResume;
-}) {
+}): Promise<string | null> {
   try {
     const session = await resolveServerSession();
     if (
@@ -202,22 +202,26 @@ async function saveTailoredSnapshot(params: {
       !session.dbClient ||
       !session.authUser
     ) {
-      return;
+      return null;
     }
 
-    await session.dbClient.from('tailored_resumes').insert({
-      user_id: session.authUser.id,
-      job_id: params.targetJob?.id || null,
-      job_title:
-        params.targetJob?.title ||
-        params.targetRole ||
-        params.resume.tailoredForJobTitle ||
-        null,
-      company:
-        params.targetJob?.company || params.resume.tailoredForCompany || null,
-      tailor_method: params.method,
-      resume_data: params.resume,
-    });
+    const { data: inserted } = await session.dbClient
+      .from('tailored_resumes')
+      .insert({
+        user_id: session.authUser.id,
+        job_id: params.targetJob?.id || null,
+        job_title:
+          params.targetJob?.title ||
+          params.targetRole ||
+          params.resume.tailoredForJobTitle ||
+          null,
+        company:
+          params.targetJob?.company || params.resume.tailoredForCompany || null,
+        tailor_method: params.method,
+        resume_data: params.resume,
+      })
+      .select('id')
+      .maybeSingle<{ id: string }>();
 
     // Free-tier cap: retain newest tailored snapshots per user
     const { data: overflowRows } = await session.dbClient
@@ -235,8 +239,10 @@ async function saveTailoredSnapshot(params: {
         .eq('user_id', session.authUser.id)
         .in('id', overflowIds);
     }
+
+    return inserted?.id ?? null;
   } catch {
-    // Non-blocking snapshot log
+    return null;
   }
 }
 
@@ -258,7 +264,7 @@ export async function POST(request: NextRequest) {
           body.targetRole,
           pageSize
         );
-        await saveTailoredSnapshot({
+        const snapshotId = await saveTailoredSnapshot({
           targetJob: body.targetJob,
           targetRole: body.targetRole,
           method: 'gemini-ai',
@@ -267,6 +273,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           resume: geminiResume,
           method: 'gemini-ai',
+          snapshotId,
           personalApiUsed: Boolean(process.env.GEMINI_API_KEY?.trim()),
         });
       } catch (err) {
@@ -287,7 +294,7 @@ export async function POST(request: NextRequest) {
             }); used Smart Career Journey Tailor instead.`,
           ],
         };
-        await saveTailoredSnapshot({
+        const snapshotId = await saveTailoredSnapshot({
           targetJob: body.targetJob,
           targetRole: body.targetRole,
           method: 'smart-engine',
@@ -296,6 +303,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           resume: fallbackResume,
           method: 'smart-engine',
+          snapshotId,
           personalApiUsed: false,
         });
       }
@@ -312,7 +320,7 @@ export async function POST(request: NextRequest) {
       density: profile.structuredResume?.density || 'standard',
       fontFamily: profile.structuredResume?.fontFamily || 'calibri',
     };
-    await saveTailoredSnapshot({
+    const snapshotId = await saveTailoredSnapshot({
       targetJob: body.targetJob,
       targetRole: body.targetRole,
       method: 'smart-engine',
@@ -321,6 +329,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       resume: localResume,
       method: 'smart-engine',
+      snapshotId,
       personalApiUsed: false,
     });
   } catch (err) {

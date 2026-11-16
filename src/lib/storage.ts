@@ -98,6 +98,13 @@ export function normalizeStoreState(
           ...j,
           experienceRequired: j.experienceRequired || 'Open / Not Specified',
           experienceFit: j.experienceFit || 'fit',
+          savedAt: j.savedAt ?? null,
+          appliedAt: j.appliedAt ?? null,
+          hiddenAt: j.hiddenAt ?? null,
+          applicationStage: j.applicationStage || 'applied',
+          applicationNotes: j.applicationNotes || '',
+          tailoredResumeId: j.tailoredResumeId ?? null,
+          statusUpdatedAt: j.statusUpdatedAt ?? null,
         }))
       : [],
     queuedJobIds: Array.isArray(raw.queuedJobIds) ? raw.queuedJobIds : [],
@@ -200,13 +207,56 @@ let pendingSyncState: AppStoreState | null = null;
 let pendingSyncScope: 'full' | 'profile-only' = 'profile-only';
 let pendingSyncResolvers: Array<(mode: string) => void> = [];
 
+async function flushPendingSync(): Promise<string> {
+  const payload = pendingSyncState;
+  const effectiveScope = pendingSyncScope;
+  const resolvers = pendingSyncResolvers;
+  pendingSyncTimer = null;
+  pendingSyncState = null;
+  pendingSyncScope = 'profile-only';
+  pendingSyncResolvers = [];
+
+  if (!payload) {
+    resolvers.forEach((r) => r('browser-only'));
+    return 'browser-only';
+  }
+
+  try {
+    const res = await fetch('/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ ...payload, _syncScope: effectiveScope }),
+    });
+    const data = (await res.json()) as {
+      storageMode?: string;
+      saved?: boolean;
+    };
+    const mode = data.storageMode || 'browser-only';
+    resolvers.forEach((r) => r(mode));
+    return mode;
+  } catch {
+    resolvers.forEach((r) => r('browser-only'));
+    return 'browser-only';
+  }
+}
+
 export function syncStateToServer(
   state: AppStoreState,
-  syncScope: 'full' | 'profile-only' = 'full'
+  syncScope: 'full' | 'profile-only' = 'full',
+  options?: { immediate?: boolean }
 ): Promise<string> {
   pendingSyncState = pruneStateForFreeTier(state);
   if (syncScope === 'full') {
     pendingSyncScope = 'full';
+  }
+
+  if (options?.immediate) {
+    if (pendingSyncTimer) {
+      clearTimeout(pendingSyncTimer);
+      pendingSyncTimer = null;
+    }
+    return flushPendingSync();
   }
 
   return new Promise((resolve) => {
@@ -215,32 +265,8 @@ export function syncStateToServer(
       clearTimeout(pendingSyncTimer);
     }
 
-    pendingSyncTimer = setTimeout(async () => {
-      const payload = pendingSyncState;
-      const effectiveScope = pendingSyncScope;
-      const resolvers = pendingSyncResolvers;
-      pendingSyncTimer = null;
-      pendingSyncState = null;
-      pendingSyncScope = 'profile-only';
-      pendingSyncResolvers = [];
-
-      if (!payload) {
-        resolvers.forEach((r) => r('browser-only'));
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/state', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...payload, _syncScope: effectiveScope }),
-        });
-        const data = (await res.json()) as { storageMode?: string };
-        const mode = data.storageMode || 'browser-only';
-        resolvers.forEach((r) => r(mode));
-      } catch {
-        resolvers.forEach((r) => r('browser-only'));
-      }
+    pendingSyncTimer = setTimeout(() => {
+      void flushPendingSync();
     }, 750);
   });
 }

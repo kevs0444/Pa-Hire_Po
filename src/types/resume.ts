@@ -61,3 +61,21 @@ export interface StructuredResume {
   density?: ResumeDensity;
   fontFamily?: ResumeFontFamily;
 }
+
+export type TailoredResumeSourceType = 'ai-tailor' | 'smart-engine' | 'manual-edit';
+
+export interface TailoredResumeRecord {
+  id: string;
+  userId: string;
+  jobId: string | null;
+  jobTitle: string | null;
+  company: string | null;
+  tailorMethod: string | null;
+  sourceType: TailoredResumeSourceType;
+  isSent: boolean;
+  sentAt: string | null;
+  notes: string;
+  resumeData: StructuredResume;
+  createdAt: string;
+  updatedAt: string;
+}

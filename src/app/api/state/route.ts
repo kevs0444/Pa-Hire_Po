@@ -181,8 +181,19 @@ export async function POST(request: NextRequest) {
           storageMode: 'supabase-cloud',
           syncScope,
         });
-      } catch {
-        // Fallback to local file if schema is not yet initialized
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Supabase sync failed';
+        if (!authUser.isAdmin) {
+          return NextResponse.json(
+            {
+              saved: false,
+              storageMode: 'browser-only',
+              error: message,
+            },
+            { status: 500 }
+          );
+        }
       }
     }
 

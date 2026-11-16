@@ -9,6 +9,7 @@ import {
   KeyRound,
   Printer,
   RotateCcw,
+  Save,
 } from 'lucide-react';
 import {
   JobListing,
@@ -34,9 +35,17 @@ interface A4ResumePreviewProps {
   onTailorResume: (targetJob: JobListing | null, targetRole?: string) => void;
   onUpdateResume: (next: StructuredResume) => void;
   onResetResume: () => void;
+  onSaveSnapshot?: (params: {
+    company: string;
+    jobTitle: string;
+    jobId: string | null;
+    resume: StructuredResume;
+    isSent: boolean;
+    notes: string;
+  }) => Promise<void> | void;
 }
 
-const ATS_FONT_PRESETS: Record<
+export const ATS_FONT_PRESETS: Record<
   ResumeFontFamily,
   {
     label: string;
@@ -83,7 +92,7 @@ const ATS_FONT_PRESETS: Record<
   },
 };
 
-const PAGE_SIZE_PRESETS: Record<
+export const PAGE_SIZE_PRESETS: Record<
   ResumePageSize,
   {
     label: string;
@@ -123,7 +132,7 @@ const PAGE_SIZE_PRESETS: Record<
   },
 };
 
-const DENSITY_PRESETS: Record<
+export const DENSITY_PRESETS: Record<
   ResumeDensity,
   { label: string; textClass: string; padClass: string }
 > = {
@@ -186,7 +195,7 @@ interface ResumeSheetDocumentProps {
   onUpdateResume?: (next: StructuredResume) => void;
 }
 
-function ResumeSheetDocument({
+export function ResumeSheetDocument({
   sheetId,
   variant,
   resume,
@@ -635,9 +644,21 @@ export function A4ResumePreview({
   onTailorResume,
   onUpdateResume,
   onResetResume,
+  onSaveSnapshot,
 }: A4ResumePreviewProps) {
   const [editMode, setEditMode] = useState(false);
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [showSaveSnapshotBar, setShowSaveSnapshotBar] = useState(false);
+  const [snapshotCompany, setSnapshotCompany] = useState(
+    activeTailorJob?.company || activeResume.tailoredForCompany || ''
+  );
+  const [snapshotRole, setSnapshotRole] = useState(
+    activeTailorJob?.title || activeResume.tailoredForJobTitle || profile.primaryRole
+  );
+  const [snapshotSent, setSnapshotSent] = useState(true);
+  const [snapshotNotes, setSnapshotNotes] = useState('');
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [snapshotSavedMsg, setSnapshotSavedMsg] = useState<string | null>(null);
   const [showSummary, setShowSummary] = useState(true);
   const [compareMode, setCompareMode] = useState(false);
   const [highlightChanges, setHighlightChanges] = useState(true);
@@ -898,6 +919,33 @@ export function A4ResumePreview({
               </button>
             )}
 
+            {onSaveSnapshot && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSnapshotCompany(
+                    activeTailorJob?.company ||
+                      activeResume.tailoredForCompany ||
+                      ''
+                  );
+                  setSnapshotRole(
+                    activeTailorJob?.title ||
+                      activeResume.tailoredForJobTitle ||
+                      selectedRoleForFix ||
+                      profile.primaryRole
+                  );
+                  setShowSaveSnapshotBar((v) => !v);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                  showSaveSnapshotBar ? tokens.primaryBtn : buttonOutlineClass
+                )}
+              >
+                <Save className="h-3.5 w-3.5" />
+                Save Version
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handlePrint}
@@ -1025,6 +1073,105 @@ export function A4ResumePreview({
             <span>Show Tailored Summary</span>
           </label>
         </div>
+
+        {showSaveSnapshotBar && onSaveSnapshot && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!snapshotCompany.trim() || !snapshotRole.trim()) return;
+              setSavingSnapshot(true);
+              setSnapshotSavedMsg(null);
+              try {
+                await onSaveSnapshot({
+                  company: snapshotCompany.trim(),
+                  jobTitle: snapshotRole.trim(),
+                  jobId: activeTailorJob?.id || null,
+                  resume: {
+                    ...activeResume,
+                    tailoredForCompany: snapshotCompany.trim(),
+                    tailoredForJobTitle: snapshotRole.trim(),
+                  },
+                  isSent: snapshotSent,
+                  notes: snapshotNotes.trim(),
+                });
+                setSnapshotSavedMsg(
+                  `Saved resume version for ${snapshotCompany.trim()}`
+                );
+                setSnapshotNotes('');
+                setShowSaveSnapshotBar(false);
+              } finally {
+                setSavingSnapshot(false);
+              }
+            }}
+            className={cn(
+              'grid gap-2 rounded-lg border p-3 sm:grid-cols-12',
+              tokens.subSurface
+            )}
+          >
+            <input
+              type="text"
+              required
+              value={snapshotCompany}
+              onChange={(e) => setSnapshotCompany(e.target.value)}
+              placeholder="Company name (e.g. Canva, GCash, Grab)"
+              className={cn(
+                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                tokens.inputSurface
+              )}
+            />
+            <input
+              type="text"
+              required
+              value={snapshotRole}
+              onChange={(e) => setSnapshotRole(e.target.value)}
+              placeholder="Role applied for"
+              className={cn(
+                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                tokens.inputSurface
+              )}
+            />
+            <input
+              type="text"
+              value={snapshotNotes}
+              onChange={(e) => setSnapshotNotes(e.target.value)}
+              placeholder="Optional note (e.g. emphasized SQL & Power BI)"
+              className={cn(
+                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                tokens.inputSurface
+              )}
+            />
+            <label className="sm:col-span-1 flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={snapshotSent}
+                onChange={(e) => setSnapshotSent(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              <span>Sent</span>
+            </label>
+            <button
+              type="submit"
+              disabled={savingSnapshot}
+              className={cn(
+                'sm:col-span-2 rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
+                tokens.primaryBtn
+              )}
+            >
+              {savingSnapshot ? 'Saving...' : 'Save to Compilation'}
+            </button>
+          </form>
+        )}
+
+        {snapshotSavedMsg && (
+          <p
+            className={cn(
+              'text-xs font-medium',
+              isDark ? 'text-emerald-300' : 'text-emerald-800'
+            )}
+          >
+            ✓ {snapshotSavedMsg}
+          </p>
+        )}
 
         {/* ATS Font Guide + AI Tailor Compare & Highlight Bar */}
         <div

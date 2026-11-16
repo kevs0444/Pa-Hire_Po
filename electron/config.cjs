@@ -1,10 +1,21 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const path = require('node:path');
+let isPackagedApp = false;
+try {
+  const { app } = require('electron');
+  isPackagedApp = Boolean(app && app.isPackaged);
+} catch {
+  isPackagedApp = false;
+}
+
+const LIVE_HOSTED_URL = 'https://pa-hire-po.vercel.app';
 
 const DESKTOP_CONFIG = {
   appId: 'com.pahirepo.desktop',
   title: 'Pa-Hire Po — Desktop Studio',
-  startUrl: process.env.ELECTRON_START_URL || 'http://localhost:3000',
+  startUrl:
+    process.env.ELECTRON_START_URL ||
+    (isPackagedApp ? LIVE_HOSTED_URL : 'http://localhost:3000'),
   width: 1440,
   height: 920,
   minWidth: 1080,

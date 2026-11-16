@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   AppStoreState,
+  ApplicationStage,
   AutoApplyConfig,
   JobListing,
   MonochromeTheme,
@@ -59,6 +60,13 @@ export interface UserJobRow {
   tailoring_tips: string[];
   status: JobListing['status'];
   discovered_at: string;
+  saved_at?: string | null;
+  applied_at?: string | null;
+  hidden_at?: string | null;
+  application_stage?: ApplicationStage | null;
+  application_notes?: string | null;
+  tailored_resume_id?: string | null;
+  status_updated_at?: string | null;
   updated_at?: string;
 }
 
@@ -139,8 +147,12 @@ export function buildSeededUserProfile(params: {
   };
 }
 
-export function jobListingToRow(userId: string, job: JobListing): UserJobRow {
-  return {
+export function jobListingToRow(
+  userId: string,
+  job: JobListing,
+  includeExtendedColumns = true
+): UserJobRow {
+  const base: UserJobRow = {
     user_id: userId,
     id: job.id,
     title: job.title,
@@ -165,6 +177,21 @@ export function jobListingToRow(userId: string, job: JobListing): UserJobRow {
     status: job.status || 'suggested',
     discovered_at: job.discoveredAt || new Date().toISOString(),
     updated_at: new Date().toISOString(),
+  };
+
+  if (!includeExtendedColumns) {
+    return base;
+  }
+
+  return {
+    ...base,
+    saved_at: job.savedAt ?? null,
+    applied_at: job.appliedAt ?? null,
+    hidden_at: job.hiddenAt ?? null,
+    application_stage: job.applicationStage || 'applied',
+    application_notes: job.applicationNotes || '',
+    tailored_resume_id: job.tailoredResumeId ?? null,
+    status_updated_at: job.statusUpdatedAt || new Date().toISOString(),
   };
 }
 
@@ -192,6 +219,13 @@ export function rowToJobListing(row: UserJobRow): JobListing {
     tailoringTips: Array.isArray(row.tailoring_tips) ? row.tailoring_tips : [],
     status: row.status,
     discoveredAt: row.discovered_at,
+    savedAt: row.saved_at ?? null,
+    appliedAt: row.applied_at ?? null,
+    hiddenAt: row.hidden_at ?? null,
+    applicationStage: row.application_stage || 'applied',
+    applicationNotes: row.application_notes || '',
+    tailoredResumeId: row.tailored_resume_id ?? null,
+    statusUpdatedAt: row.status_updated_at ?? null,
   };
 }
 
@@ -354,28 +388,65 @@ export async function syncUserStoreToSupabase(
   const incomingJobs = Array.isArray(prunedState.jobs) ? prunedState.jobs : [];
   const incomingJobIds = new Set(incomingJobs.map((j) => j.id));
 
-  const { data: existingRows, error: existingErr } = await db
-    .from('user_jobs')
-    .select('id, status, match_score')
-    .eq('user_id', params.userId);
-
-  if (existingErr) throw existingErr;
-
-  const existingById = new Map<string, { status: string; match_score: number }>();
-  const toDeleteIds: string[] = [];
-
-  for (const row of (existingRows || []) as {
+  let supportsExtendedColumns = true;
+  let existingRowsRaw: Array<{
     id: string;
     status: string;
     match_score: number;
-  }[]) {
+    application_stage?: string | null;
+    application_notes?: string | null;
+    tailored_resume_id?: string | null;
+    status_updated_at?: string | null;
+  }> = [];
+
+  const extRes = await db
+    .from('user_jobs')
+    .select(
+      'id, status, match_score, application_stage, application_notes, tailored_resume_id, status_updated_at'
+    )
+    .eq('user_id', params.userId);
+
+  if (extRes.error) {
+    const code = (extRes.error as { code?: string }).code || '';
+    const msg = (extRes.error as { message?: string }).message || '';
+    if (
+      code === '42703' ||
+      code === 'PGRST204' ||
+      msg.includes('application_stage') ||
+      msg.includes('status_updated_at')
+    ) {
+      supportsExtendedColumns = false;
+      const fallbackRes = await db
+        .from('user_jobs')
+        .select('id, status, match_score')
+        .eq('user_id', params.userId);
+      if (fallbackRes.error) throw fallbackRes.error;
+      existingRowsRaw = fallbackRes.data || [];
+    } else {
+      throw extRes.error;
+    }
+  } else {
+    existingRowsRaw = extRes.data || [];
+  }
+
+  const existingById = new Map<
+    string,
+    {
+      status: string;
+      match_score: number;
+      application_stage?: string | null;
+      application_notes?: string | null;
+      tailored_resume_id?: string | null;
+      status_updated_at?: string | null;
+    }
+  >();
+  const toDeleteIds: string[] = [];
+
+  for (const row of existingRowsRaw) {
     if (!incomingJobIds.has(row.id)) {
       toDeleteIds.push(row.id);
     } else {
-      existingById.set(row.id, {
-        status: row.status,
-        match_score: row.match_score,
-      });
+      existingById.set(row.id, row);
     }
   }
 
@@ -394,14 +465,26 @@ export async function syncUserStoreToSupabase(
   const changedOrNewJobs = incomingJobs.filter((j) => {
     const prev = existingById.get(j.id);
     if (!prev) return true;
-    return (
+    if (
       prev.status !== (j.status || 'suggested') ||
       prev.match_score !== Math.round(Number(j.matchScore) || 0)
+    ) {
+      return true;
+    }
+    if (!supportsExtendedColumns) return false;
+    return (
+      (prev.application_stage || 'applied') !==
+        (j.applicationStage || 'applied') ||
+      (prev.application_notes || '') !== (j.applicationNotes || '') ||
+      (prev.tailored_resume_id || null) !== (j.tailoredResumeId || null) ||
+      (prev.status_updated_at || null) !== (j.statusUpdatedAt || null)
     );
   });
 
   if (changedOrNewJobs.length > 0) {
-    const jobRows = changedOrNewJobs.map((j) => jobListingToRow(params.userId, j));
+    const jobRows = changedOrNewJobs.map((j) =>
+      jobListingToRow(params.userId, j, supportsExtendedColumns)
+    );
     for (let i = 0; i < jobRows.length; i += 100) {
       const chunk = jobRows.slice(i, i + 100);
       const { error: upsertErr } = await db

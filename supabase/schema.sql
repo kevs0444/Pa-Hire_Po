@@ -53,6 +53,13 @@ create table if not exists public.user_jobs (
   tailoring_tips text[] not null default '{}',
   status text not null default 'suggested',
   discovered_at timestamptz not null default now(),
+  saved_at timestamptz,
+  applied_at timestamptz,
+  hidden_at timestamptz,
+  application_stage text not null default 'applied',
+  application_notes text not null default '',
+  tailored_resume_id uuid,
+  status_updated_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
@@ -60,6 +67,7 @@ create table if not exists public.user_jobs (
 create index if not exists user_jobs_user_status_idx on public.user_jobs (user_id, status);
 create index if not exists user_jobs_match_score_idx on public.user_jobs (user_id, match_score desc);
 create index if not exists user_jobs_user_status_score_idx on public.user_jobs (user_id, status, match_score desc);
+create index if not exists user_jobs_user_status_updated_idx on public.user_jobs (user_id, status, status_updated_at desc);
 
 -- 3. Multi-Board Scan History Logs per User
 create table if not exists public.scan_logs (
@@ -75,7 +83,7 @@ create table if not exists public.scan_logs (
 
 create index if not exists scan_logs_user_ts_idx on public.scan_logs (user_id, timestamp desc);
 
--- 4. Tailored Resume Snapshots (AI & Smart Engine)
+-- 4. Tailored Resume Snapshots (AI & Smart Engine & Manual Edits)
 create table if not exists public.tailored_resumes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -83,11 +91,17 @@ create table if not exists public.tailored_resumes (
   job_title text,
   company text,
   tailor_method text,
+  source_type text not null default 'ai-tailor',
+  is_sent boolean not null default false,
+  sent_at timestamptz,
+  notes text not null default '',
   resume_data jsonb not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 create index if not exists tailored_resumes_user_idx on public.tailored_resumes (user_id, created_at desc);
+create index if not exists tailored_resumes_user_company_idx on public.tailored_resumes (user_id, is_sent, created_at desc);
 
 -- 5. Security-Definer Admin Helper (prevents RLS infinite recursion + search_path hardened)
 create or replace function public.is_admin()

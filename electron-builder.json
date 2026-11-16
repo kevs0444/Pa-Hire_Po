@@ -1,0 +1,34 @@
+{
+  "appId": "com.pahirepo.desktop",
+  "productName": "Pa-Hire Po",
+  "directories": {
+    "output": "dist-desktop"
+  },
+  "files": [
+    "electron/**/*",
+    "public/pa-hire-po.ico",
+    "public/pa-hire-po-logo.jpg",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "public/pa-hire-po.ico",
+    "artifactName": "Pa-Hire-Po-${version}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "shortcutName": "Pa-Hire Po",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  }
+}

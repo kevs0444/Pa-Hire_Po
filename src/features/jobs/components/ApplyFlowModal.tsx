@@ -28,7 +28,7 @@ interface ApplyFlowModalProps {
   geminiApiKey: string;
   personalApiConfigured?: boolean;
   onClose: () => void;
-  onMarkApplied: (jobId: string) => void;
+  onMarkApplied: (jobId: string, tailoredResumeId?: string | null) => void;
   onUpdateGeminiKey: (key: string) => void;
 }
 
@@ -48,6 +48,7 @@ function ApplyFlowContent({
   const [tailoredResume, setTailoredResume] = useState<StructuredResume | null>(
     null
   );
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const tokens = getThemeTokens(theme);
@@ -85,6 +86,7 @@ function ApplyFlowContent({
         throw new Error(data.error || 'Could not tailor resume');
       }
       setTailoredResume(data.resume as StructuredResume);
+      setSnapshotId(typeof data.snapshotId === 'string' ? data.snapshotId : null);
       setStep('preview');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Tailoring failed');
@@ -95,7 +97,48 @@ function ApplyFlowContent({
 
   const handleApplyAndMark = () => {
     window.open(job.url, '_blank', 'noopener,noreferrer');
-    onMarkApplied(job.id);
+    const resumeUsed = tailoredResume || profile.structuredResume;
+    if (snapshotId) {
+      void fetch('/api/resumes/history', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          id: snapshotId,
+          isSent: true,
+          company: job.company,
+          jobTitle: job.title,
+          resumeData: resumeUsed,
+        }),
+      }).catch(() => undefined);
+      onMarkApplied(job.id, snapshotId);
+    } else {
+      void fetch('/api/resumes/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true,
+        body: JSON.stringify({
+          jobId: job.id,
+          jobTitle: job.title,
+          company: job.company,
+          tailorMethod: resumeUsed.tailorMethod || 'base',
+          sourceType: 'manual-edit',
+          isSent: true,
+          resumeData: {
+            ...resumeUsed,
+            tailoredForJobTitle: job.title,
+            tailoredForCompany: job.company,
+          },
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          onMarkApplied(job.id, d?.record?.id || null);
+        })
+        .catch(() => {
+          onMarkApplied(job.id, null);
+        });
+    }
     onClose();
   };
 

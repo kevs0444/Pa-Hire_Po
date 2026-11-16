@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import Image from 'next/image';
 import {
   ArrowRight,
   BarChart3,
   Briefcase,
-  Check,
-  Copy,
+  CheckCircle2,
+  Download,
   FileText,
   Laptop,
+  Settings,
   UserCircle2,
 } from 'lucide-react';
 import { JobSource, MonochromeTheme, UserProfile } from '@/types/job';
@@ -25,8 +25,11 @@ interface LandingPageViewProps {
   applicableJobsCount: number;
   queuedCount: number;
   isDesktopApp: boolean;
-  onNavigateTab: (tab: 'jobs' | 'analytics' | 'profile' | 'resume') => void;
+  onNavigateTab: (
+    tab: 'jobs' | 'applications' | 'analytics' | 'profile' | 'resume'
+  ) => void;
   onSelectBoardAndLaunch: (board: JobSource) => void;
+  onOpenSettingsSection: (section: 'personal' | 'salary' | 'roles' | 'desktop') => void;
 }
 
 const BOARD_SUMMARIES: {
@@ -47,27 +50,6 @@ const BOARD_SUMMARIES: {
   },
 ];
 
-const DESKTOP_COMMANDS = [
-  {
-    id: 'exe-launcher',
-    label: 'Taskbar / Desktop Launcher',
-    cmd: '.\\Pa-Hire-Po.exe',
-    note: 'Standalone Windows .exe with Pa-Hire Po mascot icon. Double-click or right-click to pin to your taskbar.',
-  },
-  {
-    id: 'oneclick',
-    label: '1-Click Local Desktop',
-    cmd: 'npm run desktop:open',
-    note: 'Starts the local server and opens the Electron desktop shell.',
-  },
-  {
-    id: 'live',
-    label: 'Live Hosted Desktop',
-    cmd: 'npm run desktop:live',
-    note: 'Connects Electron directly to the deployed Vercel app.',
-  },
-];
-
 export function LandingPageView({
   theme,
   activeProfile,
@@ -77,19 +59,9 @@ export function LandingPageView({
   isDesktopApp,
   onNavigateTab,
   onSelectBoardAndLaunch,
+  onOpenSettingsSection,
 }: LandingPageViewProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const tokens = getThemeTokens(theme);
-
-  const handleCopy = async (id: string, text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 2000);
-    } catch {
-      // Clipboard blocked in non-HTTPS or sandboxed view
-    }
-  };
 
   return (
     <div className="no-print space-y-5 pb-8">
@@ -154,6 +126,18 @@ export function LandingPageView({
                 <span className="rounded border border-current/25 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none">
                   AI
                 </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateTab('applications')}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-medium transition-colors',
+                  tokens.secondaryBtn
+                )}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Applied &amp; Resumes
               </button>
 
               <button
@@ -275,65 +259,50 @@ export function LandingPageView({
         </div>
       </section>
 
-      {/* DESKTOP CLI REFERENCE */}
-      <section className={cn('rounded-lg border p-5 space-y-3', tokens.cardSurface)}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Laptop className="h-4 w-4" />
-            <h3 className="text-sm font-semibold">Desktop Wrapper Commands</h3>
+      {/* DESKTOP APP & SETTINGS SIDEPANEL CALLOUT */}
+      <section className={cn('rounded-lg border p-5', tokens.cardSurface)}>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Laptop className="h-4 w-4" />
+              <h3 className="text-sm font-semibold">
+                {isDesktopApp
+                  ? 'Running in Pa-Hire Po Desktop App'
+                  : 'Download the Pa-Hire Po Desktop App'}
+              </h3>
+            </div>
+            <p className={cn('max-w-2xl text-xs leading-relaxed', tokens.mutedText)}>
+              {isDesktopApp
+                ? 'Your saved jobs, hidden filters, target roles, salary, and edited resumes sync automatically with your cloud workspace.'
+                : 'Install Pa-Hire Po on your desktop for a dedicated taskbar window with automatic cloud sync for your jobs, target roles, salary preferences, and edited resumes.'}
+            </p>
           </div>
-          <span className={cn('text-xs font-medium', tokens.mutedText)}>
-            {isDesktopApp ? 'Running inside Electron' : 'Viewing in Web Browser'}
-          </span>
-        </div>
 
-        <div className="grid gap-3 lg:grid-cols-3">
-          {DESKTOP_COMMANDS.map((item) => {
-            const copied = copiedId === item.id;
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  'flex flex-col justify-between gap-2.5 rounded-lg border p-3.5',
-                  tokens.subSurface
-                )}
-              >
-                <div className="space-y-1.5">
-                  <div className="text-xs font-semibold">{item.label}</div>
-                  <div
-                    className={cn(
-                      'flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 font-mono text-xs',
-                      tokens.cardSurface
-                    )}
-                  >
-                    <code className="truncate">{item.cmd}</code>
-                    <button
-                      type="button"
-                      onClick={() => void handleCopy(item.id, item.cmd)}
-                      className={cn(
-                        'inline-flex shrink-0 items-center gap-1 rounded border px-2 py-0.5 font-sans text-[11px] font-medium',
-                        tokens.secondaryBtn
-                      )}
-                      title="Copy command"
-                    >
-                      {copied ? (
-                        <>
-                          <Check className="h-3 w-3" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3" />
-                          Copy
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <p className={cn('text-xs', tokens.mutedText)}>{item.note}</p>
-              </div>
-            );
-          })}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => onOpenSettingsSection('roles')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+                tokens.secondaryBtn
+              )}
+            >
+              <Settings className="h-3.5 w-3.5" />
+              Target Roles &amp; Salary
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenSettingsSection('desktop')}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs transition-colors',
+                tokens.primaryBtn
+              )}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {isDesktopApp ? 'Desktop Setup Info' : 'Download & Setup App'}
+            </button>
+          </div>
         </div>
       </section>
     </div>

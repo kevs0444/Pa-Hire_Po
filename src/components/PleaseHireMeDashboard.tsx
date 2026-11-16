@@ -17,6 +17,7 @@ import {
 import {
   ActiveTab,
   AppStoreState,
+  ApplicationStage,
   AuthSessionUser,
   AutoApplyConfig,
   COUNTRY_CONFIGS,
@@ -27,6 +28,7 @@ import {
   JobStatus,
   ScanSourceMeta,
   StructuredResume,
+  TailoredResumeRecord,
   UserProfile,
 } from '@/types/job';
 import {
@@ -57,6 +59,11 @@ import { HowItWorksModal } from '@/features/jobs/components/HowItWorksModal';
 import { JobDetailPane } from '@/features/jobs/components/JobDetailPane';
 import { TopChoicesSpotlight } from '@/features/jobs/components/TopChoicesSpotlight';
 import { LinkedInProfileView } from '@/features/profile/components/LinkedInProfileView';
+import { ApplicationsCompilationView } from '@/features/applications/components/ApplicationsCompilationView';
+import {
+  SettingsSection,
+  SettingsSidepanel,
+} from '@/features/settings/components/SettingsSidepanel';
 import { LandingPageView } from '@/components/LandingPageView';
 import { AppTopNavbar } from '@/components/layout/AppTopNavbar';
 import { BoardLogo } from '@/components/ui/BrandLogos';
@@ -101,6 +108,13 @@ function rescoreJobsWithProfile(
       id: existing.id,
       status: existing.status,
       discoveredAt: existing.discoveredAt,
+      savedAt: existing.savedAt ?? null,
+      appliedAt: existing.appliedAt ?? null,
+      hiddenAt: existing.hiddenAt ?? null,
+      applicationStage: existing.applicationStage || 'applied',
+      applicationNotes: existing.applicationNotes || '',
+      tailoredResumeId: existing.tailoredResumeId ?? null,
+      statusUpdatedAt: existing.statusUpdatedAt ?? null,
     };
   });
 }
@@ -140,6 +154,15 @@ export function PleaseHireMeDashboard({
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [applyModalJob, setApplyModalJob] = useState<JobListing | null>(null);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection>('personal');
+
+  // Resume Compilation state
+  const [resumeRecords, setResumeRecords] = useState<TailoredResumeRecord[]>(
+    []
+  );
+  const [loadingResumes, setLoadingResumes] = useState(false);
 
   // Resume Studio state
   const [tailoredResume, setTailoredResume] = useState<StructuredResume | null>(
@@ -176,15 +199,38 @@ export function PleaseHireMeDashboard({
   );
 
   const persistStore = useCallback(
-    (next: AppStoreState, syncScope: 'full' | 'profile-only' = 'full') => {
+    (
+      next: AppStoreState,
+      syncScope: 'full' | 'profile-only' = 'full',
+      options?: { immediate?: boolean }
+    ) => {
       setStore(next);
       saveLocalState(next, authUserIdRef.current);
-      void syncStateToServer(next, syncScope).then((mode) => {
+      void syncStateToServer(next, syncScope, options).then((mode) => {
         if (mode) setStorageMode(mode);
       });
     },
     []
   );
+
+  const loadResumeHistory = useCallback(async () => {
+    setLoadingResumes(true);
+    try {
+      const res = await fetch('/api/resumes/history', { cache: 'no-store' });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          records?: TailoredResumeRecord[];
+        };
+        if (Array.isArray(data.records)) {
+          setResumeRecords(data.records);
+        }
+      }
+    } catch {
+      // Ignore transient load error
+    } finally {
+      setLoadingResumes(false);
+    }
+  }, []);
 
   const updateActiveUserProfile = useCallback(
     (nextProfile: UserProfile, rescore = true) => {
@@ -259,6 +305,13 @@ export function PleaseHireMeDashboard({
                 ...item,
                 status: old.status,
                 discoveredAt: old.discoveredAt,
+                savedAt: old.savedAt ?? null,
+                appliedAt: old.appliedAt ?? null,
+                hiddenAt: old.hiddenAt ?? null,
+                applicationStage: old.applicationStage || 'applied',
+                applicationNotes: old.applicationNotes || '',
+                tailoredResumeId: old.tailoredResumeId ?? null,
+                statusUpdatedAt: old.statusUpdatedAt ?? null,
               });
             } else {
               newAdded += 1;
@@ -359,6 +412,7 @@ export function PleaseHireMeDashboard({
       setRoleDraft(user.primaryRole);
       setHydrated(true);
       setClientNow(Date.now());
+      void loadResumeHistory();
 
       if (server.authUser?.isAdmin) {
         void fetch('/api/admin/users', { cache: 'no-store' })
@@ -478,11 +532,197 @@ export function PleaseHireMeDashboard({
     });
   };
 
-  const handleUpdateJobStatus = (jobId: string, status: JobStatus) => {
-    const nextJobs = store.jobs.map((j) =>
-      j.id === jobId ? { ...j, status } : j
-    );
-    persistStore({ ...store, jobs: nextJobs });
+  const handleUpdateJobStatus = (
+    jobId: string,
+    status: JobStatus,
+    tailoredResumeId?: string | null
+  ) => {
+    const nowIso = new Date().toISOString();
+    const nextJobs = store.jobs.map((j) => {
+      if (j.id !== jobId) return j;
+      return {
+        ...j,
+        status,
+        statusUpdatedAt: nowIso,
+        savedAt: status === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
+        appliedAt:
+          status === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
+        hiddenAt:
+          status === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
+        applicationStage:
+          status === 'applied' ? j.applicationStage || 'applied' : j.applicationStage,
+        tailoredResumeId:
+          tailoredResumeId !== undefined
+            ? tailoredResumeId
+            : j.tailoredResumeId ?? null,
+      };
+    });
+    persistStore({ ...store, jobs: nextJobs }, 'full', { immediate: true });
+    if (status === 'applied') {
+      void loadResumeHistory();
+    }
+  };
+
+  const handleUpdateJobApplication = (
+    jobId: string,
+    patch: {
+      status?: JobStatus;
+      applicationStage?: ApplicationStage;
+      applicationNotes?: string;
+      tailoredResumeId?: string | null;
+    }
+  ) => {
+    const nowIso = new Date().toISOString();
+    const nextJobs = store.jobs.map((j) => {
+      if (j.id !== jobId) return j;
+      const nextStatus = patch.status ?? j.status;
+      return {
+        ...j,
+        ...patch,
+        status: nextStatus,
+        statusUpdatedAt: nowIso,
+        savedAt:
+          nextStatus === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
+        appliedAt:
+          nextStatus === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
+        hiddenAt:
+          nextStatus === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
+      };
+    });
+    persistStore({ ...store, jobs: nextJobs }, 'full', {
+      immediate: patch.status !== undefined || patch.applicationStage !== undefined,
+    });
+  };
+
+  const handleSaveResumeSnapshot = async (params: {
+    company: string;
+    jobTitle: string;
+    jobId: string | null;
+    resume: StructuredResume;
+    isSent: boolean;
+    notes: string;
+  }) => {
+    const res = await fetch('/api/resumes/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobId: params.jobId,
+        jobTitle: params.jobTitle,
+        company: params.company,
+        tailorMethod: params.resume.tailorMethod || 'base',
+        sourceType:
+          params.resume.tailorMethod === 'gemini-ai'
+            ? 'ai-tailor'
+            : params.resume.tailorMethod === 'smart-engine'
+              ? 'smart-engine'
+              : 'manual-edit',
+        isSent: params.isSent,
+        notes: params.notes,
+        resumeData: params.resume,
+      }),
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { record?: TailoredResumeRecord };
+      if (data.record && params.jobId && params.isSent) {
+        handleUpdateJobStatus(params.jobId, 'applied', data.record.id);
+      }
+      await loadResumeHistory();
+    }
+  };
+
+  const handleLogExternalApplication = async (payload: {
+    company: string;
+    title: string;
+    source: JobSource;
+    url: string;
+    notes: string;
+    resume: StructuredResume;
+  }) => {
+    const nowIso = new Date().toISOString();
+    const jobId = `ext-${Date.now().toString(36)}`;
+    const snapshotRes = await fetch('/api/resumes/history', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jobId,
+        jobTitle: payload.title,
+        company: payload.company,
+        tailorMethod: payload.resume.tailorMethod || 'base',
+        sourceType: 'manual-edit',
+        isSent: true,
+        notes: payload.notes,
+        resumeData: {
+          ...payload.resume,
+          tailoredForCompany: payload.company,
+          tailoredForJobTitle: payload.title,
+        },
+      }),
+    });
+    const snapshotData = snapshotRes.ok
+      ? ((await snapshotRes.json()) as { record?: TailoredResumeRecord })
+      : null;
+
+    const newJob: JobListing = {
+      id: jobId,
+      title: payload.title,
+      company: payload.company,
+      location: activeProfile.location || 'Remote',
+      source: payload.source,
+      url: payload.url || '#',
+      postedAt: nowIso,
+      salary: activeProfile.salaryExpectation || null,
+      description: payload.notes || `External application logged for ${payload.company}.`,
+      workType: activeProfile.workType || 'any',
+      searchedRole: payload.title,
+      isPivotSuggestion: false,
+      experienceRequired: 'Open / Not Specified',
+      experienceFit: 'fit',
+      matchScore: 85,
+      matchedSkills: activeProfile.skills.slice(0, 4),
+      missingSkills: [],
+      matchReason: 'External application logged by user',
+      tailoringTips: [],
+      status: 'applied',
+      discoveredAt: nowIso,
+      appliedAt: nowIso,
+      applicationStage: 'applied',
+      applicationNotes: payload.notes,
+      tailoredResumeId: snapshotData?.record?.id || null,
+      statusUpdatedAt: nowIso,
+    };
+
+    persistStore({ ...store, jobs: [newJob, ...store.jobs] }, 'full', {
+      immediate: true,
+    });
+    await loadResumeHistory();
+  };
+
+  const handleUpdateResumeRecord = async (
+    id: string,
+    patch: {
+      isSent?: boolean;
+      notes?: string;
+      company?: string;
+      jobTitle?: string;
+    }
+  ) => {
+    const res = await fetch('/api/resumes/history', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, ...patch }),
+    });
+    if (res.ok) {
+      await loadResumeHistory();
+    }
+  };
+
+  const handleDeleteResumeRecord = async (id: string) => {
+    const res = await fetch(`/api/resumes/history?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (res.ok) {
+      setResumeRecords((prev) => prev.filter((r) => r.id !== id));
+    }
   };
 
   const handleToggleQueueJob = (jobId: string) => {
@@ -682,12 +922,17 @@ export function PleaseHireMeDashboard({
         isDesktopApp={isDesktopApp}
         hydrated={hydrated}
         activeJobsCount={activeJobsCount}
+        appliedCount={store.jobs.filter((j) => j.status === 'applied').length}
         authUser={authUser}
         storageMode={storageMode}
         adminUserCount={adminUserCount}
         signingOut={signingOut}
         onSignOut={() => void handleSignOut()}
         onOpenHowItWorks={() => setHowItWorksOpen(true)}
+        onOpenSettings={() => {
+          setSettingsSection('personal');
+          setSettingsOpen(true);
+        }}
         onChangeTheme={(nextTheme) =>
           persistStore(
             {
@@ -723,6 +968,10 @@ export function PleaseHireMeDashboard({
               setSourceFilter(board);
               setStatusFilter('active');
               setActiveTab('jobs');
+            }}
+            onOpenSettingsSection={(sec) => {
+              setSettingsSection(sec);
+              setSettingsOpen(true);
             }}
           />
         )}
@@ -1108,9 +1357,14 @@ export function PleaseHireMeDashboard({
                     type="button"
                     onClick={() => {
                       const kept = store.jobs.filter(
-                        (j) => j.status === 'saved' || j.status === 'applied'
+                        (j) =>
+                          j.status === 'saved' ||
+                          j.status === 'applied' ||
+                          j.status === 'hidden'
                       );
-                      persistStore({ ...store, jobs: kept });
+                      persistStore({ ...store, jobs: kept }, 'full', {
+                        immediate: true,
+                      });
                     }}
                     className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
                   >
@@ -1290,6 +1544,33 @@ export function PleaseHireMeDashboard({
           </div>
         )}
 
+        {/* TAB 1B: APPLIED COMPANIES & EDITED RESUMES COMPILATION */}
+        {activeTab === 'applications' && (
+          <ApplicationsCompilationView
+            theme={store.theme}
+            profile={activeProfile}
+            jobs={store.jobs}
+            resumeRecords={resumeRecords}
+            loadingResumes={loadingResumes}
+            onRefreshResumes={loadResumeHistory}
+            onUpdateJobApplication={handleUpdateJobApplication}
+            onLogExternalApplication={handleLogExternalApplication}
+            onUpdateResumeRecord={handleUpdateResumeRecord}
+            onDeleteResumeRecord={handleDeleteResumeRecord}
+            onOpenInResumeStudio={(resume, job) => {
+              setTailoredResume(resume);
+              if (job) setSelectedJobId(job.id);
+              setActiveTab('resume');
+            }}
+            onOpenJobInExplorer={(jobId) => {
+              setSelectedJobId(jobId);
+              setSourceFilter('all');
+              setStatusFilter('active');
+              setActiveTab('jobs');
+            }}
+          />
+        )}
+
         {/* TAB 2: JOB BOARD ANALYTICS & AUTO-APPLY BLUEPRINT */}
         {activeTab === 'analytics' && (
           <JobAnalyticsView
@@ -1356,6 +1637,7 @@ export function PleaseHireMeDashboard({
                 persistStore({ ...store, geminiApiKey: key }, 'profile-only')
               }
               onTailorResume={(job, role) => void handleTailorInStudio(job, role)}
+              onSaveSnapshot={handleSaveResumeSnapshot}
               onUpdateResume={(nextResume) => {
                 setTailoredResume(nextResume);
                 if (nextResume.tailorMethod === 'base') {
@@ -1398,9 +1680,32 @@ export function PleaseHireMeDashboard({
         geminiApiKey={store.geminiApiKey || ''}
         personalApiConfigured={personalApiConfigured}
         onClose={() => setApplyModalJob(null)}
-        onMarkApplied={(id) => handleUpdateJobStatus(id, 'applied')}
+        onMarkApplied={(id, tailoredResumeId) =>
+          handleUpdateJobStatus(id, 'applied', tailoredResumeId)
+        }
         onUpdateGeminiKey={(key) =>
           persistStore({ ...store, geminiApiKey: key }, 'profile-only')
+        }
+      />
+
+      {/* RIGHT-SIDE SETTINGS, ROLES & DESKTOP APP SIDEPANEL */}
+      <SettingsSidepanel
+        isOpen={settingsOpen}
+        section={settingsSection}
+        onChangeSection={setSettingsSection}
+        theme={store.theme}
+        profile={activeProfile}
+        autoApplyConfig={autoApplyConfig}
+        isDesktopApp={isDesktopApp}
+        storageMode={storageMode}
+        onClose={() => setSettingsOpen(false)}
+        onSaveProfile={(next, rescore = false) =>
+          updateActiveUserProfile(next, rescore)
+        }
+        onSaveAutoApplyConfig={(next) =>
+          persistStore({ ...store, autoApplyConfig: next }, 'profile-only', {
+            immediate: true,
+          })
         }
       />
 

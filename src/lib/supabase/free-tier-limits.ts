@@ -1,4 +1,4 @@
-import { AppStoreState, JobListing } from '@/types/job';
+import type { AppStoreState, JobListing } from '@/types/job';
 
 export const FREE_TIER_LIMITS = {
   maxDbSizeMb: 500,
@@ -9,18 +9,21 @@ export const FREE_TIER_LIMITS = {
   maxSuggestedJobsPerUser: 150,
   maxJobDescriptionChars: 3500,
   maxScanLogsPerUser: 25,
-  maxTailoredSnapshotsPerUser: 15,
+  maxTailoredSnapshotsPerUser: 50,
+  maxHiddenJobsPerUser: 500,
   maxResumeUploadBytes: Math.floor(4.5 * 1024 * 1024),
   keepAliveCron: '0 8 */4 * *',
 } as const;
 
 export function truncateJobForFreeTier(job: JobListing): JobListing {
-  if (!job.description || job.description.length <= FREE_TIER_LIMITS.maxJobDescriptionChars) {
+  const maxChars =
+    job.status === 'hidden' ? 240 : FREE_TIER_LIMITS.maxJobDescriptionChars;
+  if (!job.description || job.description.length <= maxChars) {
     return job;
   }
   return {
     ...job,
-    description: `${job.description.slice(0, FREE_TIER_LIMITS.maxJobDescriptionChars - 3)}...`,
+    description: `${job.description.slice(0, maxChars - 3)}...`,
   };
 }
 
@@ -32,6 +35,7 @@ export function pruneJobsForFreeTier(
   const queuedSet = new Set(queuedJobIds);
 
   const protectedJobs: JobListing[] = [];
+  const hiddenJobs: JobListing[] = [];
   const ephemeralJobs: JobListing[] = [];
 
   for (const rawJob of jobs) {
@@ -42,10 +46,18 @@ export function pruneJobsForFreeTier(
       queuedSet.has(job.id)
     ) {
       protectedJobs.push(job);
+    } else if (job.status === 'hidden') {
+      hiddenJobs.push(job);
     } else {
       ephemeralJobs.push(job);
     }
   }
+
+  hiddenJobs.sort(
+    (a, b) =>
+      new Date(b.hiddenAt || b.statusUpdatedAt || b.discoveredAt || 0).getTime() -
+      new Date(a.hiddenAt || a.statusUpdatedAt || a.discoveredAt || 0).getTime()
+  );
 
   ephemeralJobs.sort((a, b) => {
     if (Boolean(a.isFallback) !== Boolean(b.isFallback)) {
@@ -62,6 +74,7 @@ export function pruneJobsForFreeTier(
 
   return [
     ...protectedJobs,
+    ...hiddenJobs.slice(0, FREE_TIER_LIMITS.maxHiddenJobsPerUser),
     ...ephemeralJobs.slice(0, FREE_TIER_LIMITS.maxSuggestedJobsPerUser),
   ];
 }

@@ -12,7 +12,8 @@
     "desktop:open": "node electron/open-desktop.cjs",
     "desktop:live": "node electron/open-desktop.cjs --live",
     "desktop:install": "npm install --save-dev electron",
-    "desktop:build-launcher": "powershell -ExecutionPolicy Bypass -File ./scripts/build-launcher.ps1"
+    "desktop:build-launcher": "powershell -ExecutionPolicy Bypass -File ./scripts/build-launcher.ps1",
+    "desktop:package": "npx --yes electron-builder --config electron-builder.json --win"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

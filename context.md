@@ -210,8 +210,11 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)
 - **Active Verified Capabilities**:
   - Multi-board concurrent job scraping (LinkedIn, JobStreet, Indeed).
-  - Smart weighted match scoring (28–98%) against user profile and inferred target roles.
-  - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, and A4/Letter ATS font printing.
+  - Smart weighted match scoring (28–98%) against user profile, ESCO-backed dynamic role library (`Top 5–10` saved target roles), and structured target salary preferences.
+  - Persistent `saved`, `applied`, and `hidden` job tracking in Supabase `public.user_jobs` with immediate flush sync and non-destructive `Clear` / free-tier pruning.
+  - **Applied & Resumes Compilation Workspace (`/applications`)**: Company application stage tracker (`Applied`, `Interviewing`, `Offer`, `Rejected`), external application logger, and linked edited/AI-tailored resume snapshots (`public.tailored_resumes`, `/api/resumes/history`).
+  - **Right-Side Settings Sidepanel (`SettingsSidepanel.tsx`)**: Personal Info & Contact, Target Salary & Preferences, ESCO + Cross-Industry Dynamic Role Library search (`Top 5–10` roles via `/api/roles/search`), and end-user **Desktop App Download & Setup** (Windows `.exe` packaging via `electron-builder.json`, PWA `manifest.ts` 1-click desktop install, and collapsed developer CLI disclosure).
+  - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, manual version archiving (`Save Version`), and A4/Letter ATS font printing.
   - LinkedIn-style profile with client-side canvas compression (`320×320` avatar, `1200×360` banner).
   - Vercel Store Supabase backend (`supabase-erin-elephant` • `muftcprpqnzuzfosvftz`) with hardened RLS, automated keep-alive cron (`0 8 */4 * *`), and Admin Control Center (`/admin`).
   - Google OAuth (Testing Mode) + GitHub OAuth + Password + Magic Link / OTP.

@@ -4,11 +4,13 @@ import Image from 'next/image';
 import {
   BarChart3,
   Briefcase,
+  CheckCircle2,
   FileText,
   HelpCircle,
   Home,
   LogOut,
   Moon,
+  Settings,
   Shield,
   Sun,
   UserCircle2,
@@ -30,12 +32,14 @@ interface AppTopNavbarProps {
   isDesktopApp: boolean;
   hydrated: boolean;
   activeJobsCount: number;
+  appliedCount?: number;
   authUser: AuthSessionUser | null;
   storageMode: string;
   adminUserCount: number | null;
   signingOut: boolean;
   onSignOut: () => void;
   onOpenHowItWorks: () => void;
+  onOpenSettings: () => void;
   onChangeTheme: (theme: MonochromeTheme) => void;
 }
 
@@ -47,12 +51,14 @@ export function AppTopNavbar({
   isDesktopApp,
   hydrated,
   activeJobsCount,
+  appliedCount = 0,
   authUser,
   storageMode,
   adminUserCount,
   signingOut,
   onSignOut,
   onOpenHowItWorks,
+  onOpenSettings,
   onChangeTheme,
 }: AppTopNavbarProps) {
   const {
@@ -150,6 +156,22 @@ export function AppTopNavbar({
           </button>
           <button
             type="button"
+            onClick={() => onSelectTab('applications')}
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
+              activeTab === 'applications' ? activeNavTabClass : inactiveNavTabClass
+            )}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Applied &amp; Resumes
+            {hydrated && appliedCount > 0 && (
+              <span className="font-mono text-[11px] tabular-nums opacity-80">
+                ({appliedCount})
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={() => onSelectTab('analytics')}
             className={cn(
               'inline-flex items-center gap-1.5 px-3 py-3.5 text-xs',
@@ -231,6 +253,19 @@ export function AppTopNavbar({
 
         {/* Utility Controls */}
         <div className="flex flex-wrap items-center gap-2 py-2">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+              secondaryBtn
+            )}
+            title="Open Settings, Target Roles, Salary & Desktop App Setup"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Settings</span>
+          </button>
+
           <button
             type="button"
             onClick={onOpenHowItWorks}

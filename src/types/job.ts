@@ -2,6 +2,8 @@ export type JobSource = 'linkedin' | 'jobstreet' | 'indeed';
 
 export type JobStatus = 'suggested' | 'saved' | 'applied' | 'hidden';
 
+export type ApplicationStage = 'applied' | 'interviewing' | 'offer' | 'rejected';
+
 export type CountryCode = 'ph' | 'my' | 'sg' | 'id' | 'us' | 'remote';
 
 export type WorkType = 'any' | 'remote' | 'hybrid' | 'onsite';
@@ -51,6 +53,13 @@ export interface JobListing {
   tailoringTips: string[];
   status: JobStatus;
   discoveredAt: string;
+  savedAt?: string | null;
+  appliedAt?: string | null;
+  hiddenAt?: string | null;
+  applicationStage?: ApplicationStage;
+  applicationNotes?: string;
+  tailoredResumeId?: string | null;
+  statusUpdatedAt?: string | null;
 }
 
 export interface CountryConfig {

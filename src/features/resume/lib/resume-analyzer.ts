@@ -5,6 +5,7 @@ import {
   RawScrapedJob,
   UserProfile,
 } from '@/types/job';
+import { CROSS_INDUSTRY_ROLE_CATALOG } from '@/features/roles/lib/role-library';
 
 interface RoleBlueprint {
   role: string;
@@ -496,14 +497,31 @@ function tokenize(text: string): string[] {
     .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
-function inferRequirementsFromTitle(title: string): string[] {
+function inferRequirementsFromTitle(
+  title: string,
+  profile?: UserProfile
+): string[] {
   const lower = title.toLowerCase();
+  for (const meta of profile?.roleLibraryMeta || []) {
+    if (
+      meta.skills &&
+      meta.skills.length > 0 &&
+      lower.includes(meta.title.toLowerCase())
+    ) {
+      return meta.skills;
+    }
+  }
   for (const bp of ROLE_BLUEPRINTS) {
     if (
       lower.includes(bp.role.toLowerCase()) ||
       bp.aliases.some((a) => lower.includes(a))
     ) {
       return bp.coreSkills;
+    }
+  }
+  for (const entry of CROSS_INDUSTRY_ROLE_CATALOG) {
+    if (entry.skills && lower.includes(entry.title.toLowerCase())) {
+      return entry.skills;
     }
   }
   return [];
@@ -618,7 +636,7 @@ export function scoreJobAgainstProfile(
 
   // Detect skills asked for in the job posting (or implied by the role) that the user didn't list
   const jobDetectedSkills = extractSkillsFromResume(jobText);
-  const roleImpliedSkills = inferRequirementsFromTitle(raw.title);
+  const roleImpliedSkills = inferRequirementsFromTitle(raw.title, profile);
   const jobRequiredSkills = Array.from(new Set([...jobDetectedSkills, ...roleImpliedSkills]));
   const userSkillSet = new Set(userSkills.map((s) => s.toLowerCase()));
 
@@ -630,6 +648,8 @@ export function scoreJobAgainstProfile(
   const titleLower = raw.title.toLowerCase();
   const primaryLower = profile.primaryRole.toLowerCase();
   const primaryVariants = splitCompoundRoles(primaryLower);
+  const preferredVariants = (profile.preferredRoles || [])
+    .flatMap((r) => splitCompoundRoles(r.toLowerCase()));
   const searchedLower = raw.searchedRole.toLowerCase();
   const primaryWords = tokenize(primaryLower);
   const searchedWords = tokenize(searchedLower);
@@ -640,7 +660,10 @@ export function scoreJobAgainstProfile(
     primaryVariants.some((variant) => titleLower.includes(variant))
   ) {
     titleScore = 38;
-  } else if (titleLower.includes(searchedLower)) {
+  } else if (
+    titleLower.includes(searchedLower) ||
+    preferredVariants.some((variant) => variant.length > 2 && titleLower.includes(variant))
+  ) {
     titleScore = 32;
   } else {
     const primaryHits = primaryWords.filter((w) => titleLower.includes(w)).length;

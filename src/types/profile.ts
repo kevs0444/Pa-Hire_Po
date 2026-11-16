@@ -1,6 +1,21 @@
 import type { CountryCode, ExperienceLevel, WorkType } from './job';
 import type { StructuredResume } from './resume';
 
+export interface TargetSalaryConfig {
+  currency: string;
+  min: string;
+  max: string;
+  period: 'monthly' | 'annual';
+}
+
+export interface RoleLibraryEntry {
+  title: string;
+  source: 'esco' | 'catalog' | 'custom';
+  escoUri?: string;
+  category?: string;
+  skills?: string[];
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -13,6 +28,7 @@ export interface UserProfile {
   skills: string[];
   primaryRole: string;
   preferredRoles: string[];
+  roleLibraryMeta?: RoleLibraryEntry[];
   customRoles: string[];
   autoPivotRoles: boolean;
   pivotFrequency: number;
@@ -21,6 +37,7 @@ export interface UserProfile {
   location: string;
   workType: WorkType;
   salaryExpectation: string;
+  targetSalary?: TargetSalaryConfig;
   autoScanIntervalMinutes: number;
   careerJourneyMarkdown: string;
   structuredResume: StructuredResume;
