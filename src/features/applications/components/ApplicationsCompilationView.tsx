@@ -8,8 +8,8 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Maximize2,
   Plus,
-  Printer,
   RotateCcw,
   Search,
   Trash2,
@@ -26,10 +26,9 @@ import type {
 } from '@/types/job';
 import {
   ATS_FONT_PRESETS,
-  DENSITY_PRESETS,
   PAGE_SIZE_PRESETS,
-  ResumeSheetDocument,
 } from '@/features/resume/components/A4ResumePreview';
+import { SubmittedResumeModal } from '@/features/applications/components/SubmittedResumeModal';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -91,6 +90,9 @@ function getSourceMethodLabel(record: TailoredResumeRecord): string {
   ) {
     return 'Smart Tailor';
   }
+  if (record.sourceType === 'base' || record.tailorMethod === 'base') {
+    return 'Base Profile CV';
+  }
   return 'Manual Edit';
 }
 
@@ -126,6 +128,13 @@ export function ApplicationsCompilationView({
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<'all' | ApplicationStage>('all');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [popoutModalData, setPopoutModalData] = useState<{
+    company: string;
+    jobTitle: string;
+    methodLabel: string;
+    submittedAt?: string | null;
+    resume: StructuredResume;
+  } | null>(null);
   const [showLogForm, setShowLogForm] = useState(false);
   const [logging, setLogging] = useState(false);
   const [logForm, setLogForm] = useState({
@@ -331,12 +340,21 @@ export function ApplicationsCompilationView({
         ? selectedResume?.resumeData || null
         : null;
 
-  const fontKey = activePreviewResume?.fontFamily || 'calibri';
-  const sizeKey = activePreviewResume?.pageSize || 'a4';
-  const densityKey = activePreviewResume?.density || 'standard';
-  const fontPreset = ATS_FONT_PRESETS[fontKey] || ATS_FONT_PRESETS.calibri;
-  const sizePreset = PAGE_SIZE_PRESETS[sizeKey] || PAGE_SIZE_PRESETS.a4;
-  const densityPreset = DENSITY_PRESETS[densityKey] || DENSITY_PRESETS.standard;
+  const activeMethodLabel =
+    subView === 'applied'
+      ? selectedApplied?.record
+        ? getSourceMethodLabel(selectedApplied.record)
+        : 'Base Profile CV'
+      : selectedResume
+        ? getSourceMethodLabel(selectedResume)
+        : 'Base Profile CV';
+
+  const activeFontLabel =
+    (ATS_FONT_PRESETS[activePreviewResume?.fontFamily || 'calibri'] ||
+      ATS_FONT_PRESETS.calibri).shortLabel;
+  const activeSizeLabel =
+    (PAGE_SIZE_PRESETS[activePreviewResume?.pageSize || 'a4'] ||
+      PAGE_SIZE_PRESETS.a4).shortLabel;
 
   const handleSubmitExternal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -366,10 +384,6 @@ export function ApplicationsCompilationView({
 
   return (
     <div className="space-y-4 pb-8">
-      {activePreviewResume && (
-        <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; } }`}</style>
-      )}
-
       {/* HEADER + KPI STRIP */}
       <section className={cn('no-print rounded-lg border p-5 space-y-4', cardSurface)}>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -665,15 +679,38 @@ export function ApplicationsCompilationView({
                       <span className={cn('inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px]', subSurface)}>
                         <FileText className="h-3 w-3" />
                         {item.record
-                          ? `Saved CV (${getSourceMethodLabel(item.record)})`
+                          ? getSourceMethodLabel(item.record)
                           : 'Base Profile CV'}
                       </span>
-                      {item.job?.applicationNotes && (
-                        <span className={cn('max-w-[200px] truncate text-[11px]', mutedText)}>
-                          {item.job.applicationNotes}
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPopoutModalData({
+                            company: item.company,
+                            jobTitle: item.title,
+                            methodLabel: item.record
+                              ? getSourceMethodLabel(item.record)
+                              : 'Base Profile CV',
+                            submittedAt: item.dateIso,
+                            resume:
+                              item.record?.resumeData || profile.structuredResume,
+                          });
+                        }}
+                        className={cn(
+                          'civic-btn-motion inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                          secondaryBtn
+                        )}
+                      >
+                        <Maximize2 className="h-3 w-3" />
+                        Show Resume
+                      </button>
                     </div>
+                    {item.job?.applicationNotes && (
+                      <p className={cn('truncate text-[11px]', mutedText)}>
+                        Note: {item.job.applicationNotes}
+                      </p>
+                    )}
                   </article>
                 );
               })
@@ -715,36 +752,11 @@ export function ApplicationsCompilationView({
                           href={selectedApplied.job.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                          className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
                         >
                           Listing
                           <ExternalLink className="h-3.5 w-3.5" />
                         </a>
-                      )}
-                      {activePreviewResume && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenInResumeStudio(
-                                activePreviewResume,
-                                selectedApplied.job
-                              )
-                            }
-                            className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            Edit in Studio
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => window.print()}
-                            className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
-                          >
-                            <Printer className="h-3.5 w-3.5" />
-                            Print / PDF
-                          </button>
-                        </>
                       )}
                     </div>
                   </div>
@@ -789,35 +801,71 @@ export function ApplicationsCompilationView({
                       </div>
                     </div>
                   )}
-                </div>
 
-                {activePreviewResume && (
-                  <div className="overflow-x-auto pb-2">
-                    <ResumeSheetDocument
-                      sheetId="a4-resume-sheet"
-                      variant="tailored"
-                      resume={activePreviewResume}
-                      compareReference={profile.structuredResume}
-                      showSummary={Boolean(activePreviewResume.tailoredSummary)}
-                      showHighlights={false}
-                      isTailored={Boolean(
-                        activePreviewResume.tailorMethod &&
-                          activePreviewResume.tailorMethod !== 'base'
-                      )}
-                      editMode={false}
-                      className={cn(
-                        'mx-auto w-full bg-white text-black shadow-xl ring-1 ring-black/10',
-                        sizePreset.sheetClass,
-                        densityPreset.padClass,
-                        densityPreset.textClass
-                      )}
-                      style={{
-                        fontFamily: fontPreset.fontFamily,
-                        fontVariantLigatures: 'none',
-                      }}
-                    />
-                  </div>
-                )}
+                  {activePreviewResume && (
+                    <div className={cn('rounded-lg border p-4 space-y-2.5', subSurface)}>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs font-semibold">
+                              Submitted Resume Snapshot
+                            </span>
+                            <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', cardSurface)}>
+                              {activeMethodLabel}
+                            </span>
+                            <span className={cn('font-mono text-[11px]', mutedText)}>
+                              {activeSizeLabel} • {activeFontLabel}
+                            </span>
+                          </div>
+                          <p className={cn('text-xs', mutedText)}>
+                            Headline: {activePreviewResume.targetHeadline}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenInResumeStudio(
+                                activePreviewResume,
+                                selectedApplied.job
+                              )
+                            }
+                            className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                            Edit in Studio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPopoutModalData({
+                                company: selectedApplied.company,
+                                jobTitle: selectedApplied.title,
+                                methodLabel: activeMethodLabel,
+                                submittedAt: selectedApplied.dateIso,
+                                resume: activePreviewResume,
+                              })
+                            }
+                            className={cn('civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                            Show Resume
+                          </button>
+                        </div>
+                      </div>
+
+                      {activePreviewResume.tailorNotes &&
+                        activePreviewResume.tailorNotes.length > 0 && (
+                          <ul className={cn('list-disc space-y-0.5 pl-4 text-xs', mutedText)}>
+                            {activePreviewResume.tailorNotes.slice(0, 3).map((note, idx) => (
+                              <li key={idx}>{note}</li>
+                            ))}
+                          </ul>
+                        )}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className={cn('no-print rounded-lg border border-dashed p-12 text-center', cardSurface)}>
@@ -892,11 +940,38 @@ export function ApplicationsCompilationView({
                       </p>
                     </div>
 
-                    {rec.notes && (
-                      <p className={cn('truncate text-xs', mutedText)}>
-                        {rec.notes}
-                      </p>
-                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      {rec.notes ? (
+                        <p className={cn('truncate text-xs', mutedText)}>
+                          {rec.notes}
+                        </p>
+                      ) : (
+                        <span className={cn('text-[11px]', mutedText)}>
+                          Click Show Resume to view or print
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPopoutModalData({
+                            company: rec.company || 'General Snapshot',
+                            jobTitle:
+                              rec.jobTitle || rec.resumeData.targetHeadline,
+                            methodLabel: getSourceMethodLabel(rec),
+                            submittedAt: rec.sentAt || rec.createdAt,
+                            resume: rec.resumeData,
+                          });
+                        }}
+                        className={cn(
+                          'civic-btn-motion inline-flex shrink-0 items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                          secondaryBtn
+                        )}
+                      >
+                        <Maximize2 className="h-3 w-3" />
+                        Show Resume
+                      </button>
+                    </div>
                   </article>
                 );
               })
@@ -942,11 +1017,22 @@ export function ApplicationsCompilationView({
                     </button>
                     <button
                       type="button"
-                      onClick={() => window.print()}
-                      className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
+                      onClick={() =>
+                        setPopoutModalData({
+                          company: selectedResume.company || 'General Snapshot',
+                          jobTitle:
+                            selectedResume.jobTitle ||
+                            selectedResume.resumeData.targetHeadline,
+                          methodLabel: getSourceMethodLabel(selectedResume),
+                          submittedAt:
+                            selectedResume.sentAt || selectedResume.createdAt,
+                          resume: selectedResume.resumeData,
+                        })
+                      }
+                      className={cn('civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
                     >
-                      <Printer className="h-3.5 w-3.5" />
-                      Print / PDF
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      Show Resume
                     </button>
                     <button
                       type="button"
@@ -960,30 +1046,18 @@ export function ApplicationsCompilationView({
                   </div>
                 </div>
 
-                <div className="overflow-x-auto pb-2">
-                  <ResumeSheetDocument
-                    sheetId="a4-resume-sheet"
-                    variant="tailored"
-                    resume={selectedResume.resumeData}
-                    compareReference={profile.structuredResume}
-                    showSummary={Boolean(selectedResume.resumeData.tailoredSummary)}
-                    showHighlights={false}
-                    isTailored={Boolean(
-                      selectedResume.resumeData.tailorMethod &&
-                        selectedResume.resumeData.tailorMethod !== 'base'
-                    )}
-                    editMode={false}
-                    className={cn(
-                      'mx-auto w-full bg-white text-black shadow-xl ring-1 ring-black/10',
-                      sizePreset.sheetClass,
-                      densityPreset.padClass,
-                      densityPreset.textClass
-                    )}
-                    style={{
-                      fontFamily: fontPreset.fontFamily,
-                      fontVariantLigatures: 'none',
-                    }}
-                  />
+                <div className={cn('no-print rounded-lg border p-4 space-y-2', cardSurface)}>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-semibold">Headline:</span>
+                    <span className={mutedText}>
+                      {selectedResume.resumeData.targetHeadline}
+                    </span>
+                  </div>
+                  {selectedResume.notes && (
+                    <p className={cn('text-xs', mutedText)}>
+                      Notes: {selectedResume.notes}
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -1114,6 +1188,25 @@ export function ApplicationsCompilationView({
           )}
         </section>
       )}
+
+      {/* POP-OUT SUBMITTED RESUME MODAL (<dialog>) */}
+      <SubmittedResumeModal
+        isOpen={Boolean(popoutModalData)}
+        company={popoutModalData?.company || ''}
+        jobTitle={popoutModalData?.jobTitle || ''}
+        methodLabel={popoutModalData?.methodLabel || 'Base Profile CV'}
+        submittedAt={popoutModalData?.submittedAt}
+        resume={popoutModalData?.resume || null}
+        baseResume={profile.structuredResume}
+        theme={theme}
+        onClose={() => setPopoutModalData(null)}
+        onEditInStudio={(resume) =>
+          onOpenInResumeStudio(
+            resume,
+            subView === 'applied' ? selectedApplied?.job : null
+          )
+        }
+      />
     </div>
   );
 }

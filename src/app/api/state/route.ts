@@ -184,7 +184,7 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Supabase sync failed';
-        if (!authUser.isAdmin) {
+        if (!authUser.isAdmin || Boolean(process.env.VERCEL)) {
           return NextResponse.json(
             {
               saved: false,

@@ -36,13 +36,14 @@ function rowToRecord(row: TailoredResumeRow): TailoredResumeRecord {
   const inferredSource: TailoredResumeSourceType =
     row.source_type === 'manual-edit' ||
     row.source_type === 'smart-engine' ||
-    row.source_type === 'ai-tailor'
+    row.source_type === 'ai-tailor' ||
+    row.source_type === 'base'
       ? row.source_type
       : method === 'gemini-ai'
         ? 'ai-tailor'
         : method === 'smart-engine'
           ? 'smart-engine'
-          : 'manual-edit';
+          : 'base';
 
   return {
     id: row.id,

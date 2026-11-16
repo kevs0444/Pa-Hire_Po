@@ -147,6 +147,31 @@ export function buildSeededUserProfile(params: {
   };
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function sanitizeUuid(value?: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  return UUID_REGEX.test(trimmed) ? trimmed : null;
+}
+
+export function isMissingJobColumnError(err: unknown): boolean {
+  const code = (err as { code?: string })?.code || '';
+  const msg = (err as { message?: string })?.message || '';
+  return (
+    code === '42703' ||
+    code === 'PGRST204' ||
+    msg.includes('application_stage') ||
+    msg.includes('application_notes') ||
+    msg.includes('tailored_resume_id') ||
+    msg.includes('status_updated_at') ||
+    msg.includes('saved_at') ||
+    msg.includes('applied_at') ||
+    msg.includes('hidden_at')
+  );
+}
+
 export function jobListingToRow(
   userId: string,
   job: JobListing,
@@ -190,7 +215,7 @@ export function jobListingToRow(
     hidden_at: job.hiddenAt ?? null,
     application_stage: job.applicationStage || 'applied',
     application_notes: job.applicationNotes || '',
-    tailored_resume_id: job.tailoredResumeId ?? null,
+    tailored_resume_id: sanitizeUuid(job.tailoredResumeId),
     status_updated_at: job.statusUpdatedAt || new Date().toISOString(),
   };
 }
@@ -407,14 +432,7 @@ export async function syncUserStoreToSupabase(
     .eq('user_id', params.userId);
 
   if (extRes.error) {
-    const code = (extRes.error as { code?: string }).code || '';
-    const msg = (extRes.error as { message?: string }).message || '';
-    if (
-      code === '42703' ||
-      code === 'PGRST204' ||
-      msg.includes('application_stage') ||
-      msg.includes('status_updated_at')
-    ) {
+    if (isMissingJobColumnError(extRes.error)) {
       supportsExtendedColumns = false;
       const fallbackRes = await db
         .from('user_jobs')

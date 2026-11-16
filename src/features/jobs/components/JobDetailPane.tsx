@@ -168,7 +168,7 @@ export function JobDetailPane({
           type="button"
           onClick={() => onOpenApplyModal(job)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
+            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
             primaryBtn
           )}
         >
@@ -179,12 +179,12 @@ export function JobDetailPane({
           type="button"
           onClick={() => onToggleQueueJob(job.id)}
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             isQueued ? primaryBtn : secondaryBtn
           )}
         >
           {isQueued ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check key="queued-check" className="civic-confirm-pop h-3.5 w-3.5" />
           ) : (
             <ListPlus className="h-3.5 w-3.5" />
           )}
@@ -197,12 +197,13 @@ export function JobDetailPane({
             onUpdateStatus(job.id, job.status === 'saved' ? 'suggested' : 'saved')
           }
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-            secondaryBtn
+            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            job.status === 'saved' ? primaryBtn : secondaryBtn
           )}
+          aria-pressed={job.status === 'saved'}
         >
           {job.status === 'saved' ? (
-            <BookmarkCheck className="h-3.5 w-3.5" />
+            <BookmarkCheck key="saved-check" className="civic-confirm-pop h-3.5 w-3.5" />
           ) : (
             <Bookmark className="h-3.5 w-3.5" />
           )}
@@ -218,11 +219,22 @@ export function JobDetailPane({
             )
           }
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-            secondaryBtn
+            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            job.status === 'applied'
+              ? isDark
+                ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
+                : 'border-emerald-300 bg-emerald-50 text-emerald-800 font-semibold'
+              : secondaryBtn
           )}
+          aria-pressed={job.status === 'applied'}
         >
-          <CheckCircle2 className="h-3.5 w-3.5" />
+          <CheckCircle2
+            key={job.status === 'applied' ? 'applied-check' : 'applied-idle'}
+            className={cn(
+              'h-3.5 w-3.5',
+              job.status === 'applied' && 'civic-confirm-pop'
+            )}
+          />
           {job.status === 'applied' ? 'Applied' : 'Mark Applied'}
         </button>
 
@@ -231,7 +243,7 @@ export function JobDetailPane({
           target="_blank"
           rel="noopener noreferrer"
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             secondaryBtn
           )}
         >
@@ -244,9 +256,13 @@ export function JobDetailPane({
           onClick={() =>
             onUpdateStatus(job.id, job.status === 'hidden' ? 'suggested' : 'hidden')
           }
-          className={cn('ml-auto rounded-lg border p-2 transition-colors', secondaryBtn)}
-          title="Hide job"
-          aria-label="Hide job"
+          className={cn(
+            'civic-btn-motion ml-auto rounded-lg border p-2 transition-colors',
+            job.status === 'hidden' ? primaryBtn : secondaryBtn
+          )}
+          title={job.status === 'hidden' ? 'Unhide job' : 'Hide job'}
+          aria-label={job.status === 'hidden' ? 'Unhide job' : 'Hide job'}
+          aria-pressed={job.status === 'hidden'}
         >
           <EyeOff className="h-4 w-4" />
         </button>

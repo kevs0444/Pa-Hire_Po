@@ -98,6 +98,18 @@ function ApplyFlowContent({
   const handleApplyAndMark = () => {
     window.open(job.url, '_blank', 'noopener,noreferrer');
     const resumeUsed = tailoredResume || profile.structuredResume;
+    const isModifiedFromBase =
+      Boolean(tailoredResume) &&
+      JSON.stringify(tailoredResume) !== JSON.stringify(profile.structuredResume);
+    const inferredSourceType =
+      resumeUsed.tailorMethod === 'gemini-ai'
+        ? 'ai-tailor'
+        : resumeUsed.tailorMethod === 'smart-engine'
+          ? 'smart-engine'
+          : isModifiedFromBase
+            ? 'manual-edit'
+            : 'base';
+
     if (snapshotId) {
       void fetch('/api/resumes/history', {
         method: 'PATCH',
@@ -122,7 +134,7 @@ function ApplyFlowContent({
           jobTitle: job.title,
           company: job.company,
           tailorMethod: resumeUsed.tailorMethod || 'base',
-          sourceType: 'manual-edit',
+          sourceType: inferredSourceType,
           isSent: true,
           resumeData: {
             ...resumeUsed,

@@ -62,7 +62,11 @@ export interface StructuredResume {
   fontFamily?: ResumeFontFamily;
 }
 
-export type TailoredResumeSourceType = 'ai-tailor' | 'smart-engine' | 'manual-edit';
+export type TailoredResumeSourceType =
+  | 'base'
+  | 'ai-tailor'
+  | 'smart-engine'
+  | 'manual-edit';
 
 export interface TailoredResumeRecord {
   id: string;

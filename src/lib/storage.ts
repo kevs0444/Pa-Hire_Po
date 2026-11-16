@@ -1,6 +1,7 @@
 import {
   AppStoreState,
   AuthSessionUser,
+  JobListing,
   UserProfile,
 } from '@/types/job';
 import { MAR_KEVIN_PROFILE } from '@/lib/default-profile';
@@ -222,22 +223,54 @@ async function flushPendingSync(): Promise<string> {
   }
 
   try {
+    // Do NOT set keepalive: true on full-state sync; payloads with 150 jobs exceed
+    // the browser's 64 KiB keepalive limit and get silently rejected.
     const res = await fetch('/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      keepalive: true,
       body: JSON.stringify({ ...payload, _syncScope: effectiveScope }),
     });
-    const data = (await res.json()) as {
+    const data = (await res.json().catch(() => ({}))) as {
       storageMode?: string;
       saved?: boolean;
     };
-    const mode = data.storageMode || 'browser-only';
+    const mode = res.ok ? data.storageMode || 'browser-only' : 'browser-only';
     resolvers.forEach((r) => r(mode));
     return mode;
   } catch {
     resolvers.forEach((r) => r('browser-only'));
     return 'browser-only';
+  }
+}
+
+export async function syncSingleJobToServer(job: JobListing): Promise<{
+  saved: boolean;
+  storageMode: string;
+  error?: string;
+}> {
+  try {
+    const res = await fetch('/api/jobs/status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      keepalive: true,
+      body: JSON.stringify({ job }),
+    });
+    const data = (await res.json().catch(() => ({}))) as {
+      saved?: boolean;
+      storageMode?: string;
+      error?: string;
+    };
+    return {
+      saved: res.ok && Boolean(data.saved),
+      storageMode: data.storageMode || 'browser-only',
+      error: data.error,
+    };
+  } catch (err) {
+    return {
+      saved: false,
+      storageMode: 'browser-only',
+      error: err instanceof Error ? err.message : 'Network error',
+    };
   }
 }
 

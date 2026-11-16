@@ -97,6 +97,196 @@ dialog::backdrop {
   }
 }
 
+@property --arc-start {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --arc-end {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@property --progress-dash-animation {
+  syntax: "*";
+  inherits: false;
+  initial-value: , progress-dash 2.6s ease-in-out infinite;
+}
+
+progress.loading-spinner:indeterminate::-webkit-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate::-webkit-progress-value {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate::-moz-progress-bar {
+  display: none;
+  background: none;
+}
+
+progress.loading-spinner:indeterminate {
+  --_from: calc(90deg + var(--arc-start, 0deg));
+  --_to: calc(90deg + var(--arc-end, 158deg));
+  --size: 20px;
+  --thickness: 2.5px;
+  --spinner-color: #0a66c2;
+  --track-color: #cbd5e1;
+  --spinner-duration: 1.35s;
+  --_used-spinner-duration: var(--spinner-duration);
+
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  appearance: none;
+  background: conic-gradient(
+      from var(--_from),
+      var(--spinner-color) calc(var(--_to) - var(--_from)),
+      transparent 0
+    )
+    var(--track-color);
+
+  @supports (background-clip: border-area) {
+    background-clip: border-area;
+    border: var(--thickness) solid transparent;
+    background-origin: border-box;
+  }
+
+  @supports not (background-clip: border-area) {
+    --clip-boundary: calc(100% - var(--thickness));
+    mask-image: radial-gradient(
+      farthest-side,
+      transparent var(--clip-boundary),
+      black var(--clip-boundary)
+    );
+    border: 0;
+  }
+
+  @media (forced-colors: active) {
+    forced-color-adjust: none;
+    --spinner-color: CanvasText;
+    --track-color: Canvas;
+  }
+
+  animation:
+    progress-spin var(--_used-spinner-duration) linear infinite
+    var(--progress-dash-animation, );
+
+  @media (prefers-reduced-motion: reduce) {
+    --_used-spinner-duration: 6s;
+    --progress-dash-animation: ;
+    --arc-end: 158deg;
+  }
+}
+
+@keyframes progress-spin {
+  to {
+    rotate: 1turn;
+  }
+}
+
+@keyframes progress-dash {
+  from {
+    --arc-start: 0deg;
+    --arc-end: 3deg;
+  }
+  50% {
+    --arc-start: 100deg;
+    --arc-end: 358deg;
+  }
+  to {
+    --arc-start: 360deg;
+    --arc-end: 363deg;
+  }
+}
+
+.civic-btn-motion {
+  transition:
+    box-shadow 150ms ease-out,
+    background-color 150ms ease-out,
+    border-color 150ms ease-out,
+    color 150ms ease-out,
+    opacity 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .civic-btn-motion {
+    transition:
+      box-shadow 150ms ease-out,
+      scale 150ms ease-out,
+      background-color 150ms ease-out,
+      border-color 150ms ease-out,
+      color 150ms ease-out,
+      opacity 150ms ease-out;
+  }
+
+  .civic-btn-motion:active:not(:disabled) {
+    scale: 0.97;
+  }
+
+  .civic-confirm-pop {
+    animation: civic-pop 220ms ease-out both;
+    animation: civic-pop 260ms linear(0, 0.5 18%, 1.06 48%, 0.99 78%, 1) both;
+  }
+}
+
+@keyframes civic-pop {
+  from {
+    scale: 0.94;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+[popover].notification-popover {
+  transform-origin: top right;
+}
+
+@supports (position-area: block-end) {
+  [popover].notification-popover {
+    inset: auto;
+    margin: 0;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  }
+}
+
+[popover].notification-popover:is(:popover-open, .\:popover-open) {
+  animation: popover-fade-in 140ms ease-out both;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [popover].notification-popover:is(:popover-open, .\:popover-open) {
+    animation:
+      popover-grow 240ms ease-out both,
+      popover-fade-in 140ms ease-out both;
+    animation:
+      popover-grow 260ms linear(0, 0.45 15%, 1.05 42%, 0.99 75%, 1) both,
+      popover-fade-in 140ms ease-out both;
+  }
+}
+
+@keyframes popover-grow {
+  from {
+    scale: 0.93;
+  }
+}
+
+@keyframes popover-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 @page {
   size: A4 portrait;
   margin: 8mm;

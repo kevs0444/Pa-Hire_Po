@@ -47,6 +47,7 @@ import {
   getDefaultStoreState,
   loadLocalState,
   saveLocalState,
+  syncSingleJobToServer,
   syncStateToServer,
 } from '@/lib/storage';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -64,6 +65,10 @@ import {
   SettingsSection,
   SettingsSidepanel,
 } from '@/features/settings/components/SettingsSidepanel';
+import { ChangelogModal } from '@/features/changelog/components/ChangelogModal';
+import { USER_CHANGELOG_RELEASES } from '@/features/changelog/data/changelog-data';
+import type { ActivityNotification } from '@/features/notifications/types';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LandingPageView } from '@/components/LandingPageView';
 import { AppTopNavbar } from '@/components/layout/AppTopNavbar';
 import { BoardLogo } from '@/components/ui/BrandLogos';
@@ -148,15 +153,31 @@ export function PleaseHireMeDashboard({
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [autoRefreshSeconds, setAutoRefreshSeconds] = useState<number>(0);
   const [countdown, setCountdown] = useState<number>(5);
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [applyModalJob, setApplyModalJob] = useState<JobListing | null>(null);
   const [howItWorksOpen, setHowItWorksOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection>('personal');
+  const [dbSyncCount, setDbSyncCount] = useState(0);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [notifications, setNotifications] = useState<ActivityNotification[]>([
+    {
+      id: `release-${USER_CHANGELOG_RELEASES[0]?.version || 'latest'}`,
+      kind: 'release',
+      title: `What is New (${USER_CHANGELOG_RELEASES[0]?.version || 'Latest'})`,
+      detail:
+        USER_CHANGELOG_RELEASES[0]?.headline ||
+        'See the newest updates in your job search workspace.',
+      createdAt: '2026-11-16T00:00:00.000Z',
+      read: false,
+    },
+  ]);
 
   // Resume Compilation state
   const [resumeRecords, setResumeRecords] = useState<TailoredResumeRecord[]>(
@@ -183,6 +204,30 @@ export function PleaseHireMeDashboard({
   const initialAutoScanRan = useRef(false);
   const scanInFlightRef = useRef(false);
   const authUserIdRef = useRef<string | null>(null);
+  const broadcastRef = useRef<BroadcastChannel | null>(null);
+
+  const pushNotification = useCallback(
+    (
+      entry: Omit<ActivityNotification, 'id' | 'createdAt' | 'read'>,
+      broadcast = true
+    ) => {
+      const nextItem: ActivityNotification = {
+        ...entry,
+        id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        createdAt: new Date().toISOString(),
+        read: false,
+      };
+      setNotifications((prev) => [nextItem, ...prev].slice(0, 30));
+      if (broadcast && broadcastRef.current) {
+        try {
+          broadcastRef.current.postMessage({ type: 'notification', item: nextItem });
+        } catch {
+          // Ignore closed channel
+        }
+      }
+    },
+    []
+  );
 
   const activeProfile = useMemo(() => getActiveUser(store), [store]);
   const theme = store.theme;
@@ -206,9 +251,14 @@ export function PleaseHireMeDashboard({
     ) => {
       setStore(next);
       saveLocalState(next, authUserIdRef.current);
-      void syncStateToServer(next, syncScope, options).then((mode) => {
-        if (mode) setStorageMode(mode);
-      });
+      setDbSyncCount((c) => c + 1);
+      void syncStateToServer(next, syncScope, options)
+        .then((mode) => {
+          if (mode) setStorageMode(mode);
+        })
+        .finally(() => {
+          setDbSyncCount((c) => Math.max(0, c - 1));
+        });
     },
     []
   );
@@ -355,9 +405,25 @@ export function PleaseHireMeDashboard({
           };
 
           saveLocalState(nextState, authUserIdRef.current);
-          void syncStateToServer(nextState);
+          setDbSyncCount((c) => c + 1);
+          void syncStateToServer(nextState)
+            .then((mode) => {
+              if (mode) setStorageMode(mode);
+            })
+            .finally(() => {
+              setDbSyncCount((c) => Math.max(0, c - 1));
+            });
           return nextState;
         });
+
+        if (incoming.length > 0) {
+          pushNotification({
+            kind: 'scan',
+            title: 'Job search updated',
+            detail: `Found ${incoming.length} listings for ${searchedRoles.map((r) => r.role).slice(0, 2).join(', ')}.`,
+            targetTab: 'jobs',
+          });
+        }
       } catch (err) {
         setScanError(
           err instanceof Error ? err.message : 'Unable to complete job scan.'
@@ -367,7 +433,7 @@ export function PleaseHireMeDashboard({
         setScanning(false);
       }
     },
-    [activeProfile, enabledSources]
+    [activeProfile, enabledSources, pushNotification]
   );
 
   // Hydrate initial state + detect Electron Desktop host
@@ -442,6 +508,136 @@ export function PleaseHireMeDashboard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Real-time activity sync across open tabs + Supabase Realtime
+  useEffect(() => {
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('pa-hire-po-notifications');
+      broadcastRef.current = channel;
+      channel.onmessage = (event: MessageEvent) => {
+        const data = event.data as {
+          type?: string;
+          item?: ActivityNotification;
+        };
+        if (data?.type === 'notification' && data.item) {
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === data.item!.id)) return prev;
+            return [data.item!, ...prev].slice(0, 30);
+          });
+        }
+      };
+    }
+
+    let cancelled = false;
+    let activeChannel: ReturnType<
+      NonNullable<ReturnType<typeof createBrowserSupabaseClient>>['channel']
+    > | null = null;
+    let activeSupabase: ReturnType<typeof createBrowserSupabaseClient> = null;
+
+    async function connectRealtime() {
+      if (!authUser?.id || storageMode !== 'supabase-cloud') return;
+      const setupRes = await fetch('/api/supabase/setup', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+      if (cancelled) return;
+
+      const supabase = createBrowserSupabaseClient(
+        setupRes?.url,
+        setupRes?.anonKey
+      );
+      if (!supabase) return;
+      activeSupabase = supabase;
+
+      activeChannel = supabase
+        .channel(`user-activity-${authUser.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_jobs',
+            filter: `user_id=eq.${authUser.id}`,
+          },
+          (payload) => {
+            const row = (payload.new || payload.old) as {
+              id?: string;
+              title?: string;
+              company?: string;
+              status?: string;
+            };
+            if (!row?.id) return;
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              if (
+                row.status === 'saved' ||
+                row.status === 'applied' ||
+                row.status === 'hidden'
+              ) {
+                const label =
+                  row.status === 'applied'
+                    ? 'Application synced'
+                    : row.status === 'saved'
+                      ? 'Saved job synced'
+                      : 'Hidden job synced';
+                pushNotification(
+                  {
+                    kind: row.status,
+                    title: label,
+                    detail: `${row.title || 'Job'} at ${row.company || 'Company'}`,
+                    targetTab: row.status === 'applied' ? 'applications' : 'jobs',
+                    targetJobId: row.id,
+                  },
+                  false
+                );
+              }
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'tailored_resumes',
+            filter: `user_id=eq.${authUser.id}`,
+          },
+          (payload) => {
+            const row = payload.new as {
+              company?: string;
+              job_title?: string;
+            };
+            void loadResumeHistory();
+            pushNotification(
+              {
+                kind: 'resume',
+                title: 'Resume version saved',
+                detail: `${row?.job_title || 'Resume'}${row?.company ? ` for ${row.company}` : ''}`,
+                targetTab: 'applications',
+              },
+              false
+            );
+          }
+        )
+        .subscribe((status) => {
+          if (!cancelled) {
+            setIsRealtimeConnected(status === 'SUBSCRIBED');
+          }
+        });
+    }
+
+    void connectRealtime();
+
+    return () => {
+      cancelled = true;
+      setIsRealtimeConnected(false);
+      if (broadcastRef.current) {
+        broadcastRef.current.close();
+        broadcastRef.current = null;
+      }
+      if (activeSupabase && activeChannel) {
+        void activeSupabase.removeChannel(activeChannel);
+      }
+    };
+  }, [authUser?.id, loadResumeHistory, pushNotification, storageMode]);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -538,26 +734,67 @@ export function PleaseHireMeDashboard({
     tailoredResumeId?: string | null
   ) => {
     const nowIso = new Date().toISOString();
-    const nextJobs = store.jobs.map((j) => {
-      if (j.id !== jobId) return j;
-      return {
-        ...j,
-        status,
-        statusUpdatedAt: nowIso,
-        savedAt: status === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
-        appliedAt:
-          status === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
-        hiddenAt:
-          status === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
-        applicationStage:
-          status === 'applied' ? j.applicationStage || 'applied' : j.applicationStage,
-        tailoredResumeId:
-          tailoredResumeId !== undefined
-            ? tailoredResumeId
-            : j.tailoredResumeId ?? null,
-      };
+    let updatedJob: JobListing | null = null;
+
+    setStore((prev) => {
+      const nextJobs = prev.jobs.map((j) => {
+        if (j.id !== jobId) return j;
+        updatedJob = {
+          ...j,
+          status,
+          statusUpdatedAt: nowIso,
+          savedAt: status === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
+          appliedAt:
+            status === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
+          hiddenAt:
+            status === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
+          applicationStage:
+            status === 'applied'
+              ? j.applicationStage || 'applied'
+              : j.applicationStage,
+          tailoredResumeId:
+            tailoredResumeId !== undefined
+              ? tailoredResumeId
+              : j.tailoredResumeId ?? null,
+        };
+        return updatedJob;
+      });
+      const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+      saveLocalState(nextState, authUserIdRef.current);
+      return nextState;
     });
-    persistStore({ ...store, jobs: nextJobs }, 'full', { immediate: true });
+
+    if (updatedJob) {
+      const savedTarget: JobListing = updatedJob;
+      setDbSyncCount((c) => c + 1);
+      void syncSingleJobToServer(savedTarget)
+        .then((res) => {
+          if (res.saved) {
+            setStorageMode(res.storageMode);
+            setSyncError(null);
+          } else if (res.error) {
+            setSyncError(`Cloud save failed: ${res.error}`);
+          }
+        })
+        .finally(() => {
+          setDbSyncCount((c) => Math.max(0, c - 1));
+        });
+
+      if (status === 'saved' || status === 'applied' || status === 'hidden') {
+        const titleMap = {
+          saved: 'Job saved',
+          applied: 'Application logged',
+          hidden: 'Job hidden',
+        } as const;
+        pushNotification({
+          kind: status,
+          title: titleMap[status],
+          detail: `${savedTarget.title} at ${savedTarget.company}`,
+          targetTab: status === 'applied' ? 'applications' : 'jobs',
+          targetJobId: savedTarget.id,
+        });
+      }
+    }
     if (status === 'applied') {
       void loadResumeHistory();
     }
@@ -573,25 +810,46 @@ export function PleaseHireMeDashboard({
     }
   ) => {
     const nowIso = new Date().toISOString();
-    const nextJobs = store.jobs.map((j) => {
-      if (j.id !== jobId) return j;
-      const nextStatus = patch.status ?? j.status;
-      return {
-        ...j,
-        ...patch,
-        status: nextStatus,
-        statusUpdatedAt: nowIso,
-        savedAt:
-          nextStatus === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
-        appliedAt:
-          nextStatus === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
-        hiddenAt:
-          nextStatus === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
-      };
+    let updatedJob: JobListing | null = null;
+
+    setStore((prev) => {
+      const nextJobs = prev.jobs.map((j) => {
+        if (j.id !== jobId) return j;
+        const nextStatus = patch.status ?? j.status;
+        updatedJob = {
+          ...j,
+          ...patch,
+          status: nextStatus,
+          statusUpdatedAt: nowIso,
+          savedAt:
+            nextStatus === 'saved' ? j.savedAt || nowIso : j.savedAt ?? null,
+          appliedAt:
+            nextStatus === 'applied' ? j.appliedAt || nowIso : j.appliedAt ?? null,
+          hiddenAt:
+            nextStatus === 'hidden' ? j.hiddenAt || nowIso : j.hiddenAt ?? null,
+        };
+        return updatedJob;
+      });
+      const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+      saveLocalState(nextState, authUserIdRef.current);
+      return nextState;
     });
-    persistStore({ ...store, jobs: nextJobs }, 'full', {
-      immediate: patch.status !== undefined || patch.applicationStage !== undefined,
-    });
+
+    if (updatedJob) {
+      setDbSyncCount((c) => c + 1);
+      void syncSingleJobToServer(updatedJob)
+        .then((res) => {
+          if (res.saved) {
+            setStorageMode(res.storageMode);
+            setSyncError(null);
+          } else if (res.error) {
+            setSyncError(`Cloud save failed: ${res.error}`);
+          }
+        })
+        .finally(() => {
+          setDbSyncCount((c) => Math.max(0, c - 1));
+        });
+    }
   };
 
   const handleSaveResumeSnapshot = async (params: {
@@ -625,6 +883,13 @@ export function PleaseHireMeDashboard({
       const data = (await res.json()) as { record?: TailoredResumeRecord };
       if (data.record && params.jobId && params.isSent) {
         handleUpdateJobStatus(params.jobId, 'applied', data.record.id);
+      } else {
+        pushNotification({
+          kind: 'resume',
+          title: 'Resume snapshot archived',
+          detail: `${params.jobTitle} for ${params.company}`,
+          targetTab: 'applications',
+        });
       }
       await loadResumeHistory();
     }
@@ -640,61 +905,87 @@ export function PleaseHireMeDashboard({
   }) => {
     const nowIso = new Date().toISOString();
     const jobId = `ext-${Date.now().toString(36)}`;
-    const snapshotRes = await fetch('/api/resumes/history', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jobId,
-        jobTitle: payload.title,
+    const inferredSource =
+      payload.resume.tailorMethod === 'gemini-ai'
+        ? 'ai-tailor'
+        : payload.resume.tailorMethod === 'smart-engine'
+          ? 'smart-engine'
+          : 'base';
+    setDbSyncCount((c) => c + 1);
+    try {
+      const snapshotRes = await fetch('/api/resumes/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobId,
+          jobTitle: payload.title,
+          company: payload.company,
+          tailorMethod: payload.resume.tailorMethod || 'base',
+          sourceType: inferredSource,
+          isSent: true,
+          notes: payload.notes,
+          resumeData: {
+            ...payload.resume,
+            tailoredForCompany: payload.company,
+            tailoredForJobTitle: payload.title,
+          },
+        }),
+      });
+      const snapshotData = snapshotRes.ok
+        ? ((await snapshotRes.json()) as { record?: TailoredResumeRecord })
+        : null;
+
+      const newJob: JobListing = {
+        id: jobId,
+        title: payload.title,
         company: payload.company,
-        tailorMethod: payload.resume.tailorMethod || 'base',
-        sourceType: 'manual-edit',
-        isSent: true,
-        notes: payload.notes,
-        resumeData: {
-          ...payload.resume,
-          tailoredForCompany: payload.company,
-          tailoredForJobTitle: payload.title,
-        },
-      }),
-    });
-    const snapshotData = snapshotRes.ok
-      ? ((await snapshotRes.json()) as { record?: TailoredResumeRecord })
-      : null;
+        location: activeProfile.location || 'Remote',
+        source: payload.source,
+        url: payload.url || '#',
+        postedAt: nowIso,
+        salary: activeProfile.salaryExpectation || null,
+        description:
+          payload.notes ||
+          `External application logged for ${payload.company}.`,
+        workType: activeProfile.workType || 'any',
+        searchedRole: payload.title,
+        isPivotSuggestion: false,
+        experienceRequired: 'Open / Not Specified',
+        experienceFit: 'fit',
+        matchScore: 85,
+        matchedSkills: activeProfile.skills.slice(0, 4),
+        missingSkills: [],
+        matchReason: 'External application logged by user',
+        tailoringTips: [],
+        status: 'applied',
+        discoveredAt: nowIso,
+        appliedAt: nowIso,
+        applicationStage: 'applied',
+        applicationNotes: payload.notes,
+        tailoredResumeId: snapshotData?.record?.id || null,
+        statusUpdatedAt: nowIso,
+      };
 
-    const newJob: JobListing = {
-      id: jobId,
-      title: payload.title,
-      company: payload.company,
-      location: activeProfile.location || 'Remote',
-      source: payload.source,
-      url: payload.url || '#',
-      postedAt: nowIso,
-      salary: activeProfile.salaryExpectation || null,
-      description: payload.notes || `External application logged for ${payload.company}.`,
-      workType: activeProfile.workType || 'any',
-      searchedRole: payload.title,
-      isPivotSuggestion: false,
-      experienceRequired: 'Open / Not Specified',
-      experienceFit: 'fit',
-      matchScore: 85,
-      matchedSkills: activeProfile.skills.slice(0, 4),
-      missingSkills: [],
-      matchReason: 'External application logged by user',
-      tailoringTips: [],
-      status: 'applied',
-      discoveredAt: nowIso,
-      appliedAt: nowIso,
-      applicationStage: 'applied',
-      applicationNotes: payload.notes,
-      tailoredResumeId: snapshotData?.record?.id || null,
-      statusUpdatedAt: nowIso,
-    };
-
-    persistStore({ ...store, jobs: [newJob, ...store.jobs] }, 'full', {
-      immediate: true,
-    });
-    await loadResumeHistory();
+      setStore((prev) => {
+        const nextState: AppStoreState = {
+          ...prev,
+          jobs: [newJob, ...prev.jobs],
+        };
+        saveLocalState(nextState, authUserIdRef.current);
+        return nextState;
+      });
+      await syncSingleJobToServer(newJob);
+      await loadResumeHistory();
+      pushNotification({
+        kind: 'applied',
+        title: 'External application logged',
+        detail: `${payload.title} at ${payload.company}`,
+        targetTab: 'applications',
+        targetJobId: jobId,
+      });
+    } finally {
+      setDbSyncCount((c) => Math.max(0, c - 1));
+    }
   };
 
   const handleUpdateResumeRecord = async (
@@ -923,6 +1214,11 @@ export function PleaseHireMeDashboard({
         hydrated={hydrated}
         activeJobsCount={activeJobsCount}
         appliedCount={store.jobs.filter((j) => j.status === 'applied').length}
+        dbSyncing={dbSyncCount > 0}
+        notifications={notifications}
+        unreadCount={notifications.filter((n) => !n.read).length}
+        nowMs={clientNow}
+        isRealtimeConnected={isRealtimeConnected}
         authUser={authUser}
         storageMode={storageMode}
         adminUserCount={adminUserCount}
@@ -932,6 +1228,26 @@ export function PleaseHireMeDashboard({
         onOpenSettings={() => {
           setSettingsSection('personal');
           setSettingsOpen(true);
+        }}
+        onOpenChangelog={() => setChangelogOpen(true)}
+        onMarkAllNotificationsRead={() =>
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+        }
+        onClearNotifications={() => setNotifications([])}
+        onSelectNotification={(item) => {
+          setNotifications((prev) =>
+            prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
+          );
+          if (item.kind === 'release') {
+            setChangelogOpen(true);
+            return;
+          }
+          if (item.targetJobId) {
+            setSelectedJobId(item.targetJobId);
+          }
+          if (item.targetTab) {
+            setActiveTab(item.targetTab);
+          }
         }}
         onChangeTheme={(nextTheme) =>
           persistStore(
@@ -945,6 +1261,56 @@ export function PleaseHireMeDashboard({
       />
 
       <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6">
+        {!hydrated ? (
+          <div className="space-y-4">
+            <div className={cn('flex items-center gap-3 rounded-lg border p-5', cardSurface)}>
+              <LoadingSpinner
+                size={24}
+                thickness={2.5}
+                isDark={isDark}
+                label="Loading workspace from database"
+              />
+              <div>
+                <p className="text-sm font-semibold">
+                  Loading your workspace...
+                </p>
+                <p className={cn('text-xs', mutedText)}>
+                  Syncing saved jobs, applications, target roles, and resume snapshots.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className={cn('h-28 animate-pulse rounded-lg border p-4', cardSurface)}
+                />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <>
+        {syncError && (
+          <div
+            role="alert"
+            className={cn(
+              'no-print mb-4 flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-xs font-medium',
+              isDark
+                ? 'border-red-500/40 bg-red-950/50 text-red-300'
+                : 'border-red-300 bg-red-50 text-red-700'
+            )}
+          >
+            <span>{syncError}</span>
+            <button
+              type="button"
+              onClick={() => setSyncError(null)}
+              className={cn('rounded border px-2 py-0.5 text-[11px]', secondaryBtn)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {/* TAB 0: OVERVIEW */}
         {activeTab === 'home' && (
           <LandingPageView
@@ -1228,10 +1594,22 @@ export function PleaseHireMeDashboard({
               <div className="flex flex-wrap items-center gap-1.5">
                 {(
                   [
-                    { key: 'active', label: 'All Active' },
-                    { key: 'saved', label: 'Saved' },
-                    { key: 'applied', label: 'Applied' },
-                    { key: 'hidden', label: 'Hidden' },
+                    { key: 'active', label: 'All Active', count: activeJobsCount },
+                    {
+                      key: 'saved',
+                      label: 'Saved',
+                      count: store.jobs.filter((j) => j.status === 'saved').length,
+                    },
+                    {
+                      key: 'applied',
+                      label: 'Applied',
+                      count: store.jobs.filter((j) => j.status === 'applied').length,
+                    },
+                    {
+                      key: 'hidden',
+                      label: 'Hidden',
+                      count: store.jobs.filter((j) => j.status === 'hidden').length,
+                    },
                   ] as const
                 ).map((t) => (
                   <button
@@ -1239,11 +1617,16 @@ export function PleaseHireMeDashboard({
                     type="button"
                     onClick={() => setStatusFilter(t.key)}
                     className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                       statusFilter === t.key ? primaryBtn : secondaryBtn
                     )}
                   >
-                    {t.label}
+                    <span>{t.label}</span>
+                    {hydrated && t.count > 0 && (
+                      <span className="font-mono text-[11px] tabular-nums opacity-85">
+                        ({t.count})
+                      </span>
+                    )}
                   </button>
                 ))}
 
@@ -1670,6 +2053,8 @@ export function PleaseHireMeDashboard({
         {activeTab === 'admin' && authUser?.isAdmin && (
           <AdminDashboardView theme={store.theme} authUser={authUser} />
         )}
+          </>
+        )}
       </main>
 
       {/* STEP-BY-STEP APPLY & RESUME STUDIO AI MODAL */}
@@ -1714,6 +2099,13 @@ export function PleaseHireMeDashboard({
         isOpen={howItWorksOpen}
         theme={store.theme}
         onClose={() => setHowItWorksOpen(false)}
+      />
+
+      {/* CUSTOMER-FRIENDLY WHAT'S NEW CHANGELOG MODAL */}
+      <ChangelogModal
+        isOpen={changelogOpen}
+        theme={store.theme}
+        onClose={() => setChangelogOpen(false)}
       />
     </div>
   );

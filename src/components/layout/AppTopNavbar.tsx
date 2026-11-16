@@ -21,6 +21,9 @@ import {
   MonochromeTheme,
   UserProfile,
 } from '@/types/job';
+import type { ActivityNotification } from '@/features/notifications/types';
+import { NotificationBell } from '@/features/notifications/components/NotificationBell';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +36,11 @@ interface AppTopNavbarProps {
   hydrated: boolean;
   activeJobsCount: number;
   appliedCount?: number;
+  dbSyncing?: boolean;
+  notifications?: ActivityNotification[];
+  unreadCount?: number;
+  nowMs?: number | null;
+  isRealtimeConnected?: boolean;
   authUser: AuthSessionUser | null;
   storageMode: string;
   adminUserCount: number | null;
@@ -40,6 +48,10 @@ interface AppTopNavbarProps {
   onSignOut: () => void;
   onOpenHowItWorks: () => void;
   onOpenSettings: () => void;
+  onOpenChangelog: () => void;
+  onMarkAllNotificationsRead?: () => void;
+  onClearNotifications?: () => void;
+  onSelectNotification?: (item: ActivityNotification) => void;
   onChangeTheme: (theme: MonochromeTheme) => void;
 }
 
@@ -52,6 +64,11 @@ export function AppTopNavbar({
   hydrated,
   activeJobsCount,
   appliedCount = 0,
+  dbSyncing = false,
+  notifications = [],
+  unreadCount = 0,
+  nowMs = null,
+  isRealtimeConnected = false,
   authUser,
   storageMode,
   adminUserCount,
@@ -59,6 +76,10 @@ export function AppTopNavbar({
   onSignOut,
   onOpenHowItWorks,
   onOpenSettings,
+  onOpenChangelog,
+  onMarkAllNotificationsRead = () => undefined,
+  onClearNotifications = () => undefined,
+  onSelectNotification = () => undefined,
   onChangeTheme,
 }: AppTopNavbarProps) {
   const {
@@ -253,11 +274,36 @@ export function AppTopNavbar({
 
         {/* Utility Controls */}
         <div className="flex flex-wrap items-center gap-2 py-2">
+          {dbSyncing && (
+            <div
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium',
+                subSurface
+              )}
+              aria-live="polite"
+            >
+              <LoadingSpinner size={13} thickness={2} isDark={isDark} label="Saving changes" />
+              <span className="hidden sm:inline">Saving...</span>
+            </div>
+          )}
+
+          <NotificationBell
+            theme={theme}
+            notifications={notifications}
+            unreadCount={unreadCount}
+            nowMs={nowMs}
+            isRealtimeConnected={isRealtimeConnected}
+            onMarkAllRead={onMarkAllNotificationsRead}
+            onClearNotifications={onClearNotifications}
+            onSelectNotification={onSelectNotification}
+            onOpenChangelog={onOpenChangelog}
+          />
+
           <button
             type="button"
             onClick={onOpenSettings}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+              'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
               secondaryBtn
             )}
             title="Open Settings, Target Roles, Salary & Desktop App Setup"
@@ -270,7 +316,7 @@ export function AppTopNavbar({
             type="button"
             onClick={onOpenHowItWorks}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+              'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
               secondaryBtn
             )}
           >
