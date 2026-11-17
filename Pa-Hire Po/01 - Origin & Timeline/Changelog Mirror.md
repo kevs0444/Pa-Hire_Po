@@ -3,15 +3,15 @@ type: timeline
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.3
-commit_ref: "c92d9f1"
+milestone: v1.0.4
+commit_ref: "pending"
 files:
   - CHANGELOG.md
   - package.json
   - src/features/changelog/data/changelog-data.ts
   - src/features/changelog/components/ChangelogModal.tsx
   - src/features/notifications/components/NotificationBell.tsx
-updated: 2026-11-17
+updated: 2026-11-18
 tags:
   - pahirepo
   - changelog
@@ -19,7 +19,14 @@ tags:
 
 # Changelog Mirror
 
-Mirrors day-based customer releases (`v1.0.0` → `v1.0.3`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+Mirrors day-based customer releases (`v1.0.0` → `v1.0.4`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+
+---
+
+## `v1.0.4` — November 18, 2026 (`pending`)
+- **PDF & Word (`.docx`) Resume Import + Smart Profile Sync:** Upload `.pdf`, `.docx`, `.txt`, `.md`, or `.json` resumes via `ResumeUploadDialog.tsx` in **Resume Studio** or **My Profile**, extract full `StructuredResume` via `unpdf` + `mammoth` + Gemini/deterministic parser, sync Smart Profile fields to `user_profiles`, archive an `"Imported: <filename>"` snapshot, and edit immediately in Resume Studio. See [[Feature - Resume Studio AI & ATS Printing]].
+- **Hyphen-Free Smart Justify Mode:** Replaced `[hyphens:auto]` with `[hyphens:none] [word-break:normal] [overflow-wrap:break-word] [text-justify:inter-word] [text-wrap:pretty] [text-align-last:left]` so words never split mid-word across lines.
+- **Optional Company on Save Version & Supabase Profile Sync:** Removed required company constraint from **Save New Resume Version** (`A4ResumePreview.tsx`, `ResumeVersionsDrawer.tsx`) and added `Sync to My Profile & Base CV` (`syncToProfile`) updating `public.user_profiles` alongside `public.tailored_resumes`.
 
 ---
 

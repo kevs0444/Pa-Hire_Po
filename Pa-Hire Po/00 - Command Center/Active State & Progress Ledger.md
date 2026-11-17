@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.3
-commit_ref: "c92d9f1"
+milestone: v1.0.4
+commit_ref: "pending"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-17
+updated: 2026-11-18
 tags:
   - pahirepo
   - ledger
@@ -22,7 +22,7 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.3` — day-based releases `v1.0.0` → `v1.0.3`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.4` — day-based releases `v1.0.0` → `v1.0.4`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
@@ -78,6 +78,7 @@ tags:
 - [x] Zero-Bypass Session Security & Login Hardening: Complete elimination of local dev passwordless bypasses, pure Supabase GoTrue authentication, OWASP defense headers in middleware (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy), and IP rate-limiting on sensitive setup endpoints
 - [x] Admin Control Center Restructure & Live Vercel/Supabase Status: Refactored `AdminDashboardView.tsx` into an accessible 3-tab console (`Overview & Platform Status` | `Users` | `Infrastructure & Free-Tier`) powered by `GET /api/admin/platform-status` (Vercel runtime/cron/`vercel-status.com` + Supabase Auth/DB/Storage latency/`status.supabase.com` + P0 Launch Readiness + `@container` responsive User Directory table + hairline-divided `AdminFreeTierCard` using `getThemeTokens(theme)`)
 - [x] Day-Based `v1.0.0`–`v1.0.3` Changelog & Notification Read Sync: Updated `package.json` (`1.0.3`), `CHANGELOG.md`, `changelog-data.ts`, `ChangelogModal.tsx` (native `<details>`/`<summary>`), `NotificationBell.tsx`, `PleaseHireMeDashboard.tsx` (`pahirepo_seen_changelog_version` read tracking), and strengthened `AGENTS.md` mandatory Obsidian MOC first-read rule
+- [x] `v1.0.4` PDF & Word (`.docx`) Resume Import, Smart Profile Sync, Hyphen-Free Justify & Optional Company: Added `unpdf` + `mammoth` extraction in `POST /api/resume/parse`, `resume-parser.ts` (`parseResumeTextToStructured`, `buildSmartProfilePatchFromResume`), native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free `[hyphens:none] [text-justify:inter-word] [text-wrap:pretty]` Justify mode, optional Company on Save Version, and direct `user_profiles` sync in `POST /api/resumes/history`
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

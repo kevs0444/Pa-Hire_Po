@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
     sentAt?: string | null;
     notes?: string;
     resumeData?: StructuredResume;
+    syncToProfile?: boolean;
   };
 
   if (!body.resumeData) {
@@ -182,12 +183,18 @@ export async function POST(request: NextRequest) {
 
   if (session.mode === 'supabase' && session.dbClient) {
     const db = session.dbClient;
+    const normalizedCompany =
+      (body.company ?? enrichedResumeData.tailoredForCompany ?? '').trim() ||
+      null;
+    const normalizedRole =
+      (body.jobTitle ?? enrichedResumeData.tailoredForJobTitle ?? '').trim() ||
+      null;
+
     const extendedPayload = {
       user_id: session.authUser.id,
       job_id: body.jobId ?? null,
-      job_title:
-        body.jobTitle ?? enrichedResumeData.tailoredForJobTitle ?? null,
-      company: body.company ?? enrichedResumeData.tailoredForCompany ?? null,
+      job_title: normalizedRole,
+      company: normalizedCompany,
       tailor_method:
         body.tailorMethod ?? enrichedResumeData.tailorMethod ?? 'base',
       source_type: sourceType,
@@ -250,6 +257,51 @@ export async function POST(request: NextRequest) {
       // Non-blocking cap cleanup
     }
 
+    if (body.syncToProfile) {
+      try {
+        const { data: existingProfile } = await db
+          .from('user_profiles')
+          .select('profile_data, full_name')
+          .eq('id', session.authUser.id)
+          .maybeSingle<{
+            profile_data: Record<string, unknown> | null;
+            full_name: string | null;
+          }>();
+
+        const currentProfileData =
+          existingProfile?.profile_data &&
+          typeof existingProfile.profile_data === 'object'
+            ? existingProfile.profile_data
+            : {};
+
+        await db
+          .from('user_profiles')
+          .update({
+            full_name:
+              enrichedResumeData.fullName?.trim() ||
+              existingProfile?.full_name ||
+              '',
+            profile_data: {
+              ...currentProfileData,
+              ...(enrichedResumeData.fullName?.trim()
+                ? { name: enrichedResumeData.fullName.trim() }
+                : {}),
+              ...(enrichedResumeData.targetHeadline?.trim()
+                ? { title: enrichedResumeData.targetHeadline.trim() }
+                : {}),
+              structuredResume: {
+                ...enrichedResumeData,
+                tailorMethod: 'base',
+              },
+            },
+            updated_at: nowIso,
+          })
+          .eq('id', session.authUser.id);
+      } catch {
+        // Non-blocking: snapshot is already saved
+      }
+    }
+
     return NextResponse.json({
       record: rowToRecord(insertRes.data),
       storageMode: 'supabase-cloud',
@@ -293,6 +345,7 @@ export async function PATCH(request: NextRequest) {
     sentAt?: string | null;
     notes?: string;
     resumeData?: StructuredResume;
+    syncToProfile?: boolean;
   };
 
   if (!body.id) {

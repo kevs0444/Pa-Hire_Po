@@ -34,6 +34,11 @@ import {
   ResumeZoomLevel,
 } from './ResumeFormatToolbar';
 import { ResumeVersionsDrawer } from './ResumeVersionsDrawer';
+import {
+  ResumeUploadDialog,
+  type ResumeUploadConfirmOptions,
+} from './ResumeUploadDialog';
+import type { ParsedResumePayload } from '@/features/resume/lib/resume-parser';
 
 export interface A4ResumePreviewProps {
   profile: UserProfile;
@@ -61,14 +66,19 @@ export interface A4ResumePreviewProps {
   ) => Promise<void>;
   onDeleteResumeRecord?: (id: string) => Promise<void>;
   onSaveSnapshot?: (params: {
-    company: string;
+    company: string | null;
     jobTitle: string;
     jobId: string | null;
     versionName?: string;
     resume: StructuredResume;
     isSent: boolean;
     notes: string;
+    syncToProfile?: boolean;
   }) => Promise<void> | void;
+  onImportResume?: (
+    parsed: ParsedResumePayload,
+    options: ResumeUploadConfirmOptions
+  ) => Promise<void> | void;
 }
 
 export const ATS_FONT_PRESETS: Record<
@@ -261,8 +271,8 @@ export function ResumeSheetDocument({
   const canEdit = isTailoredVariant && editMode && Boolean(onUpdateResume);
   const isJustified = resume.textAlign === 'justify';
   const textAlignClass = isJustified
-    ? 'text-justify [hyphens:auto] [text-align-last:left]'
-    : 'text-left';
+    ? 'text-justify [hyphens:none] [word-break:normal] [overflow-wrap:break-word] [text-justify:inter-word] [text-wrap:pretty] [text-align-last:left]'
+    : 'text-left [hyphens:none]';
 
   const sheetInputClass =
     'rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-neutral-900 placeholder:text-neutral-400 focus:border-[#0a66c2] focus:outline-none';
@@ -1533,10 +1543,12 @@ export function A4ResumePreview({
   onUpdateResumeRecord,
   onDeleteResumeRecord,
   onSaveSnapshot,
+  onImportResume,
 }: A4ResumePreviewProps) {
   const [editMode, setEditMode] = useState(false);
   const [showKeyInput, setShowKeyInput] = useState(false);
   const [isVersionsDrawerOpen, setIsVersionsDrawerOpen] = useState(false);
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [showSaveSnapshotBar, setShowSaveSnapshotBar] = useState(false);
   const [zoomLevel, setZoomLevel] = useState<ResumeZoomLevel>('fit');
 
@@ -1550,7 +1562,8 @@ export function A4ResumePreview({
   const [snapshotVersionName, setSnapshotVersionName] = useState(
     activeResume.versionName || ''
   );
-  const [snapshotSent, setSnapshotSent] = useState(true);
+  const [snapshotSent, setSnapshotSent] = useState(Boolean(activeTailorJob));
+  const [snapshotSyncToProfile, setSnapshotSyncToProfile] = useState(true);
   const [snapshotNotes, setSnapshotNotes] = useState('');
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [snapshotSavedMsg, setSnapshotSavedMsg] = useState<string | null>(null);
@@ -1848,6 +1861,9 @@ export function A4ResumePreview({
         onSetZoomLevel={setZoomLevel}
         onUpdateResume={onUpdateResume}
         onOpenVersionsDrawer={() => setIsVersionsDrawerOpen(true)}
+        onOpenUploadDialog={
+          onImportResume ? () => setIsUploadDialogOpen(true) : undefined
+        }
         onOpenSaveSnapshotBar={() => {
           setSnapshotCompany(
             activeTailorJob?.company ||
@@ -1916,28 +1932,35 @@ export function A4ResumePreview({
         <form
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!snapshotCompany.trim() || !snapshotRole.trim()) return;
+            const companyVal = snapshotCompany.trim() || null;
+            const roleVal =
+              snapshotRole.trim() || profile.primaryRole || 'General Resume';
             setSavingSnapshot(true);
             setSnapshotSavedMsg(null);
             try {
               const customName =
                 snapshotVersionName.trim() ||
-                `${snapshotCompany.trim()} — ${snapshotRole.trim()}`;
+                (companyVal ? `${companyVal} — ${roleVal}` : `General — ${roleVal}`);
               await onSaveSnapshot({
-                company: snapshotCompany.trim(),
-                jobTitle: snapshotRole.trim(),
+                company: companyVal,
+                jobTitle: roleVal,
                 jobId: activeTailorJob?.id || null,
                 versionName: customName,
                 resume: {
                   ...activeResume,
                   versionName: customName,
-                  tailoredForCompany: snapshotCompany.trim(),
-                  tailoredForJobTitle: snapshotRole.trim(),
+                  tailoredForCompany: companyVal,
+                  tailoredForJobTitle: roleVal,
                 },
                 isSent: snapshotSent,
                 notes: snapshotNotes.trim(),
+                syncToProfile: snapshotSyncToProfile,
               });
-              setSnapshotSavedMsg(`Saved version: "${customName}"`);
+              setSnapshotSavedMsg(
+                snapshotSyncToProfile
+                  ? `Saved version "${customName}" & synced to My Profile`
+                  : `Saved version: "${customName}"`
+              );
               setSnapshotNotes('');
               setShowSaveSnapshotBar(false);
             } finally {
@@ -1967,10 +1990,9 @@ export function A4ResumePreview({
           </div>
           <input
             type="text"
-            required
             value={snapshotVersionName}
             onChange={(e) => setSnapshotVersionName(e.target.value)}
-            placeholder="Custom Version Name (e.g. Canva - Senior BI Analyst v2)"
+            placeholder="Version name (optional)"
             className={cn(
               'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none font-medium',
               tokens.inputSurface
@@ -1978,10 +2000,9 @@ export function A4ResumePreview({
           />
           <input
             type="text"
-            required
             value={snapshotCompany}
             onChange={(e) => setSnapshotCompany(e.target.value)}
-            placeholder="Company name (e.g. Canva, GCash)"
+            placeholder="Company (optional — blank for general CV)"
             className={cn(
               'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
@@ -1989,12 +2010,11 @@ export function A4ResumePreview({
           />
           <input
             type="text"
-            required
             value={snapshotRole}
             onChange={(e) => setSnapshotRole(e.target.value)}
-            placeholder="Role applied for"
+            placeholder="Target role (optional)"
             className={cn(
-              'sm:col-span-2 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
             )}
           />
@@ -2004,30 +2024,39 @@ export function A4ResumePreview({
             onChange={(e) => setSnapshotNotes(e.target.value)}
             placeholder="Optional note"
             className={cn(
-              'sm:col-span-2 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
             )}
           />
-          <div className="sm:col-span-1 flex items-center gap-1.5 text-xs">
-            <label className="flex cursor-pointer items-center gap-1">
+          <div className="sm:col-span-10 flex flex-wrap items-center gap-4 text-xs pt-0.5">
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={snapshotSyncToProfile}
+                onChange={(e) => setSnapshotSyncToProfile(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              <span>Sync to My Profile &amp; Base CV</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={snapshotSent}
                 onChange={(e) => setSnapshotSent(e.target.checked)}
                 className="h-3.5 w-3.5"
               />
-              <span>Sent</span>
+              <span>Mark Sent</span>
             </label>
           </div>
           <button
             type="submit"
             disabled={savingSnapshot}
             className={cn(
-              'sm:col-span-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+              'sm:col-span-2 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
               tokens.primaryBtn
             )}
           >
-            {savingSnapshot ? 'Saving...' : 'Save'}
+            {savingSnapshot ? 'Saving...' : 'Save Version'}
           </button>
         </form>
       )}
@@ -2294,6 +2323,24 @@ export function A4ResumePreview({
         }
         onSaveSnapshot={onSaveSnapshot || (async () => {})}
       />
+
+      {/* Resume Import / Upload Dialog */}
+      {onImportResume && (
+        <ResumeUploadDialog
+          isOpen={isUploadDialogOpen}
+          theme={theme}
+          primaryRole={profile.primaryRole}
+          geminiApiKey={geminiApiKey}
+          onClose={() => setIsUploadDialogOpen(false)}
+          onConfirmImport={async (parsed, options) => {
+            await onImportResume(parsed, options);
+            setEditMode(true);
+            setToolbarStatusMsg(
+              `Imported "${parsed.fileName || 'resume'}" — now editing in Resume Studio.`
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

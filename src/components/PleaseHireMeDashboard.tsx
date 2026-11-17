@@ -55,6 +55,11 @@ import {
 } from '@/lib/storage';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { A4ResumePreview } from '@/features/resume/components/A4ResumePreview';
+import type { ResumeUploadConfirmOptions } from '@/features/resume/components/ResumeUploadDialog';
+import {
+  buildSmartProfilePatchFromResume,
+  type ParsedResumePayload,
+} from '@/features/resume/lib/resume-parser';
 import { AdminDashboardView } from '@/features/admin/components/AdminDashboardView';
 import { createDefaultAutoApplyConfig } from '@/features/auto-apply/types';
 import { JobAnalyticsView } from '@/features/analytics/components/JobAnalyticsView';
@@ -908,15 +913,55 @@ export function PleaseHireMeDashboard({
     }
   };
 
+  const handleImportParsedResume = async (
+    parsed: ParsedResumePayload,
+    options: ResumeUploadConfirmOptions
+  ) => {
+    const nextProfile = buildSmartProfilePatchFromResume(
+      activeProfile,
+      parsed,
+      { syncSmartProfile: options.syncSmartProfile }
+    );
+    updateActiveUserProfile(nextProfile, true);
+
+    const versionLabel = `Imported: ${parsed.fileName || 'Resume'}`;
+    const importedResume: StructuredResume = {
+      ...nextProfile.structuredResume,
+      versionName: options.saveVersionSnapshot ? versionLabel : undefined,
+    };
+    setTailoredResume(importedResume);
+
+    if (options.saveVersionSnapshot) {
+      await handleSaveResumeSnapshot({
+        company: 'Imported Base CV',
+        jobTitle: nextProfile.primaryRole || importedResume.targetHeadline || 'Resume',
+        jobId: null,
+        versionName: versionLabel,
+        resume: importedResume,
+        isSent: false,
+        notes: `Imported from ${parsed.fileName || 'file'} via ${
+          parsed.parseMethod === 'gemini-ai' ? 'AI Structured Parser' : 'Smart Parser'
+        }`,
+      });
+    }
+
+    setActiveTab('resume');
+  };
+
   const handleSaveResumeSnapshot = async (params: {
-    company: string;
+    company: string | null;
     jobTitle: string;
     jobId: string | null;
     versionName?: string;
     resume: StructuredResume;
     isSent: boolean;
     notes: string;
+    syncToProfile?: boolean;
   }) => {
+    if (params.syncToProfile) {
+      handleApplyResumeToProfile(params.resume);
+    }
+
     const res = await fetch('/api/resumes/history', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -934,6 +979,7 @@ export function PleaseHireMeDashboard({
               : 'manual-edit',
         isSent: params.isSent,
         notes: params.notes,
+        syncToProfile: Boolean(params.syncToProfile),
         resumeData: {
           ...params.resume,
           ...(params.versionName ? { versionName: params.versionName } : {}),
@@ -948,7 +994,11 @@ export function PleaseHireMeDashboard({
         pushNotification({
           kind: 'resume',
           title: 'Resume snapshot archived',
-          detail: params.versionName || `${params.jobTitle} for ${params.company}`,
+          detail:
+            params.versionName ||
+            (params.company
+              ? `${params.jobTitle} for ${params.company}`
+              : params.jobTitle),
           targetTab: 'resume',
         });
       }
@@ -2171,6 +2221,7 @@ export function PleaseHireMeDashboard({
             }
             onUpdateProfile={(next) => updateActiveUserProfile(next, true)}
             onOpenA4Studio={() => setActiveTab('resume')}
+            onImportResume={handleImportParsedResume}
           />
         )}
 
@@ -2191,6 +2242,7 @@ export function PleaseHireMeDashboard({
               }
               onTailorResume={(job, role) => void handleTailorInStudio(job, role)}
               onSaveSnapshot={handleSaveResumeSnapshot}
+              onImportResume={handleImportParsedResume}
               onUpdateResumeRecord={handleUpdateResumeRecord}
               onDeleteResumeRecord={handleDeleteResumeRecord}
               onApplyToProfile={handleApplyResumeToProfile}

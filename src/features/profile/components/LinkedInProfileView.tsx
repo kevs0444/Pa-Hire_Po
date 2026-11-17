@@ -36,6 +36,14 @@ import {
   WorkType,
 } from '@/types/job';
 import { resumeToPlainText } from '@/lib/default-profile';
+import {
+  ResumeUploadDialog,
+  type ResumeUploadConfirmOptions,
+} from '@/features/resume/components/ResumeUploadDialog';
+import {
+  buildSmartProfilePatchFromResume,
+  type ParsedResumePayload,
+} from '@/features/resume/lib/resume-parser';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -56,6 +64,10 @@ interface LinkedInProfileViewProps {
   onUpdateGeminiKey: (key: string) => void;
   onUpdateProfile: (next: UserProfile) => void;
   onOpenA4Studio: () => void;
+  onImportResume?: (
+    parsed: ParsedResumePayload,
+    options: ResumeUploadConfirmOptions
+  ) => Promise<void> | void;
 }
 
 export function LinkedInProfileView({
@@ -69,7 +81,9 @@ export function LinkedInProfileView({
   onUpdateGeminiKey,
   onUpdateProfile,
   onOpenA4Studio,
+  onImportResume,
 }: LinkedInProfileViewProps) {
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const tokens = getThemeTokens(theme);
   const isDark = tokens.isDark;
   const resume = profile.structuredResume;
@@ -243,33 +257,6 @@ export function LinkedInProfileView({
 
     syncResume({ ...resume, skillCategories: cats }, { skills: nextSkills });
     setNewSkill('');
-  };
-
-  const handleUploadResume = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('primaryRole', profile.primaryRole);
-    try {
-      const res = await fetch('/api/resume/parse', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-      if (res.ok && data.skills) {
-        const merged = Array.from(new Set([...data.skills, ...profile.skills]));
-        onUpdateProfile({
-          ...profile,
-          resumeFileName: data.fileName || file.name,
-          resumeText: data.resumeText || profile.resumeText,
-          skills: merged,
-        });
-        setUploadStatus(`Imported ${merged.length} skills from ${file.name}`);
-      }
-    } finally {
-      e.target.value = '';
-    }
   };
 
   const handleProfileImageUpload = async (
@@ -568,16 +555,14 @@ export function LinkedInProfileView({
                   Reset Photos
                 </button>
               )}
-              <label className={cn('inline-flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}>
+              <button
+                type="button"
+                onClick={() => setIsUploadDialogOpen(true)}
+                className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors', secondaryBtn)}
+              >
                 <Upload className="h-3.5 w-3.5" />
-                Import CV File
-                <input
-                  type="file"
-                  accept=".txt,.md,.json,.pdf"
-                  onChange={handleUploadResume}
-                  className="hidden"
-                />
-              </label>
+                Import PDF / Word
+              </button>
             </div>
           </div>
 
@@ -1336,6 +1321,27 @@ export function LinkedInProfileView({
           </div>
         )}
       </section>
+
+      <ResumeUploadDialog
+        isOpen={isUploadDialogOpen}
+        theme={theme}
+        primaryRole={profile.primaryRole}
+        geminiApiKey={geminiApiKey}
+        onClose={() => setIsUploadDialogOpen(false)}
+        onConfirmImport={async (parsed, options) => {
+          if (onImportResume) {
+            await onImportResume(parsed, options);
+          } else {
+            const patched = buildSmartProfilePatchFromResume(profile, parsed, {
+              syncSmartProfile: options.syncSmartProfile,
+            });
+            onUpdateProfile(patched);
+          }
+          setUploadStatus(
+            `Imported "${parsed.fileName || 'resume'}" and synced to Smart Profile & Resume Studio.`
+          );
+        }}
+      />
     </div>
   );
 }

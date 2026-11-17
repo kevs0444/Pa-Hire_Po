@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.4',
+    date: 'November 18, 2026',
+    isoDate: '2026-11-18T00:00:00.000Z',
+    headline:
+      'PDF & Word (.docx) resume import with Smart Profile sync, hyphen-free Justify mode, and optional Company on save',
+    items: [
+      {
+        tag: 'New',
+        title: 'Import PDF & Word (.docx) resumes into Resume Studio',
+        description:
+          'Upload an existing PDF or Word resume from Resume Studio or My Profile to extract structured sections, preview them, sync your Smart Profile, and edit immediately.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Smarter, hyphen-free Justify mode',
+        description:
+          'Justified text in Resume Studio now wraps whole words cleanly without mid-word hyphen splits, keeping every word intact for recruiters and ATS parsers.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Optional Company on Save Version & Profile Sync',
+        description:
+          'Save general resume edits without entering a company name, and sync saved edits directly to My Profile & Base CV in Supabase.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.3',
     date: 'November 17, 2026',
     isoDate: '2026-11-17T00:00:00.000Z',

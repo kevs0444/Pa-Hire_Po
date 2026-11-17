@@ -93,6 +93,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 ---
 
+## Phase 8 — Resume Import (PDF/Word), Smart Profile Sync & `v1.0.4` Release (Nov 18, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `pending` (`v1.0.4`) | 2026-11-18 | `feat(resume): v1.0.4 PDF/Word resume import, Smart Profile sync, hyphen-free Justify mode, and optional Company save` | Added `unpdf` + `mammoth` extraction in `/api/resume/parse`, `resume-parser.ts`, native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free smart Justify mode, optional Company on Save Version, and `user_profiles` sync in `/api/resumes/history` |
+
+---
+
 ## Related Notes
 - [[00 - Home MOC]]
 - [[Specs & Plans Archive Index]]

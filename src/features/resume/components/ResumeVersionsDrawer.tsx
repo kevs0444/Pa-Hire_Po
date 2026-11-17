@@ -44,13 +44,14 @@ export interface ResumeVersionsDrawerProps {
   ) => Promise<void>;
   onDeleteResumeRecord: (id: string) => Promise<void>;
   onSaveSnapshot: (params: {
-    company: string;
+    company: string | null;
     jobTitle: string;
     jobId: string | null;
     versionName?: string;
     resume: StructuredResume;
     isSent: boolean;
     notes: string;
+    syncToProfile?: boolean;
   }) => Promise<void> | void;
 }
 
@@ -95,6 +96,7 @@ export function ResumeVersionsDrawer({
   );
   const [newNotes, setNewNotes] = useState('');
   const [newSent, setNewSent] = useState(false);
+  const [newSyncToProfile, setNewSyncToProfile] = useState(true);
   const [isSavingNew, setIsSavingNew] = useState(false);
 
   const filteredRecords = useMemo(() => {
@@ -138,23 +140,27 @@ export function ResumeVersionsDrawer({
 
   const handleSaveNewVersion = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCompany.trim() || !newRole.trim()) return;
+    const companyVal = newCompany.trim() || null;
+    const roleVal = newRole.trim() || 'General Resume';
     setIsSavingNew(true);
     try {
-      const versionTitle = newName.trim() || `${newCompany.trim()} — ${newRole.trim()}`;
+      const versionTitle =
+        newName.trim() ||
+        (companyVal ? `${companyVal} — ${roleVal}` : `General — ${roleVal}`);
       await onSaveSnapshot({
-        company: newCompany.trim(),
-        jobTitle: newRole.trim(),
+        company: companyVal,
+        jobTitle: roleVal,
         jobId: activeTailorJob?.id || null,
         versionName: versionTitle,
         resume: {
           ...activeResume,
           versionName: versionTitle,
-          tailoredForCompany: newCompany.trim(),
-          tailoredForJobTitle: newRole.trim(),
+          tailoredForCompany: companyVal,
+          tailoredForJobTitle: roleVal,
         },
         isSent: newSent,
         notes: newNotes.trim(),
+        syncToProfile: newSyncToProfile,
       });
       setShowSaveForm(false);
       setNewNotes('');
@@ -299,10 +305,9 @@ export function ResumeVersionsDrawer({
                 <div className="sm:col-span-12">
                   <input
                     type="text"
-                    required
                     value={newName}
                     onChange={(e) => setNewName(e.target.value)}
-                    placeholder="Custom Version Name (e.g. Canva - Senior BI Analyst v2)"
+                    placeholder="Custom Version Name (optional)"
                     className={cn(
                       'w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none font-medium',
                       tokens.inputSurface
@@ -312,10 +317,9 @@ export function ResumeVersionsDrawer({
                 <div className="sm:col-span-6">
                   <input
                     type="text"
-                    required
                     value={newCompany}
                     onChange={(e) => setNewCompany(e.target.value)}
-                    placeholder="Company name (e.g. Canva, GCash)"
+                    placeholder="Company (optional — blank for general CV)"
                     className={cn(
                       'w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
                       tokens.inputSurface
@@ -325,17 +329,16 @@ export function ResumeVersionsDrawer({
                 <div className="sm:col-span-6">
                   <input
                     type="text"
-                    required
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
-                    placeholder="Role (e.g. Data Analyst)"
+                    placeholder="Target role (optional)"
                     className={cn(
                       'w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
                       tokens.inputSurface
                     )}
                   />
                 </div>
-                <div className="sm:col-span-9">
+                <div className="sm:col-span-12">
                   <input
                     type="text"
                     value={newNotes}
@@ -347,7 +350,16 @@ export function ResumeVersionsDrawer({
                     )}
                   />
                 </div>
-                <div className="sm:col-span-3 flex items-center gap-1.5 text-xs">
+                <div className="sm:col-span-12 flex flex-wrap items-center gap-4 text-xs pt-0.5">
+                  <label className="flex cursor-pointer items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={newSyncToProfile}
+                      onChange={(e) => setNewSyncToProfile(e.target.checked)}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span>Sync to My Profile &amp; Base CV</span>
+                  </label>
                   <label className="flex cursor-pointer items-center gap-1.5">
                     <input
                       type="checkbox"

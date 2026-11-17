@@ -15,6 +15,7 @@ import {
   Printer,
   RotateCcw,
   Save,
+  Upload,
   UserCheck,
   ZoomIn,
 } from 'lucide-react';
@@ -53,6 +54,7 @@ export interface ResumeFormatToolbarProps {
   onSetZoomLevel: (zoom: ResumeZoomLevel) => void;
   onUpdateResume: (next: StructuredResume) => void;
   onOpenVersionsDrawer: () => void;
+  onOpenUploadDialog?: () => void;
   onOpenSaveSnapshotBar: () => void;
   onApplyToProfile?: () => void;
   onTailorResume: (targetJob: JobListing | null, targetRole?: string) => void;
@@ -78,6 +80,7 @@ export function ResumeFormatToolbar({
   onSetZoomLevel,
   onUpdateResume,
   onOpenVersionsDrawer,
+  onOpenUploadDialog,
   onOpenSaveSnapshotBar,
   onApplyToProfile,
   onTailorResume,
@@ -304,6 +307,18 @@ export function ResumeFormatToolbar({
               >
                 <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Gemini API</span>
+              </button>
+            )}
+
+            {onOpenUploadDialog && (
+              <button
+                type="button"
+                onClick={onOpenUploadDialog}
+                className={cn(headerBtnClass, tokens.secondaryBtn)}
+                title="Upload an existing PDF or Word (.docx) resume to extract and edit"
+              >
+                <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Import PDF / Word</span>
               </button>
             )}
 

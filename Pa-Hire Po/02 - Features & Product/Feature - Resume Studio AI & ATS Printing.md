@@ -47,7 +47,11 @@ Enables job seekers to tailor their factual resume to any target posting using G
   - Clean `no-print` action buttons ensure in-sheet edit controls never appear during print or PDF export.
 - **MS Word / Google Docs Style Text Formatting Toolbar (`ResumeFormatToolbar`):**
   - Two-row Civic header & accessible `role="toolbar"` (`focusgroup="toolbar wrap"` + roving-tabindex arrow-key fallback) unified strictly on `getThemeTokens(theme)`, with live Bold (`**`), Italic (`*`), and Tool Tag (`` ` ``) formatting wired to active edit-mode fields.
-  - Text Alignment: Global toggle between **Justified** (`text-justify [hyphens:auto] [text-align-last:left]` for flush margins) and **Left Align** (`text-left` standard ATS ragged right).
+  - Text Alignment: Global toggle between **Justified** (`text-justify [hyphens:none] [word-break:normal] [overflow-wrap:break-word] [text-justify:inter-word] [text-wrap:pretty] [text-align-last:left]` for flush margins without mid-word hyphenation) and **Left Align** (`text-left [hyphens:none]` standard ATS ragged right).
+- **PDF & Word (`.docx`) Resume Import (`ResumeUploadDialog.tsx`, `resume-parser.ts`, `/api/resume/parse`):**
+  - Upload `.pdf` (`unpdf`), `.docx` (`mammoth`), `.txt`, `.md`, or `.json` resumes from Resume Studio or My Profile, preview extracted sections in a native `<dialog>`, sync Smart Profile fields (`user_profiles`), archive an `"Imported: <filename>"` snapshot (`tailored_resumes`), and edit immediately in-sheet.
+- **Flexible Version Saving (`A4ResumePreview.tsx`, `ResumeVersionsDrawer.tsx`, `/api/resumes/history`):**
+  - Optional `company` (`null` for general edits), `Sent` defaulting to `false` when no target job is active, and `Sync to My Profile & Base CV` (`syncToProfile`) updating `public.user_profiles` alongside `public.tailored_resumes`.
   - Responsive Zoom & Symmetric Compare Scaling: `ResizeObserver`-measured sheet scaling (`Fit Screen`, `75%`, `90%`, `100%`, `110%`) adapting Base and Tailored sheets symmetrically across mobile (375px+) and desktop without clipping, with `@media print` resetting to unscaled physical paper.
   - 1-Click **Apply to Base Profile** button promoting studio edits to the permanent master profile.
 - **Resume Versions Drawer, Custom Naming & Deletion Confirmation (`ResumeVersionsDrawer` & `DeleteVersionConfirmDialog`):**

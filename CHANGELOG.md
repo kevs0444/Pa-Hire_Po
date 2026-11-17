@@ -1,6 +1,19 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.3`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.4`).
+
+## v1.0.4 — November 18, 2026
+
+### PDF & Word (`.docx`) Resume Import + Smart Profile Sync
+- **Resume Upload Panel (`Import PDF / Word`):** Upload an existing `.pdf`, `.docx` (Word), `.txt`, `.md`, or `.json` resume from either **Resume Studio** or **My Profile**.
+- **Structured Extraction & Import Preview:** Extracts contact details, headline, summary, experience, projects, skill categories, certifications, and education into an editable CV, with a quick preview before saving.
+- **2-Way Smart Profile Sync:** Automatically updates your **My Profile** headline, bio, skills, open-to-work roles, and Base CV, and archives an `"Imported: <filename>"` snapshot in your Versions Drawer.
+
+### Resume Studio Justify Mode & Flexible Version Saving
+- **Hyphen-Free Smart Justify Mode:** Justified text now wraps whole words cleanly without awkward mid-word hyphen splits (such as `im-` / `proving`), keeping every word intact for recruiters and ATS parsers.
+- **Optional Company on Save Version:** Save general resume edits in **Save New Resume Version** without needing a company name, with a **Sync to My Profile & Base CV** option that updates your Supabase profile alongside your version history.
+
+---
 
 ## v1.0.3 — November 17, 2026
 
