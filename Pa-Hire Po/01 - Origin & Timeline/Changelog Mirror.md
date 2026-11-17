@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: product
 milestone: v1.0.3
-commit_ref: "497d282"
+commit_ref: "c92d9f1"
 files:
   - CHANGELOG.md
   - package.json
@@ -23,7 +23,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.3`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.3` — November 17, 2026 (`497d282` + Release Polish)
+## `v1.0.3` — November 17, 2026 (`497d282`, `c92d9f1`)
 - **Direct In-Sheet Resume Editor, Formatting Toolbar & Versions Drawer:** Full in-sheet editing, Bold/Italic/Tool Tag wrapping, Justify vs. Left alignment, `ResizeObserver` zoom, and customizable version drawer (`ResumeVersionsDrawer.tsx`, `DeleteVersionConfirmDialog.tsx`). See [[Feature - Resume Studio AI & ATS Printing]].
 - **1-Minute Auto-Refresh, Email OTP & Connected Logins:** Page-load + 60s auto-scan, 6-digit `verifyOtp` email signup, and Google/GitHub `linkIdentity` inside Settings. See [[Feature - Auth, Admin Control Center & Legal Compliance]].
 - **Soft Grayscale UI & Session Security Hardening:** Wave 1–3 Civic contrast polish, zero-bypass Supabase GoTrue auth, OWASP security headers, and Admin 3-tab Control Center with live Vercel & Supabase status (`/api/admin/platform-status`). See [[Design - Ruthless UI Architect & Anti-AI-Slop Rules]].

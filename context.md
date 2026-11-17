@@ -224,8 +224,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Verified Production Deployment**:
   - **Current Release Version**: `v1.0.3` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Git Commit**: `497d282` (followed by `v1.0.3` release polish, Admin 3-tab Vercel/Supabase status console, and full `v1.0.0`–`v1.0.3` changelog) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
-  - **Obsidian Second Brain (Mandatory First-Read)**: Full deep context, 21+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
+  - **Latest Verified Commit**: `c92d9f1` (`feat(release): v1.0.3 admin status console, full v1.0.0-v1.0.3 changelog, notification sync, and MOC rules`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 22+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
     - `https://pa-hire-po.vercel.app/` (`200 OK`)
@@ -233,6 +233,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
     - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
     - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/api/admin/platform-status` (`401 Unauthorized` when unauthenticated — confirms live deployment of `c92d9f1`)
 - **Active Verified Capabilities**:
   - Multi-board concurrent job scraping (LinkedIn, JobStreet, Indeed).
   - Smart weighted match scoring (28–98%) against user profile, ESCO-backed dynamic role library (`Top 5–10` saved target roles), and structured target salary preferences.

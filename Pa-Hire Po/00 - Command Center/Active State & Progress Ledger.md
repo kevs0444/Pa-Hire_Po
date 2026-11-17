@@ -3,8 +3,8 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v4-ux-polish
-commit_ref: "a1059ca"
+milestone: v1.0.3
+commit_ref: "c92d9f1"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Base Commit** | `497d282` (`feat(core): 1-min auto refresh, auth lockdown, email OTP, connected logins, 13 Civic email templates, and obsidian second brain sync`) + `v1.0.3` release pending push |
+| **Latest Verified Commit** | `c92d9f1` (`feat(release): v1.0.3 admin status console, full v1.0.0-v1.0.3 changelog, notification sync, and MOC rules`) — live on Vercel production |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
