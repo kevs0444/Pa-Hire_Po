@@ -210,15 +210,15 @@ export const SUPABASE_AUTH_EMAIL_TEMPLATES: AuthEmailTemplateItem[] = [
     supabaseTab: 'Confirm signup',
     suggestedSubject: 'Your Pa-Hire Po verification code: {{ .Token }}',
     description:
-      'Sends a 6-digit OTP code ({{ .Token }}) for new email registrations plus a one-click confirmation button.',
+      'Sends an OTP verification code ({{ .Token }}) for new email registrations plus a one-click confirmation button.',
     badgeTone: 'success',
     html: buildCivicEmailShell({
       badgeText: 'Email Verification',
       badgeTone: 'success',
       heading: 'Verify your Pa-Hire Po account',
       introHtml:
-        'Enter the 6-digit verification code below on the sign-up screen to activate your <strong style="color:#0f172a;">{{ .Email }}</strong> account and start syncing your job pipeline and tailored resumes.',
-      otpLabel: '6-Digit Verification Code',
+        'Enter the verification code below on the sign-up screen to activate your <strong style="color:#0f172a;">{{ .Email }}</strong> account and start syncing your job pipeline and tailored resumes.',
+      otpLabel: 'One-Time Verification Code',
       ctaLabel: 'Verify Email Directly',
       ctaHref: '{{ .ConfirmationURL }}',
       footerNote:
@@ -253,15 +253,15 @@ export const SUPABASE_AUTH_EMAIL_TEMPLATES: AuthEmailTemplateItem[] = [
     supabaseTab: 'Magic Link',
     suggestedSubject: 'Your Pa-Hire Po sign-in code: {{ .Token }}',
     description:
-      'Sends both the 6-digit OTP code ({{ .Token }}) and instant sign-in link ({{ .ConfirmationURL }}) for Magic Link / OTP sign-in.',
+      'Sends both the OTP login code ({{ .Token }}) and instant sign-in link ({{ .ConfirmationURL }}) for Magic Link / OTP sign-in.',
     badgeTone: 'success',
     html: buildCivicEmailShell({
       badgeText: 'Secure Sign-In',
       badgeTone: 'success',
       heading: 'Sign in to Pa-Hire Po',
       introHtml:
-        'Use this one-time 6-digit code on the login page—or click the button below—to sign in securely as <strong style="color:#0f172a;">{{ .Email }}</strong>.',
-      otpLabel: '6-Digit Login Code',
+        'Use this one-time code on the login page—or click the button below—to sign in securely as <strong style="color:#0f172a;">{{ .Email }}</strong>.',
+      otpLabel: 'One-Time Login Code',
       ctaLabel: 'Sign In to Pa-Hire Po',
       ctaHref: '{{ .ConfirmationURL }}',
       footerNote:
@@ -318,14 +318,14 @@ export const SUPABASE_AUTH_EMAIL_TEMPLATES: AuthEmailTemplateItem[] = [
     supabaseTab: 'Reauthentication',
     suggestedSubject: 'Your Pa-Hire Po security code: {{ .Token }}',
     description:
-      'Provides a 6-digit confirmation code for sensitive account modifications.',
+      'Provides an OTP confirmation code for sensitive account modifications.',
     badgeTone: 'warning',
     html: buildCivicEmailShell({
       badgeText: 'Security Check',
       badgeTone: 'warning',
       heading: 'Confirm your identity',
       introHtml:
-        'A sensitive security action on your Pa-Hire Po account (<strong style="color:#0f172a;">{{ .Email }}</strong>) requires confirmation. Enter the 6-digit code below to proceed.',
+        'A sensitive security action on your Pa-Hire Po account (<strong style="color:#0f172a;">{{ .Email }}</strong>) requires confirmation. Enter the verification code below to proceed.',
       otpLabel: 'Reauthentication Code',
       ctaLabel: 'Review Security Settings',
       ctaHref: '{{ .SiteURL }}/settings',

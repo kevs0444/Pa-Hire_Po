@@ -51,6 +51,7 @@ function rowToRecord(row: TailoredResumeRow): TailoredResumeRecord {
     jobId: row.job_id ?? null,
     jobTitle: row.job_title ?? null,
     company: row.company ?? null,
+    versionName: row.resume_data?.versionName || null,
     tailorMethod: row.tailor_method ?? null,
     sourceType: inferredSource,
     isSent: Boolean(row.is_sent),
@@ -149,6 +150,7 @@ export async function POST(request: NextRequest) {
     jobId?: string | null;
     jobTitle?: string | null;
     company?: string | null;
+    versionName?: string | null;
     tailorMethod?: string | null;
     sourceType?: TailoredResumeSourceType;
     isSent?: boolean;
@@ -163,6 +165,11 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  const enrichedResumeData: StructuredResume = {
+    ...body.resumeData,
+    ...(body.versionName ? { versionName: body.versionName } : {}),
+  };
 
   const nowIso = new Date().toISOString();
   const sourceType: TailoredResumeSourceType =
@@ -179,15 +186,15 @@ export async function POST(request: NextRequest) {
       user_id: session.authUser.id,
       job_id: body.jobId ?? null,
       job_title:
-        body.jobTitle ?? body.resumeData.tailoredForJobTitle ?? null,
-      company: body.company ?? body.resumeData.tailoredForCompany ?? null,
+        body.jobTitle ?? enrichedResumeData.tailoredForJobTitle ?? null,
+      company: body.company ?? enrichedResumeData.tailoredForCompany ?? null,
       tailor_method:
-        body.tailorMethod ?? body.resumeData.tailorMethod ?? 'base',
+        body.tailorMethod ?? enrichedResumeData.tailorMethod ?? 'base',
       source_type: sourceType,
       is_sent: Boolean(body.isSent),
       sent_at: body.isSent ? body.sentAt || nowIso : null,
       notes: body.notes || '',
-      resume_data: body.resumeData,
+      resume_data: enrichedResumeData,
       updated_at: nowIso,
     };
 
@@ -255,14 +262,15 @@ export async function POST(request: NextRequest) {
     id: `local-res-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     userId: session.authUser.id,
     jobId: body.jobId ?? null,
-    jobTitle: body.jobTitle ?? body.resumeData.tailoredForJobTitle ?? null,
-    company: body.company ?? body.resumeData.tailoredForCompany ?? null,
-    tailorMethod: body.tailorMethod ?? body.resumeData.tailorMethod ?? 'base',
+    jobTitle: body.jobTitle ?? enrichedResumeData.tailoredForJobTitle ?? null,
+    company: body.company ?? enrichedResumeData.tailoredForCompany ?? null,
+    versionName: enrichedResumeData.versionName || null,
+    tailorMethod: body.tailorMethod ?? enrichedResumeData.tailorMethod ?? 'base',
     sourceType,
     isSent: Boolean(body.isSent),
     sentAt: body.isSent ? body.sentAt || nowIso : null,
     notes: body.notes || '',
-    resumeData: body.resumeData,
+    resumeData: enrichedResumeData,
     createdAt: nowIso,
     updatedAt: nowIso,
   };
@@ -280,6 +288,7 @@ export async function PATCH(request: NextRequest) {
     id?: string;
     jobTitle?: string | null;
     company?: string | null;
+    versionName?: string | null;
     isSent?: boolean;
     sentAt?: string | null;
     notes?: string;
@@ -303,7 +312,26 @@ export async function PATCH(request: NextRequest) {
       patchPayload.sent_at = body.isSent ? body.sentAt || nowIso : null;
     }
     if (body.notes !== undefined) patchPayload.notes = body.notes;
-    if (body.resumeData !== undefined) patchPayload.resume_data = body.resumeData;
+
+    if (body.versionName !== undefined && !body.resumeData) {
+      const existing = await session.dbClient
+        .from('tailored_resumes')
+        .select('resume_data')
+        .eq('id', body.id)
+        .eq('user_id', session.authUser.id)
+        .single<{ resume_data: StructuredResume }>();
+      if (existing.data?.resume_data) {
+        patchPayload.resume_data = {
+          ...existing.data.resume_data,
+          versionName: body.versionName || undefined,
+        };
+      }
+    } else if (body.resumeData !== undefined) {
+      patchPayload.resume_data = {
+        ...body.resumeData,
+        ...(body.versionName !== undefined ? { versionName: body.versionName || undefined } : {}),
+      };
+    }
 
     let res = await session.dbClient
       .from('tailored_resumes')
@@ -341,10 +369,21 @@ export async function PATCH(request: NextRequest) {
   let updatedRecord: TailoredResumeRecord | null = null;
   const next = local.map((item) => {
     if (item.id !== body.id) return item;
+    const mergedResumeData =
+      body.resumeData !== undefined ? body.resumeData : item.resumeData;
+    const nextVersionName =
+      body.versionName !== undefined
+        ? body.versionName || null
+        : (mergedResumeData?.versionName || item.versionName || null);
+    const enrichedData = mergedResumeData
+      ? { ...mergedResumeData, ...(nextVersionName ? { versionName: nextVersionName } : {}) }
+      : mergedResumeData;
+
     updatedRecord = {
       ...item,
       jobTitle: body.jobTitle !== undefined ? body.jobTitle : item.jobTitle,
       company: body.company !== undefined ? body.company : item.company,
+      versionName: nextVersionName,
       isSent: body.isSent !== undefined ? body.isSent : item.isSent,
       sentAt:
         body.isSent !== undefined
@@ -353,8 +392,7 @@ export async function PATCH(request: NextRequest) {
             : null
           : item.sentAt,
       notes: body.notes !== undefined ? body.notes : item.notes,
-      resumeData:
-        body.resumeData !== undefined ? body.resumeData : item.resumeData,
+      resumeData: enrichedData,
       updatedAt: nowIso,
     };
     return updatedRecord;

@@ -66,6 +66,7 @@ interface ApplicationsCompilationViewProps {
       notes?: string;
       company?: string;
       jobTitle?: string;
+      versionName?: string | null;
     }
   ) => Promise<void>;
   onDeleteResumeRecord: (id: string) => Promise<void>;
@@ -122,6 +123,7 @@ export function ApplicationsCompilationView({
     mutedText,
     strongText,
     borderSubtle,
+    activeBorder,
   } = tokens;
 
   const [subView, setSubView] = useState<CompilationSubView>('applied');
@@ -421,8 +423,14 @@ export function ApplicationsCompilationView({
           </div>
         </div>
 
-        {/* 5 Tabular KPI Tiles */}
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+        {/* 5 Tabular KPI Ledger Strip */}
+        <div
+          className={cn(
+            'grid grid-cols-2 divide-y overflow-hidden rounded-lg border sm:grid-cols-5 sm:divide-x sm:divide-y-0',
+            borderSubtle,
+            subSurface
+          )}
+        >
           {[
             {
               label: 'Companies Applied',
@@ -455,9 +463,12 @@ export function ApplicationsCompilationView({
               type="button"
               onClick={() => setSubView(kpi.view)}
               className={cn(
-                'rounded-lg border p-3 text-left transition-colors',
-                subSurface,
-                subView === kpi.view && 'border-[#0a66c2]'
+                'p-3 text-left transition-colors',
+                subView === kpi.view
+                  ? cn('border-b-2', activeBorder, isDark ? 'bg-zinc-800/70' : 'bg-white')
+                  : isDark
+                    ? 'hover:bg-zinc-800/40'
+                    : 'hover:bg-white/70'
               )}
             >
               <div className="font-mono text-xl font-semibold tabular-nums">
@@ -933,9 +944,10 @@ export function ApplicationsCompilationView({
 
                     <div>
                       <h3 className={cn('text-[15px] font-semibold', strongText)}>
-                        {rec.company || 'General Snapshot'}
+                        {rec.versionName || rec.resumeData?.versionName || rec.company || 'General Snapshot'}
                       </h3>
                       <p className={cn('text-xs font-medium', mutedText)}>
+                        {rec.company ? `${rec.company} • ` : ''}
                         {rec.jobTitle || rec.resumeData.targetHeadline}
                       </p>
                     </div>

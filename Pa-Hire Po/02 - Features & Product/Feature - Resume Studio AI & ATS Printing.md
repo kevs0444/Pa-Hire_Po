@@ -7,10 +7,13 @@ milestone: v2-rebrand
 commit_ref: "dd4f6e7"
 files:
   - src/features/resume/components/A4ResumePreview.tsx
+  - src/features/resume/components/ResumeFormatToolbar.tsx
+  - src/features/resume/components/ResumeVersionsDrawer.tsx
+  - src/features/resume/components/DeleteVersionConfirmDialog.tsx
   - src/features/resume/lib/resume-tailor.ts
   - src/features/jobs/components/ApplyFlowModal.tsx
   - src/app/api/resume/tailor/route.ts
-updated: 2026-11-16
+updated: 2026-11-17
 tags:
   - pahirepo
   - feature
@@ -39,6 +42,19 @@ Enables job seekers to tailor their factual resume to any target posting using G
 - **Top 5 AI-ATS & Researcher Fonts:**
   - **Calibri** (Default • #1 AI ATS Standard), **Helvetica** (#2 Tech & Engineering), **Garamond** (#3 Researcher & Academic), **Arial** (#4 Universal Legacy ATS), **Georgia** (#5 High-Contrast Research Serif).
   - Enforces `font-variant-ligatures: none` on preview and print so PDF parsers (Workday, Greenhouse, Lever, PDFBox) never corrupt `fi`/`fl` glyphs.
+- **In-Sheet Full-Section Direct Editing:**
+  - Every resume section is editable in place when entering Edit Mode (`color-scheme: only light` + explicit light paper input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location, LinkedIn, GitHub, Portfolio), Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder bullets and positions), Projects (name, subtitle, period, bullets + add/delete/reorder), Technical Skills (categories + items + add/delete), Certifications, and Education (degree, school, period, honors + add/delete).
+  - Clean `no-print` action buttons ensure in-sheet edit controls never appear during print or PDF export.
+- **MS Word / Google Docs Style Text Formatting Toolbar (`ResumeFormatToolbar`):**
+  - Two-row Civic header & accessible `role="toolbar"` (`focusgroup="toolbar wrap"` + roving-tabindex arrow-key fallback) unified strictly on `getThemeTokens(theme)`, with live Bold (`**`), Italic (`*`), and Tool Tag (`` ` ``) formatting wired to active edit-mode fields.
+  - Text Alignment: Global toggle between **Justified** (`text-justify [hyphens:auto] [text-align-last:left]` for flush margins) and **Left Align** (`text-left` standard ATS ragged right).
+  - Responsive Zoom & Symmetric Compare Scaling: `ResizeObserver`-measured sheet scaling (`Fit Screen`, `75%`, `90%`, `100%`, `110%`) adapting Base and Tailored sheets symmetrically across mobile (375px+) and desktop without clipping, with `@media print` resetting to unscaled physical paper.
+  - 1-Click **Apply to Base Profile** button promoting studio edits to the permanent master profile.
+- **Resume Versions Drawer, Custom Naming & Deletion Confirmation (`ResumeVersionsDrawer` & `DeleteVersionConfirmDialog`):**
+  - Dedicated slide-over drawer and modal showing all saved versions with customizable names (`versionName`), creation timestamps, company/role targets, and tailor method badges (`Personal AI`, `Auto-Tailored`, `Manual Edit`, `Base`).
+  - Customizable Version Renaming: In-place rename input with IME-safe keyboard handling (`ime-safe-enter-submit`) and Escape cancel.
+  - 1-Click Load & Restore: Restores and previews any historical version into active studio state with a single click.
+  - Native `<dialog>` Deletion Confirmation: Safe version deletion prompt (`DeleteVersionConfirmDialog`) using native HTML `<dialog>` with focus trapping and light dismiss (`closedby="any"`).
 
 ## Related Notes
 - [[Architecture - Gemini AI Pipeline & Anti-Hallucination Grounding]]

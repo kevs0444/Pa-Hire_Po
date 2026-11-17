@@ -166,20 +166,26 @@ export function LandingPageView({
             </div>
           </div>
 
-          {/* 3 Live Workspace Counters */}
-          <div className={cn('grid grid-cols-3 gap-2.5 rounded-lg border p-4 lg:col-span-4', tokens.subSurface)}>
+          {/* 3 Live Workspace Counters (Hairline Ledger Strip) */}
+          <div
+            className={cn(
+              'grid grid-cols-3 divide-x overflow-hidden rounded-lg border lg:col-span-4',
+              tokens.borderSubtle,
+              tokens.subSurface
+            )}
+          >
             <button
               type="button"
               onClick={() => onNavigateTab('jobs')}
               className={cn(
-                'rounded-lg border p-3 text-left transition-colors',
-                tokens.cardSurface
+                'p-4 text-left transition-colors',
+                tokens.isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-white/75'
               )}
             >
               <div className="font-mono text-2xl font-semibold tabular-nums">
                 {totalJobsCount}
               </div>
-              <div className={cn('text-xs font-medium', tokens.mutedText)}>
+              <div className={cn('mt-0.5 text-xs font-medium', tokens.mutedText)}>
                 Active Jobs
               </div>
             </button>
@@ -188,14 +194,14 @@ export function LandingPageView({
               type="button"
               onClick={() => onNavigateTab('analytics')}
               className={cn(
-                'rounded-lg border p-3 text-left transition-colors',
-                tokens.cardSurface
+                'p-4 text-left transition-colors',
+                tokens.isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-white/75'
               )}
             >
               <div className="font-mono text-2xl font-semibold tabular-nums">
                 {applicableJobsCount}
               </div>
-              <div className={cn('text-xs font-medium', tokens.mutedText)}>
+              <div className={cn('mt-0.5 text-xs font-medium', tokens.mutedText)}>
                 Level Fit
               </div>
             </button>
@@ -204,14 +210,14 @@ export function LandingPageView({
               type="button"
               onClick={() => onNavigateTab('analytics')}
               className={cn(
-                'rounded-lg border p-3 text-left transition-colors',
-                tokens.cardSurface
+                'p-4 text-left transition-colors',
+                tokens.isDark ? 'hover:bg-zinc-800/50' : 'hover:bg-white/75'
               )}
             >
               <div className="font-mono text-2xl font-semibold tabular-nums">
                 {queuedCount}
               </div>
-              <div className={cn('text-xs font-medium', tokens.mutedText)}>
+              <div className={cn('mt-0.5 text-xs font-medium', tokens.mutedText)}>
                 In Queue
               </div>
             </button>
@@ -219,28 +225,27 @@ export function LandingPageView({
         </div>
       </section>
 
-      {/* DIRECT BOARD LAUNCHERS */}
-      <section className={cn('rounded-lg border p-5 space-y-3', tokens.cardSurface)}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      {/* DIRECT BOARD LAUNCHERS (Unified Hairline Strip) */}
+      <section className={cn('overflow-hidden rounded-lg border', tokens.cardSurface)}>
+        <div className={cn('flex flex-wrap items-baseline justify-between gap-2 border-b px-5 py-3.5', tokens.borderSubtle)}>
           <h3 className="text-sm font-semibold">Connected Job Boards</h3>
           <span className={cn('text-xs', tokens.mutedText)}>
             Select a board to open filtered search results
           </span>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className={cn('grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0', tokens.borderSubtle)}>
           {BOARD_SUMMARIES.map((board) => (
             <button
               key={board.source}
               type="button"
               onClick={() => onSelectBoardAndLaunch(board.source)}
               className={cn(
-                'flex flex-col justify-between gap-3 rounded-lg border p-4 text-left transition-colors',
-                tokens.subSurface,
-                tokens.isDark ? 'hover:border-slate-600' : 'hover:border-slate-400'
+                'flex flex-col justify-between gap-3 p-5 text-left transition-colors',
+                tokens.isDark ? 'hover:bg-zinc-800/40' : 'hover:bg-slate-50/75'
               )}
             >
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <BoardLogo source={board.source} theme={theme} size="md" />
                 <p className={cn('text-xs leading-relaxed', tokens.mutedText)}>
                   {board.coverage}
@@ -249,7 +254,7 @@ export function LandingPageView({
               <span
                 className={cn(
                   'inline-flex items-center gap-1 text-xs font-semibold',
-                  tokens.isDark ? 'text-zinc-200 hover:text-white' : 'text-[#0a66c2]'
+                  tokens.isDark ? 'text-zinc-200' : 'text-[#0a66c2]'
                 )}
               >
                 Browse listings <ArrowRight className="h-3.5 w-3.5" />

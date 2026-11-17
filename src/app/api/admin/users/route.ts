@@ -281,7 +281,7 @@ export async function GET() {
   };
 
   return NextResponse.json({
-    mode: session.mode === 'supabase' ? 'schema-pending' : 'local-admin',
+    mode: 'schema-pending',
     schemaReady: false,
     hasServiceRole: cfg.hasServiceRole,
     supabaseUrl: cfg.url,

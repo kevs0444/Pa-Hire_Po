@@ -36,22 +36,24 @@ export function TopChoicesSpotlight({
     cardSurface,
     primaryBtn,
     secondaryBtn,
-    selectedCard,
     mutedText,
+    borderSubtle,
+    badgeSuccess,
+    badgeNeutral,
   } = getThemeTokens(theme);
 
   return (
-    <section className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-semibold tracking-tight">
+    <section className={cn('rounded-lg border overflow-hidden', cardSurface)}>
+      <div className={cn('flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-2.5', borderSubtle)}>
+        <h2 className="text-xs font-semibold tracking-tight uppercase">
           Recommended for {activeProfileName}
         </h2>
         <span className={cn('text-xs', mutedText)}>
-          Top 3 matches for {experienceLevel} level
+          Top {choices.length} matches for {experienceLevel} level
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className={cn('grid divide-y md:grid-cols-3 md:divide-y-0 md:divide-x', borderSubtle)}>
         {choices.map((job, idx) => {
           const isQueued = queuedJobIds.includes(job.id);
           const isSelected = selectedJobId === job.id;
@@ -61,30 +63,30 @@ export function TopChoicesSpotlight({
               key={`top3-${job.id}`}
               onClick={() => onSelectJob(job.id)}
               className={cn(
-                'flex cursor-pointer flex-col justify-between gap-3 rounded-lg border p-3.5 transition-colors',
-                isSelected ? selectedCard : cardSurface
+                'flex cursor-pointer flex-col justify-between gap-3 p-4 transition-colors',
+                isSelected
+                  ? isDark
+                    ? 'bg-[#222227] border-l-[3px] border-l-zinc-300 md:border-l-0 md:border-t-[3px] md:border-t-zinc-300'
+                    : 'bg-[#f8fafc] border-l-[3px] border-l-[#0a66c2] md:border-l-0 md:border-t-[3px] md:border-t-[#0a66c2]'
+                  : isDark
+                    ? 'hover:bg-zinc-800/40'
+                    : 'hover:bg-slate-50/75'
               )}
             >
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 min-w-0">
                 <div className="flex items-center justify-between gap-2">
                   <BoardLogo source={job.source} theme={theme} size="sm" />
                   <span
                     className={cn(
                       'rounded border px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums',
-                      idx === 0
-                        ? isDark
-                          ? 'border-zinc-700 bg-zinc-800 text-zinc-100 font-semibold'
-                          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : isDark
-                          ? 'border-zinc-800 bg-zinc-900 text-zinc-300'
-                          : 'border-slate-200 bg-slate-100 text-slate-700'
+                      idx === 0 || job.matchScore >= 75 ? badgeSuccess : badgeNeutral
                     )}
                   >
-                    #{idx + 1} • {job.matchScore}%
+                    {idx === 0 || job.matchScore >= 75 ? '✓ ' : ''}#{idx + 1} • {job.matchScore}%
                   </span>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <h3 className="line-clamp-1 text-sm font-semibold">
                     {job.title}
                   </h3>
@@ -93,7 +95,7 @@ export function TopChoicesSpotlight({
                   </p>
                 </div>
 
-                <p className={cn('text-xs', mutedText)}>
+                <p className={cn('text-xs font-mono tabular-nums', mutedText)}>
                   Exp: {job.experienceRequired}
                 </p>
               </div>
@@ -106,7 +108,7 @@ export function TopChoicesSpotlight({
                     onOpenApplyModal(job);
                   }}
                   className={cn(
-                    'inline-flex flex-1 items-center justify-center rounded-lg py-1.5 text-xs transition-colors',
+                    'inline-flex flex-1 items-center justify-center rounded-lg px-3 py-1.5 text-xs transition-colors',
                     primaryBtn
                   )}
                 >

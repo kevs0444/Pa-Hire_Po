@@ -34,6 +34,7 @@ tags:
 - **Next.js Media Discipline:** User/local data-URL photos use `<Image unoptimized ... />` inside `relative overflow-hidden` containers so ESLint `@next/next/no-img-element` stays clean.
 
 ## Related Notes
+- [[Design - Ruthless UI Architect & Anti-AI-Slop Rules]]
 - [[Design - Civic Career Utility & Theme Tokens]]
 - [[ADR-003 - Native HTML Dialog Over Div Overlays]]
 - [[ADR-004 - Client-Side Canvas Compression for Profile Media]]

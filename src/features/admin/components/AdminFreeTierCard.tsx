@@ -43,20 +43,24 @@ export function AdminFreeTierCard({
   );
 
   return (
-    <section className={cn('rounded-lg border p-5 space-y-4', tokens.cardSurface)}>
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+    <section
+      className={cn(
+        'overflow-hidden rounded-lg border',
+        tokens.borderSubtle,
+        tokens.cardSurface
+      )}
+    >
+      <div className="flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <Activity className="h-4 w-4 text-[#0a66c2]" />
+            <Activity className="h-4 w-4 shrink-0" aria-hidden="true" />
             <h3 className="text-sm font-bold">
-              Free-Tier Capacity &amp; Scalability Guardrails (1–{ft.targetUsers} Users)
+              Supabase Free-Tier Capacity &amp; Guardrails (1–{ft.targetUsers} Users)
             </h3>
             <span
               className={cn(
                 'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                tokens.isDark
-                  ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                tokens.badgeSuccess
               )}
             >
               ✓ Auto-Keepalive ({ft.keepAliveCron})
@@ -74,11 +78,14 @@ export function AdminFreeTierCard({
             disabled={runningKeepAlive}
             onClick={onPingKeepAlive}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-60',
+              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60',
               tokens.secondaryBtn
             )}
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', runningKeepAlive && 'animate-spin')} />
+            <RefreshCw
+              className={cn('h-3.5 w-3.5', runningKeepAlive && 'animate-spin')}
+              aria-hidden="true"
+            />
             {runningKeepAlive ? 'Pinging...' : 'Ping Keep-Alive'}
           </button>
           <button
@@ -86,18 +93,25 @@ export function AdminFreeTierCard({
             disabled={runningPrune}
             onClick={onRunPrune}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium disabled:opacity-60',
+              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-60',
               tokens.primaryBtn
             )}
           >
-            <Database className="h-3.5 w-3.5" />
+            <Database className="h-3.5 w-3.5" aria-hidden="true" />
             {runningPrune ? 'Pruning DB...' : 'Run Free-Tier DB Prune'}
           </button>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className={cn('rounded-lg border p-3 space-y-1', tokens.subSurface)}>
+      {/* Unified hairline-divided capacity ledger (zero nested card borders) */}
+      <div
+        className={cn(
+          'grid divide-y border-t sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0',
+          tokens.borderSubtle,
+          tokens.subSurface
+        )}
+      >
+        <div className="space-y-1 p-4">
           <div className={cn('text-[11px] font-medium', tokens.mutedText)}>
             Active Users vs Launch Target
           </div>
@@ -109,22 +123,22 @@ export function AdminFreeTierCard({
           </div>
         </div>
 
-        <div className={cn('rounded-lg border p-3 space-y-1.5', tokens.subSurface)}>
+        <div className="space-y-1.5 p-4">
           <div className={cn('text-[11px] font-medium', tokens.mutedText)}>
             Est. Postgres DB Footprint
           </div>
           <div className="font-mono text-base font-semibold tabular-nums">
             {dbMb} MB / {maxDbMb} MB
           </div>
-          <div className={cn('h-1.5 w-full overflow-hidden rounded-full', tokens.isDark ? 'bg-slate-800' : 'bg-slate-200')}>
+          <div className={cn('h-1.5 w-full overflow-hidden rounded-full', tokens.barTrack)}>
             <div
-              className="h-full rounded-full bg-[#0a66c2] transition-all"
+              className={cn('h-full rounded-full transition-all', tokens.barFill)}
               style={{ width: `${dbPct}%` }}
             />
           </div>
         </div>
 
-        <div className={cn('rounded-lg border p-3 space-y-1', tokens.subSurface)}>
+        <div className="space-y-1 p-4">
           <div className={cn('text-[11px] font-medium', tokens.mutedText)}>
             CV Storage (Single-Slot Overwrite)
           </div>
@@ -136,7 +150,7 @@ export function AdminFreeTierCard({
           </div>
         </div>
 
-        <div className={cn('rounded-lg border p-3 space-y-1', tokens.subSurface)}>
+        <div className="space-y-1 p-4">
           <div className={cn('text-[11px] font-medium', tokens.mutedText)}>
             Per-User Retention Caps
           </div>

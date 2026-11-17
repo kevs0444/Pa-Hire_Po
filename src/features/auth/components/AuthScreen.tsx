@@ -204,7 +204,7 @@ export function AuthScreen({
         return;
       }
       setSuccessMsg(
-        `A new 6-digit verification code was sent to ${cleanEmail}.`
+        `A new verification code was sent to ${cleanEmail}.`
       );
     } finally {
       setSubmitting(false);
@@ -244,9 +244,9 @@ export function AuthScreen({
 
       if (mode === 'signup') {
         if (signupOtpSent) {
-          const cleanCode = otpCode.trim();
+          const cleanCode = otpCode.replace(/\s+/g, '').trim();
           if (!cleanCode) {
-            setErrorMsg('Enter the 6-digit verification code sent to your email.');
+            setErrorMsg('Enter the verification code sent to your email.');
             return;
           }
 
@@ -317,16 +317,17 @@ export function AuthScreen({
         setSignupOtpSent(true);
         setOtpCode('');
         setSuccessMsg(
-          `Verification code sent to ${cleanEmail}! Enter the 6-digit OTP from your email (or click the confirmation link) to activate your account.`
+          `Verification code sent to ${cleanEmail}! Enter the code from your email (or click the confirmation button) to activate your account.`
         );
         return;
       }
 
       if (mode === 'magic') {
-        if (otpSent && otpCode.trim()) {
+        const cleanToken = otpCode.replace(/\s+/g, '').trim();
+        if (otpSent && cleanToken) {
           const { error } = await supabase.auth.verifyOtp({
             email: cleanEmail,
-            token: otpCode.trim(),
+            token: cleanToken,
             type: 'email',
           });
           if (error) {
@@ -351,7 +352,7 @@ export function AuthScreen({
         }
         setOtpSent(true);
         setSuccessMsg(
-          'Magic link & 6-digit login code sent! Click the link in your email or enter the 6-digit code below.'
+          'Login code sent! Click the button in your email or enter the code below.'
         );
         return;
       }
@@ -675,7 +676,7 @@ export function AuthScreen({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <label className={cn('block text-xs font-medium', tokens.mutedText)}>
-                      6-Digit Verification Code (from Email)
+                      Verification / OTP Code (from Email)
                     </label>
                     {mode === 'signup' && signupOtpSent && (
                       <div className="flex items-center gap-3">
@@ -710,8 +711,8 @@ export function AuthScreen({
                     autoComplete="one-time-code"
                     required={mode === 'signup' && signupOtpSent}
                     value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    placeholder="123456"
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\s+/g, ''))}
+                    placeholder="Enter 6 or 8-digit code (e.g. 63746146)"
                     className={cn(
                       'w-full rounded-lg border px-3 py-2 font-mono text-sm tracking-widest focus:outline-none',
                       tokens.inputSurface
@@ -745,7 +746,7 @@ export function AuthScreen({
                     {submitting
                       ? 'Sending...'
                       : otpSent && otpCode.trim()
-                        ? 'Verify 6-Digit Code'
+                        ? 'Verify Code & Sign In'
                         : 'Send Magic Link & OTP Code'}
                   </>
                 ) : mode === 'reset' ? (

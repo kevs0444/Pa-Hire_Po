@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type { MonochromeTheme } from '@/types/job';
 import type { ActivityNotification } from '@/features/notifications/types';
+import { LATEST_CHANGELOG_RELEASE } from '@/features/changelog/data/changelog-data';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -129,7 +130,7 @@ export function NotificationBell({
       <button
         ref={triggerRef}
         type="button"
-        {...({ popovertarget: popoverId } as Record<string, string>)}
+        {...({ popoverTarget: popoverId } as Record<string, string>)}
         className={cn(
           'civic-btn-motion relative inline-flex items-center justify-center rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
           tokens.secondaryBtn
@@ -176,17 +177,13 @@ export function NotificationBell({
             <span
               className={cn(
                 'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium',
-                isRealtimeConnected
-                  ? tokens.isDark
-                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.subSurface
+                isRealtimeConnected ? tokens.badgeSuccess : tokens.badgeNeutral
               )}
             >
               <span
                 className={cn(
                   'h-1.5 w-1.5 rounded-full',
-                  isRealtimeConnected ? 'bg-emerald-500' : 'bg-slate-400'
+                  isRealtimeConnected ? 'bg-emerald-500' : 'bg-zinc-400'
                 )}
               />
               {isRealtimeConnected ? 'Live' : 'Sync'}
@@ -279,7 +276,7 @@ export function NotificationBell({
                     <span
                       className={cn(
                         'mt-2 h-2 w-2 shrink-0 rounded-full',
-                        tokens.isDark ? 'bg-blue-400' : 'bg-[#0a66c2]'
+                        tokens.barFill
                       )}
                       aria-label="Unread"
                     />
@@ -299,7 +296,7 @@ export function NotificationBell({
           )}
         >
           <span className={cn('text-[11px]', tokens.mutedText)}>
-            Latest product updates
+            Latest: {LATEST_CHANGELOG_RELEASE.version} ({LATEST_CHANGELOG_RELEASE.date})
           </span>
           <button
             type="button"
@@ -312,7 +309,7 @@ export function NotificationBell({
               tokens.secondaryBtn
             )}
           >
-            What&apos;s New
+            What&apos;s New ({LATEST_CHANGELOG_RELEASE.version})
           </button>
         </div>
       </div>

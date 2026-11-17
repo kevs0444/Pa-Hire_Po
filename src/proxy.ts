@@ -4,6 +4,14 @@ import { getServerSupabaseConfig } from '@/lib/supabase/server-env';
 
 const PUBLIC_PATHS = new Set(['/login', '/auth/callback', '/privacy', '/terms']);
 
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  res.headers.set('X-Frame-Options', 'DENY');
+  res.headers.set('X-Content-Type-Options', 'nosniff');
+  res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  return res;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -68,7 +76,7 @@ export async function proxy(request: NextRequest) {
     } else if (pathname !== '/') {
       loginUrl.searchParams.set('next', pathname);
     }
-    return NextResponse.redirect(loginUrl);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   if (
@@ -83,10 +91,10 @@ export async function proxy(request: NextRequest) {
         ? nextPath
         : '/';
     targetUrl.search = '';
-    return NextResponse.redirect(targetUrl);
+    return applySecurityHeaders(NextResponse.redirect(targetUrl));
   }
 
-  return response;
+  return applySecurityHeaders(response);
 }
 
 export const config = {

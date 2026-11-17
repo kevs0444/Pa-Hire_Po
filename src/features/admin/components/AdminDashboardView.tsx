@@ -1,35 +1,36 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FormEvent,
+  KeyboardEvent,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   AlertCircle,
-  Ban,
   Check,
-  Copy,
   Database,
   ExternalLink,
-  Eye,
-  FileText,
   KeyRound,
   RefreshCw,
-  Search,
   Shield,
   ShieldCheck,
-  Trash2,
-  UserCheck,
-  Users,
 } from 'lucide-react';
-import {
-  AuthSessionUser,
-  MonochromeTheme,
-  UserRole,
-} from '@/types/job';
+import { AuthSessionUser, MonochromeTheme, UserRole } from '@/types/job';
 import {
   AdminUsersApiResponse,
   InspectedUserPayload,
+  PlatformStatusPayload,
   SetupStatus,
 } from '@/features/admin/types';
-import { AdminFreeTierCard } from '@/features/admin/components/AdminFreeTierCard';
+import { getHealthBadgeStyle } from '@/features/admin/lib/status-helpers';
+import { AdminOverviewTab } from '@/features/admin/components/AdminOverviewTab';
+import { AdminUserDirectoryTab } from '@/features/admin/components/AdminUserDirectoryTab';
+import { AdminInfraTab } from '@/features/admin/components/AdminInfraTab';
 import { AdminSupabaseSetupDialog } from '@/features/admin/components/AdminSupabaseSetupDialog';
 import { AdminUserInspectDialog } from '@/features/admin/components/AdminUserInspectDialog';
 import {
@@ -42,6 +43,8 @@ import { SUPABASE_SCHEMA_SQL } from '@/lib/supabase/schema-sql';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
+type AdminTabId = 'overview' | 'users' | 'infra';
+
 interface AdminDashboardViewProps {
   theme: MonochromeTheme;
   authUser: AuthSessionUser | null;
@@ -52,6 +55,16 @@ export function AdminDashboardView({
   authUser,
 }: AdminDashboardViewProps) {
   const tokens = getThemeTokens(theme);
+  const overviewTabId = useId();
+  const usersTabId = useId();
+  const infraTabId = useId();
+  const tabRefs = useRef<Record<AdminTabId, HTMLButtonElement | null>>({
+    overview: null,
+    users: null,
+    infra: null,
+  });
+
+  const [activeTab, setActiveTab] = useState<AdminTabId>('overview');
 
   const [data, setData] = useState<AdminUsersApiResponse>({
     mode: 'loading',
@@ -73,6 +86,7 @@ export function AdminDashboardView({
     users: [],
   });
   const [loading, setLoading] = useState(true);
+  const [loadingStatus, setLoadingStatus] = useState(true);
   const [actionMsg, setActionMsg] = useState<{
     type: 'ok' | 'err';
     text: string;
@@ -85,17 +99,16 @@ export function AdminDashboardView({
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // User Data Inspector dialog
-  const [inspectedUser, setInspectedUser] = useState<InspectedUserPayload | null>(
-    null
-  );
+  const [inspectedUser, setInspectedUser] =
+    useState<InspectedUserPayload | null>(null);
   const [loadingInspect, setLoadingInspect] = useState(false);
   const [inspectTab, setInspectTab] = useState<
     'profile' | 'resume' | 'jobs' | 'scans'
   >('profile');
 
-  // Setup & SQL dialog + Free-Tier actions
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [platformStatus, setPlatformStatus] =
+    useState<PlatformStatusPayload | null>(null);
   const [setupModalOpen, setSetupModalOpen] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [anonKeyDraft, setAnonKeyDraft] = useState('');
@@ -104,11 +117,17 @@ export function AdminDashboardView({
   const [runningKeepAlive, setRunningKeepAlive] = useState(false);
   const [runningPrune, setRunningPrune] = useState(false);
 
-  const loadUsers = useCallback(async () => {
+  const loadAllAdminData = useCallback(async (forceStatus = false) => {
+    setLoading(true);
+    setLoadingStatus(true);
     try {
-      const [usersRes, setupRes] = await Promise.all([
+      const statusUrl = forceStatus
+        ? '/api/admin/platform-status?force=1'
+        : '/api/admin/platform-status';
+      const [usersRes, setupRes, statusRes] = await Promise.all([
         fetch('/api/admin/users', { cache: 'no-store' }),
         fetch('/api/supabase/setup', { cache: 'no-store' }).catch(() => null),
+        fetch(statusUrl, { cache: 'no-store' }).catch(() => null),
       ]);
       const payload = await usersRes.json();
       if (!usersRes.ok) {
@@ -120,8 +139,10 @@ export function AdminDashboardView({
       }
       setData(payload as AdminUsersApiResponse);
       if (setupRes && setupRes.ok) {
-        const setupPayload = (await setupRes.json()) as SetupStatus;
-        setSetupStatus(setupPayload);
+        setSetupStatus((await setupRes.json()) as SetupStatus);
+      }
+      if (statusRes && statusRes.ok) {
+        setPlatformStatus((await statusRes.json()) as PlatformStatusPayload);
       }
     } catch {
       setActionMsg({
@@ -130,6 +151,7 @@ export function AdminDashboardView({
       });
     } finally {
       setLoading(false);
+      setLoadingStatus(false);
     }
   }, []);
 
@@ -141,10 +163,17 @@ export function AdminDashboardView({
         payload: await res.json(),
       })),
       fetch('/api/supabase/setup', { cache: 'no-store' })
-        .then(async (res) => (res.ok ? ((await res.json()) as SetupStatus) : null))
+        .then(async (res) =>
+          res.ok ? ((await res.json()) as SetupStatus) : null
+        )
+        .catch(() => null),
+      fetch('/api/admin/platform-status', { cache: 'no-store' })
+        .then(async (res) =>
+          res.ok ? ((await res.json()) as PlatformStatusPayload) : null
+        )
         .catch(() => null),
     ])
-      .then(([{ ok, payload }, setupPayload]) => {
+      .then(([{ ok, payload }, setupPayload, statusPayload]) => {
         if (!active) return;
         if (!ok) {
           setActionMsg({
@@ -154,9 +183,8 @@ export function AdminDashboardView({
           return;
         }
         setData(payload as AdminUsersApiResponse);
-        if (setupPayload) {
-          setSetupStatus(setupPayload);
-        }
+        if (setupPayload) setSetupStatus(setupPayload);
+        if (statusPayload) setPlatformStatus(statusPayload);
       })
       .catch(() => {
         if (active) {
@@ -167,7 +195,10 @@ export function AdminDashboardView({
         }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          setLoadingStatus(false);
+        }
       });
     return () => {
       active = false;
@@ -227,7 +258,7 @@ export function AdminDashboardView({
         return;
       }
       setActionMsg({ type: 'ok', text: 'User permissions updated.' });
-      await loadUsers();
+      await loadAllAdminData(false);
     } finally {
       setBusyUserId(null);
     }
@@ -254,7 +285,7 @@ export function AdminDashboardView({
         type: 'ok',
         text: payload.warning || 'User account and data deleted.',
       });
-      await loadUsers();
+      await loadAllAdminData(false);
     } finally {
       setBusyUserId(null);
     }
@@ -288,7 +319,7 @@ export function AdminDashboardView({
         type: 'ok',
         text: payload.message || 'Supabase credentials updated.',
       });
-      await loadUsers();
+      await loadAllAdminData(true);
     } finally {
       setSavingKeys(false);
     }
@@ -311,6 +342,7 @@ export function AdminDashboardView({
         type: 'ok',
         text: payload.message || 'Supabase keep-alive probe succeeded.',
       });
+      await loadAllAdminData(true);
     } catch {
       setActionMsg({
         type: 'err',
@@ -342,7 +374,7 @@ export function AdminDashboardView({
         type: 'ok',
         text: payload.message || 'Free-tier prune completed.',
       });
-      await loadUsers();
+      await loadAllAdminData(false);
     } catch {
       setActionMsg({
         type: 'err',
@@ -373,20 +405,69 @@ export function AdminDashboardView({
       if (roleFilter === 'user' && u.role !== 'user') return false;
       if (roleFilter === 'suspended' && !u.isSuspended) return false;
       if (!q) return true;
-      const hay = `${u.fullName} ${u.email} ${u.primaryRole} ${u.location}`.toLowerCase();
+      const hay =
+        `${u.fullName} ${u.email} ${u.primaryRole} ${u.location}`.toLowerCase();
       return hay.includes(q);
     });
   }, [data.users, roleFilter, searchQuery]);
 
+  const tabOrder: AdminTabId[] = useMemo(
+    () => ['overview', 'users', 'infra'],
+    []
+  );
+
+  const selectTab = (nextTab: AdminTabId, moveFocus = false) => {
+    setActiveTab(nextTab);
+    if (moveFocus) {
+      const el = tabRefs.current[nextTab];
+      el?.focus();
+      el?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  };
+
+  const handleTabKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const idx = tabOrder.indexOf(activeTab);
+    if (idx === -1) return;
+    let nextIdx: number | null = null;
+    if (e.key === 'ArrowRight') nextIdx = (idx + 1) % tabOrder.length;
+    else if (e.key === 'ArrowLeft')
+      nextIdx = (idx - 1 + tabOrder.length) % tabOrder.length;
+    else if (e.key === 'Home') nextIdx = 0;
+    else if (e.key === 'End') nextIdx = tabOrder.length - 1;
+
+    if (nextIdx !== null) {
+      e.preventDefault();
+      selectTab(tabOrder[nextIdx], true);
+    }
+  };
+
   const dashboardBase = `https://supabase.com/dashboard/project/${data.projectRef}`;
+  const vercelPill = getHealthBadgeStyle(
+    platformStatus?.vercel.globalStatus.level || 'unknown',
+    tokens
+  );
+  const supabasePill = getHealthBadgeStyle(
+    platformStatus?.supabase.globalStatus.level ||
+      ((setupStatus?.schemaReady ?? data.schemaReady)
+        ? 'operational'
+        : 'unknown'),
+    tokens
+  );
+  const dbLatency = platformStatus?.supabase.dbProbe.latencyMs;
 
   if (!authUser?.isAdmin) {
     return (
-      <div className={cn('mx-auto max-w-xl rounded-lg border p-6 text-center space-y-2', tokens.cardSurface)}>
+      <div
+        className={cn(
+          'mx-auto max-w-xl rounded-lg border p-6 text-center space-y-2',
+          tokens.cardSurface
+        )}
+      >
         <Shield className={cn('mx-auto h-8 w-8', tokens.mutedText)} />
         <h2 className="text-base font-bold">Admin Access Required</h2>
         <p className={cn('text-xs', tokens.mutedText)}>
-          Sign in with an administrator account ({PRIMARY_ADMIN_EMAIL}) to inspect user counts and platform data.
+          Sign in with an administrator account ({PRIMARY_ADMIN_EMAIL}) to
+          inspect user counts and platform data.
         </p>
       </div>
     );
@@ -394,588 +475,259 @@ export function AdminDashboardView({
 
   return (
     <div className="no-print space-y-4">
-      {/* TOP ADMIN HEADER & SUPABASE CONNECTION BAR */}
-      <section className={cn('rounded-lg border p-5 space-y-4', tokens.cardSurface)}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-[#0a66c2]" />
-              <h2 className="text-lg font-bold tracking-tight">
-                Admin Control Center
-              </h2>
-              <span
-                className={cn(
-                  'rounded border px-2 py-0.5 font-mono text-[11px] font-semibold',
-                  (setupStatus?.schemaReady ?? data.schemaReady)
-                    ? tokens.isDark
-                      ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                      : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                    : tokens.secondaryBtn
-                )}
-              >
-                {(setupStatus?.schemaReady ?? data.schemaReady)
-                  ? '✓ Supabase Cloud Live'
-                  : 'Schema Setup Pending'}
-              </span>
-              <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
-                Vercel Store: supabase-erin-elephant ({data.projectRef})
-              </span>
-            </div>
-            <p className={cn('text-xs', tokens.mutedText)}>
-              Monitor total registered accounts, inspect user resumes and job pipelines, manage Admin roles, and configure Vercel Store Supabase settings.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true);
-                void loadUsers();
-              }}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                tokens.secondaryBtn
-              )}
-            >
-              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={() => setSetupModalOpen(true)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                tokens.secondaryBtn
-              )}
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-              Supabase Settings
-            </button>
-            <a
-              href={`${dashboardBase}/editor`}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs',
-                tokens.primaryBtn
-              )}
-            >
-              <Database className="h-3.5 w-3.5" />
-              Supabase Studio
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-        </div>
-
-        {/* Supabase Quick Console Links */}
-        <div className={cn('flex flex-wrap items-center gap-2 border-t pt-3 text-xs', tokens.borderSubtle)}>
-          <span className={cn('font-medium', tokens.mutedText)}>
-            Quick Supabase links:
-          </span>
-          {[
-            { label: 'Table Editor', href: `${dashboardBase}/editor` },
-            { label: 'Auth Users', href: `${dashboardBase}/auth/users` },
-            { label: 'Auth Providers', href: `${dashboardBase}/auth/providers` },
-            { label: 'Resumes Storage', href: `${dashboardBase}/storage/buckets` },
-            { label: 'SQL Editor', href: `${dashboardBase}/sql/new` },
-          ].map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noreferrer"
-              className={cn(
-                'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium hover:underline',
-                tokens.subSurface
-              )}
-            >
-              {link.label}
-              <ExternalLink className="h-2.5 w-2.5 opacity-70" />
-            </a>
-          ))}
-        </div>
-
-        {actionMsg && (
-          <div
-            className={cn(
-              'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium',
-              actionMsg.type === 'ok'
-                ? tokens.isDark
-                  ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-200'
-                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                : tokens.isDark
-                  ? 'border-red-500/40 bg-red-950/50 text-red-200'
-                  : 'border-red-300 bg-red-50 text-red-800'
-            )}
-          >
-            {actionMsg.type === 'ok' ? (
-              <Check className="h-4 w-4 shrink-0" />
-            ) : (
-              <AlertCircle className="h-4 w-4 shrink-0" />
-            )}
-            <span>{actionMsg.text}</span>
-          </div>
+      {/* TOP COMMAND HEADER + ACCESSIBLE WORKSPACE TABS */}
+      <section
+        className={cn(
+          'overflow-hidden rounded-lg border',
+          tokens.borderSubtle,
+          tokens.cardSurface
         )}
-      </section>
-
-      {/* CONNECTED SUPABASE PROJECT & SETTINGS (VERCEL STORE) */}
-      <section className={cn('rounded-lg border p-5 space-y-4', tokens.cardSurface)}>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <Database className="h-4 w-4 text-[#0a66c2]" />
-              <h3 className="text-sm font-bold tracking-tight">
-                Connected Supabase Project
-              </h3>
-              <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', tokens.subSurface)}>
-                {setupStatus?.projectName || SUPABASE_PROJECT_NAME} (Vercel Store)
-              </span>
-            </div>
-            <p className={cn('font-mono text-xs break-all', tokens.mutedText)}>
-              {setupStatus?.url || data.supabaseUrl}
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setLoading(true);
-                void loadUsers();
-              }}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                tokens.secondaryBtn
-              )}
-            >
-              <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
-              Check
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleCopySql()}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                tokens.secondaryBtn
-              )}
-            >
-              {copiedSql ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-[#057642]" />
-                  Copied SQL
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy schema.sql
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setSetupModalOpen(true)}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs',
-                tokens.primaryBtn
-              )}
-            >
-              <KeyRound className="h-3.5 w-3.5" />
-              Supabase Key &amp; SQL Setup
-            </button>
-          </div>
-        </div>
-
-        <div className={cn('divide-y rounded-lg border text-xs', tokens.borderSubtle, tokens.subSurface)}>
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="font-medium">1. API Key (.env)</span>
-            <span
-              className={cn(
-                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                setupStatus?.keyValid
-                  ? tokens.isDark
-                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.secondaryBtn
-              )}
-            >
-              {setupStatus ? (setupStatus.keyValid ? '✓ Connected' : 'Key Needed') : 'Checking...'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="font-medium">2. SQL Tables &amp; RLS</span>
-            <span
-              className={cn(
-                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                (setupStatus?.schemaReady ?? data.schemaReady)
-                  ? tokens.isDark
-                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.secondaryBtn
-              )}
-            >
-              {(setupStatus?.schemaReady ?? data.schemaReady) ? '✓ Schema Live' : 'Run SQL Once'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="font-medium">3. Admin User Directory Key</span>
-            <span
-              className={cn(
-                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                (setupStatus?.hasServiceRole ?? data.hasServiceRole)
-                  ? tokens.isDark
-                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.secondaryBtn
-              )}
-            >
-              {(setupStatus?.hasServiceRole ?? data.hasServiceRole) ? '✓ Full Admin' : 'Optional'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="font-medium">4. Backend Runtime &amp; Gemini AI</span>
-            <span
-              className={cn(
-                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                setupStatus?.personalApiConfigured
-                  ? tokens.isDark
-                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.secondaryBtn
-              )}
-            >
-              {setupStatus?.vercelEnv || 'local'} •{' '}
-              {setupStatus?.personalApiConfigured ? '✓ AI Active' : 'Smart Engine'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-2 px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-medium">5. Auth Sign-In Providers</span>
-              <a
-                href={`${dashboardBase}/auth/providers`}
-                target="_blank"
-                rel="noreferrer"
-                className={cn('inline-flex items-center gap-1 text-[11px] hover:underline', tokens.mutedText)}
-              >
-                Configure OAuth
-                <ExternalLink className="h-2.5 w-2.5" />
-              </a>
-            </div>
-            <span
-              className={cn(
-                'rounded border px-2 py-0.5 font-mono text-[11px] font-medium',
-                setupStatus?.keyValid
-                  ? tokens.isDark
-                    ? 'border-emerald-700/60 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : tokens.secondaryBtn
-              )}
-            >
-              {(() => {
-                const oauth = (setupStatus?.enabledProviders || []).filter(
-                  (p) => p !== 'email' && p !== 'phone'
-                );
-                return oauth.length > 0
-                  ? `Email + ${oauth.join(', ')} ✓`
-                  : 'Email + Password ✓ (OAuth: Off)';
-              })()}
-            </span>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <p className={tokens.mutedText}>
-            {setupStatus?.message ||
-              `${SUPABASE_PROJECT_NAME} Supabase (${data.projectRef || DEFAULT_SUPABASE_PROJECT_REF}) health checks load here.`}
-          </p>
-          <a
-            href={`${dashboardBase}/sql/new`}
-            target="_blank"
-            rel="noreferrer"
-            className={cn('inline-flex items-center gap-1 font-medium hover:underline', tokens.mutedText)}
-          >
-            Open SQL Editor
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      </section>
-
-      {/* PLATFORM KPI METRICS */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          {
-            label: 'Total Users',
-            value: data.stats.totalUsers,
-            sub: `${data.stats.activeLast7d} active in 7d`,
-          },
-          {
-            label: 'Admin Accounts',
-            value: data.stats.adminUsers,
-            sub: `${data.stats.suspendedUsers} suspended`,
-          },
-          {
-            label: 'Total Jobs in DB',
-            value: data.stats.totalJobsTracked,
-            sub: 'Across all users',
-          },
-          {
-            label: 'Saved & Applied',
-            value: `${data.stats.totalSavedJobs} / ${data.stats.totalAppliedJobs}`,
-            sub: 'Saved / Applied pipeline',
-          },
-          {
-            label: 'Board Scans & CVs',
-            value: `${data.stats.totalScans} / ${data.stats.resumesStoredCount}`,
-            sub: 'Scans / Stored PDFs',
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className={cn('rounded-lg border p-4 space-y-1', tokens.cardSurface)}
-          >
-            <div className={cn('text-xs font-medium', tokens.mutedText)}>
-              {kpi.label}
-            </div>
-            <div className="font-mono text-2xl font-semibold tabular-nums">
-              {kpi.value}
-            </div>
-            <div className={cn('text-[11px]', tokens.mutedText)}>{kpi.sub}</div>
-          </div>
-        ))}
-      </section>
-
-      <AdminFreeTierCard
-        theme={theme}
-        stats={data.stats}
-        runningKeepAlive={runningKeepAlive}
-        runningPrune={runningPrune}
-        onPingKeepAlive={() => void handlePingKeepAlive()}
-        onRunPrune={() => void handleRunFreeTierPrune()}
-      />
-
-      {/* SEARCHABLE USER DIRECTORY */}
-      <section className={cn('rounded-lg border p-5 space-y-4', tokens.cardSurface)}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <Users className="h-4 w-4 text-[#0a66c2]" />
-            <h3 className="text-sm font-bold">
-              User Directory ({filteredUsers.length})
-            </h3>
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  { id: 'all', label: 'All' },
-                  { id: 'admin', label: 'Admins' },
-                  { id: 'user', label: 'Users' },
-                  { id: 'suspended', label: 'Suspended' },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setRoleFilter(tab.id)}
+      >
+        <div className="p-5 space-y-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <ShieldCheck className="h-5 w-5 shrink-0" aria-hidden="true" />
+                <h2 className="text-lg font-bold tracking-tight">
+                  Admin Control Center
+                </h2>
+                <span
                   className={cn(
-                    'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                    roleFilter === tab.id ? tokens.primaryBtn : tokens.secondaryBtn
+                    'rounded border px-2 py-0.5 font-mono text-[11px] font-semibold',
+                    vercelPill.className
                   )}
                 >
-                  {tab.label}
-                </button>
-              ))}
+                  {vercelPill.prefix} Vercel: {vercelPill.label} (
+                  {platformStatus?.vercel.runtimeEnv ||
+                    setupStatus?.vercelEnv ||
+                    'local'}
+                  )
+                </span>
+                <span
+                  className={cn(
+                    'rounded border px-2 py-0.5 font-mono text-[11px] font-semibold',
+                    supabasePill.className
+                  )}
+                >
+                  {supabasePill.prefix} Supabase:{' '}
+                  {platformStatus?.supabase.dbProbe.schemaReady ??
+                  setupStatus?.schemaReady ??
+                  data.schemaReady
+                    ? dbLatency
+                      ? `Live (${dbLatency}ms)`
+                      : 'Live'
+                    : 'Setup Pending'}
+                </span>
+                <span
+                  className={cn(
+                    'rounded border px-2 py-0.5 font-mono text-[11px]',
+                    tokens.subSurface
+                  )}
+                >
+                  Store: {setupStatus?.projectName || SUPABASE_PROJECT_NAME} (
+                  {data.projectRef})
+                </span>
+              </div>
+              <p className={cn('text-xs', tokens.mutedText)}>
+                Monitor Vercel Hobby &amp; Supabase Free-Tier health, inspect
+                registered users and job pipelines, and manage schema or Auth
+                email templates.
+                {platformStatus?.checkedAt && (
+                  <span className="ml-1 font-mono">
+                    · Checked{' '}
+                    {new Date(platformStatus.checkedAt).toLocaleTimeString()}
+                  </span>
+                )}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void loadAllAdminData(true)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  tokens.secondaryBtn
+                )}
+              >
+                <RefreshCw
+                  className={cn(
+                    'h-3.5 w-3.5',
+                    (loading || loadingStatus) && 'animate-spin'
+                  )}
+                  aria-hidden="true"
+                />
+                Refresh All
+              </button>
+              <button
+                type="button"
+                onClick={() => setSetupModalOpen(true)}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  tokens.secondaryBtn
+                )}
+              >
+                <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+                Supabase Settings
+              </button>
+              <a
+                href={`${dashboardBase}/editor`}
+                target="_blank"
+                rel="noreferrer"
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors',
+                  tokens.primaryBtn
+                )}
+              >
+                <Database className="h-3.5 w-3.5" aria-hidden="true" />
+                Supabase Studio
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              </a>
             </div>
           </div>
 
-          <div className="relative">
-            <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', tokens.mutedText)} />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search name, email, role..."
+          {actionMsg && (
+            <div
+              role={actionMsg.type === 'err' ? 'alert' : 'status'}
               className={cn(
-                'w-full rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none sm:w-64',
-                tokens.inputSurface
+                'flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium',
+                actionMsg.type === 'ok'
+                  ? tokens.badgeSuccess
+                  : tokens.badgeDanger
               )}
-            />
-          </div>
+            >
+              {actionMsg.type === 'ok' ? (
+                <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+              ) : (
+                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+              )}
+              <span>{actionMsg.text}</span>
+            </div>
+          )}
         </div>
 
-        {filteredUsers.length === 0 ? (
-          <div className={cn('rounded-lg border border-dashed p-8 text-center text-xs', tokens.mutedText)}>
-            {loading
-              ? 'Loading users...'
-              : 'No user accounts match that filter yet.'}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left text-xs">
-              <thead>
-                <tr className={cn('border-b', tokens.borderSubtle, tokens.mutedText)}>
-                  <th className="py-2.5 pr-3 font-semibold">User</th>
-                  <th className="py-2.5 px-3 font-semibold">Role &amp; Status</th>
-                  <th className="py-2.5 px-3 font-semibold">Target Role &amp; Skills</th>
-                  <th className="py-2.5 px-3 font-semibold">Jobs / Pipeline</th>
-                  <th className="py-2.5 px-3 font-semibold">Last Active</th>
-                  <th className="py-2.5 pl-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className={cn('divide-y', tokens.borderSubtle)}>
-                {filteredUsers.map((u) => {
-                  const isPrimaryAdmin =
-                    u.email.toLowerCase() === PRIMARY_ADMIN_EMAIL;
-                  const isBusy = busyUserId === u.id;
-                  return (
-                    <tr key={u.id} className="align-top">
-                      <td className="py-3 pr-3">
-                        <div className={cn('font-semibold', tokens.strongText)}>
-                          {u.fullName}
-                        </div>
-                        <div className={cn('font-mono text-[11px]', tokens.mutedText)}>
-                          {u.email || u.id}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          <span className={cn('rounded border px-1.5 py-0.5 font-mono text-[10px]', tokens.subSurface)}>
-                            {u.provider}
-                          </span>
-                          {u.resumeFileName && (
-                            <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px]', tokens.subSurface)}>
-                              <FileText className="h-2.5 w-2.5" />
-                              {u.resumeFileName}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 space-y-1">
-                        <div>
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold',
-                              u.role === 'admin'
-                                ? tokens.orangeBadge
-                                : tokens.subSurface
-                            )}
-                          >
-                            {u.role === 'admin' ? '✓ Admin' : 'User'}
-                          </span>
-                        </div>
-                        {u.isSuspended && (
-                          <div>
-                            <span className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-red-700">
-                              Suspended
-                            </span>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <div className="font-medium">{u.primaryRole}</div>
-                        <div className={cn('text-[11px]', tokens.mutedText)}>
-                          {u.location} •{' '}
-                          <span className="font-mono tabular-nums">
-                            {u.skillsCount} skills
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 font-mono text-[11px] tabular-nums">
-                        <div>{u.totalJobs} tracked</div>
-                        <div className={tokens.mutedText}>
-                          {u.savedJobs} saved • {u.appliedJobs} applied • {u.scansCount} scans
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3 font-mono text-[11px]">
-                        {u.lastActiveAt
-                          ? new Date(u.lastActiveAt).toLocaleString()
-                          : 'Never'}
-                      </td>
-
-                      <td className="py-3 pl-3 text-right">
-                        <div className="flex flex-wrap justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => void handleInspectUser(u.id)}
-                            className={cn(
-                              'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium',
-                              tokens.secondaryBtn
-                            )}
-                          >
-                            <Eye className="h-3 w-3" />
-                            Inspect
-                          </button>
-
-                          {!isPrimaryAdmin && data.schemaReady && (
-                            <>
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() =>
-                                  void handleUpdateUser(u.id, {
-                                    role: u.role === 'admin' ? 'user' : 'admin',
-                                  })
-                                }
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50',
-                                  tokens.secondaryBtn
-                                )}
-                              >
-                                <UserCheck className="h-3 w-3" />
-                                {u.role === 'admin' ? 'Revoke Admin' : 'Make Admin'}
-                              </button>
-
-                              <button
-                                type="button"
-                                disabled={isBusy}
-                                onClick={() =>
-                                  void handleUpdateUser(u.id, {
-                                    isSuspended: !u.isSuspended,
-                                  })
-                                }
-                                className={cn(
-                                  'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50',
-                                  tokens.secondaryBtn
-                                )}
-                              >
-                                <Ban className="h-3 w-3" />
-                                {u.isSuspended ? 'Activate' : 'Suspend'}
-                              </button>
-
-                              {confirmDeleteId === u.id ? (
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => void handleDeleteUser(u.id)}
-                                  className="inline-flex items-center gap-1 rounded-md border border-red-400 bg-red-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-red-700"
-                                >
-                                  Confirm Delete
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => setConfirmDeleteId(u.id)}
-                                  className={cn(
-                                    'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium disabled:opacity-50',
-                                    tokens.secondaryBtn
-                                  )}
-                                  title="Delete user account and data"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {/* Single-row accessible tablist (WCAG 1.4.1 underline + focusgroup + arrow-key fallback) */}
+        <div
+          role="tablist"
+          aria-label="Admin Control Center sections"
+          onKeyDown={handleTabKeyDown}
+          {...({ focusgroup: 'tablist nomemory' } as Record<string, string>)}
+          className={cn(
+            'admin-tablist border-t px-5 gap-6',
+            tokens.borderSubtle,
+            tokens.subSurface
+          )}
+        >
+          {(
+            [
+              {
+                id: 'overview' as const,
+                domId: overviewTabId,
+                label: 'Overview & Platform Status',
+              },
+              {
+                id: 'users' as const,
+                domId: usersTabId,
+                label: `Users (${data.users.length})`,
+              },
+              {
+                id: 'infra' as const,
+                domId: infraTabId,
+                label: 'Infrastructure & Free-Tier',
+              },
+            ] as const
+          ).map((tab) => {
+            const selected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                ref={(el) => {
+                  tabRefs.current[tab.id] = el;
+                }}
+                id={tab.domId}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                tabIndex={selected ? 0 : -1}
+                {...(selected ? { focusgroupstart: '' } : {})}
+                onClick={() => selectTab(tab.id)}
+                className={cn(
+                  'admin-tab py-2.5 text-xs font-semibold transition-colors focus:outline-none',
+                  selected ? tokens.strongText : tokens.mutedText
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
       </section>
+
+      {/* TAB PANELS */}
+      <div
+        role="tabpanel"
+        aria-labelledby={overviewTabId}
+        hidden={activeTab !== 'overview'}
+      >
+        {activeTab === 'overview' && (
+          <AdminOverviewTab
+            theme={theme}
+            data={data}
+            setupStatus={setupStatus}
+            platformStatus={platformStatus}
+            loadingStatus={loadingStatus}
+            onOpenUsersTab={() => selectTab('users', true)}
+            onOpenInfraTab={() => selectTab('infra', true)}
+          />
+        )}
+      </div>
+
+      <div
+        role="tabpanel"
+        aria-labelledby={usersTabId}
+        hidden={activeTab !== 'users'}
+      >
+        {activeTab === 'users' && (
+          <AdminUserDirectoryTab
+            theme={theme}
+            users={filteredUsers}
+            loading={loading}
+            schemaReady={data.schemaReady}
+            searchQuery={searchQuery}
+            roleFilter={roleFilter}
+            busyUserId={busyUserId}
+            confirmDeleteId={confirmDeleteId}
+            onSearchChange={setSearchQuery}
+            onRoleFilterChange={setRoleFilter}
+            onInspectUser={(id) => void handleInspectUser(id)}
+            onUpdateUser={(id, updates) => void handleUpdateUser(id, updates)}
+            onRequestDelete={setConfirmDeleteId}
+            onConfirmDelete={(id) => void handleDeleteUser(id)}
+          />
+        )}
+      </div>
+
+      <div
+        role="tabpanel"
+        aria-labelledby={infraTabId}
+        hidden={activeTab !== 'infra'}
+      >
+        {activeTab === 'infra' && (
+          <AdminInfraTab
+            theme={theme}
+            data={data}
+            setupStatus={setupStatus}
+            platformStatus={platformStatus}
+            copiedSql={copiedSql}
+            runningKeepAlive={runningKeepAlive}
+            runningPrune={runningPrune}
+            onCopySql={() => void handleCopySql()}
+            onOpenSetupModal={() => setSetupModalOpen(true)}
+            onPingKeepAlive={() => void handlePingKeepAlive()}
+            onRunPrune={() => void handleRunFreeTierPrune()}
+          />
+        )}
+      </div>
 
       <AdminUserInspectDialog
         theme={theme}
@@ -992,7 +744,9 @@ export function AdminDashboardView({
       <AdminSupabaseSetupDialog
         theme={theme}
         isOpen={setupModalOpen}
-        supabaseUrl={setupStatus?.url || data.supabaseUrl || DEFAULT_SUPABASE_URL}
+        supabaseUrl={
+          setupStatus?.url || data.supabaseUrl || DEFAULT_SUPABASE_URL
+        }
         anonKeyDraft={anonKeyDraft}
         serviceKeyDraft={serviceKeyDraft}
         savingKeys={savingKeys}

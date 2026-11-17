@@ -3,12 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: product
-milestone: v4-ux-polish
-commit_ref: "a1059ca"
+milestone: v1.0.3
+commit_ref: "497d282"
 files:
   - AGENTS.md
   - context.md
   - CHANGELOG.md
+  - package.json
   - README.md
 updated: 2026-11-17
 tags:
@@ -23,9 +24,9 @@ tags:
 
 - **Production Web App:** https://pa-hire-po.vercel.app
 - **Repository:** `https://github.com/kevs0444/Pa-Hire_Po.git` (`main`)
-- **Latest Verified Commit:** `a1059ca` (2026-11-16)
+- **Current Version:** `v1.0.3` (`package.json` • day-based versioning `v1.0.0`–`v1.0.3`)
 - **Supabase Store Lock:** `Pa-Hire Po` (`muftcprpqnzuzfosvftz`)
-- **AI Sync Rule:** Root [`context.md`](file:///d:/Dev/Pa-Hire%20Po/context.md) acts as the fast AI index; this vault is the deep Second Brain (see [[Frontmatter Schema & Vault Conventions]]).
+- **Mandatory AI First-Read & Sync Rule:** Every AI session MUST read this MOC, [[Active State & Progress Ledger]], [[Changelog Mirror]], and root [`context.md`](file:///d:/Dev/Pa-Hire%20Po/context.md) before designing or editing code, and dual-sync changes back (see `AGENTS.md` Section 8 & [[Frontmatter Schema & Vault Conventions]]).
 
 ---
 
@@ -78,6 +79,7 @@ tags:
 
 - [[Design - Civic Career Utility & Theme Tokens]]
 - [[Design - Anti-AI-Slop Rules & Accessibility]]
+- [[Design - Ruthless UI Architect & Anti-AI-Slop Rules]]
 
 ---
 

@@ -57,6 +57,8 @@ export interface StructuredResume {
   tailoredForCompany?: string | null;
   tailorMethod?: 'base' | 'smart-engine' | 'gemini-ai';
   tailorNotes?: string[];
+  versionName?: string;
+  textAlign?: 'left' | 'justify';
   pageSize?: ResumePageSize;
   density?: ResumeDensity;
   fontFamily?: ResumeFontFamily;
@@ -74,6 +76,7 @@ export interface TailoredResumeRecord {
   jobId: string | null;
   jobTitle: string | null;
   company: string | null;
+  versionName?: string | null;
   tailorMethod: string | null;
   sourceType: TailoredResumeSourceType;
   isSent: boolean;

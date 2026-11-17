@@ -69,7 +69,7 @@ export function LegalPageShell({
       style={{ colorScheme: tokens.isDark ? 'dark' : 'light' }}
     >
       {/* Top Civic Navigation Bar */}
-      <header className={cn('sticky top-0 z-40 border-b backdrop-blur-md', tokens.navBg)}>
+      <header className={cn('sticky top-0 z-40 border-b', tokens.navBg)}>
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
             <Link

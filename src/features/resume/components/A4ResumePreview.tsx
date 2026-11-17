@@ -1,29 +1,41 @@
 'use client';
 
-import { CSSProperties, Fragment, useMemo, useState } from 'react';
 import {
-  Check,
+  CSSProperties,
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
   Columns2,
-  Edit3,
   Eye,
-  KeyRound,
-  Printer,
-  RotateCcw,
-  Save,
+  Plus,
+  Trash2,
 } from 'lucide-react';
-import {
+import type {
   JobListing,
   MonochromeTheme,
   ResumeDensity,
   ResumeFontFamily,
   ResumePageSize,
+  ResumeSkillCategory,
   StructuredResume,
+  TailoredResumeRecord,
   UserProfile,
 } from '@/types/job';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
+import {
+  ResumeFormatToolbar,
+  ResumeZoomLevel,
+} from './ResumeFormatToolbar';
+import { ResumeVersionsDrawer } from './ResumeVersionsDrawer';
 
-interface A4ResumePreviewProps {
+export interface A4ResumePreviewProps {
   profile: UserProfile;
   activeResume: StructuredResume;
   activeTailorJob: JobListing | null;
@@ -31,14 +43,28 @@ interface A4ResumePreviewProps {
   geminiApiKey: string;
   personalApiConfigured?: boolean;
   tailoring: boolean;
+  resumeRecords?: TailoredResumeRecord[];
   onUpdateGeminiKey: (key: string) => void;
   onTailorResume: (targetJob: JobListing | null, targetRole?: string) => void;
   onUpdateResume: (next: StructuredResume) => void;
   onResetResume: () => void;
+  onApplyToProfile?: (resume: StructuredResume) => void;
+  onSelectResumeVersion?: (resume: StructuredResume) => void;
+  onUpdateResumeRecord?: (
+    id: string,
+    patch: {
+      versionName?: string | null;
+      company?: string;
+      jobTitle?: string;
+      notes?: string;
+    }
+  ) => Promise<void>;
+  onDeleteResumeRecord?: (id: string) => Promise<void>;
   onSaveSnapshot?: (params: {
     company: string;
     jobTitle: string;
     jobId: string | null;
+    versionName?: string;
     resume: StructuredResume;
     isSent: boolean;
     notes: string;
@@ -154,7 +180,7 @@ export const DENSITY_PRESETS: Record<
 };
 
 function renderFormattedLine(text: string, highlightKeywords = false) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
@@ -170,9 +196,19 @@ function renderFormattedLine(text: string, highlightKeywords = false) {
         </strong>
       );
     }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return (
+        <em key={idx} className="italic text-neutral-800">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
-        <code key={idx} className="rounded bg-neutral-100 px-1 font-mono text-[0.92em]">
+        <code
+          key={idx}
+          className="rounded bg-neutral-100 px-1 font-mono text-[0.92em] text-neutral-900"
+        >
           {part.slice(1, -1)}
         </code>
       );
@@ -180,6 +216,11 @@ function renderFormattedLine(text: string, highlightKeywords = false) {
     return <Fragment key={idx}>{part}</Fragment>;
   });
 }
+
+type EditableFieldFocusHandler = (
+  element: HTMLInputElement | HTMLTextAreaElement,
+  applyValue: (nextValue: string) => void
+) => void;
 
 interface ResumeSheetDocumentProps {
   sheetId?: string;
@@ -193,6 +234,7 @@ interface ResumeSheetDocumentProps {
   className?: string;
   style?: CSSProperties;
   onUpdateResume?: (next: StructuredResume) => void;
+  onFocusEditableField?: EditableFieldFocusHandler;
 }
 
 export function ResumeSheetDocument({
@@ -207,10 +249,37 @@ export function ResumeSheetDocument({
   className,
   style,
   onUpdateResume,
+  onFocusEditableField,
 }: ResumeSheetDocumentProps) {
+  const resumeRef = useRef(resume);
+  useEffect(() => {
+    resumeRef.current = resume;
+  }, [resume]);
+
   const highlightActive = isTailored && showHighlights;
   const isTailoredVariant = variant === 'tailored';
   const canEdit = isTailoredVariant && editMode && Boolean(onUpdateResume);
+  const isJustified = resume.textAlign === 'justify';
+  const textAlignClass = isJustified
+    ? 'text-justify [hyphens:auto] [text-align-last:left]'
+    : 'text-left';
+
+  const sheetInputClass =
+    'rounded border border-neutral-300 bg-white px-1.5 py-0.5 text-neutral-900 placeholder:text-neutral-400 focus:border-[#0a66c2] focus:outline-none';
+  const sectionAddBtnClass =
+    'no-print inline-flex items-center gap-1 rounded border border-neutral-300 bg-neutral-100 px-2 py-0.5 text-[9.5px] font-semibold text-neutral-900 transition-colors hover:bg-neutral-200';
+  const bulletAddBtnClass =
+    'no-print mt-1 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-semibold text-[#0a66c2] transition-colors hover:bg-blue-50 hover:text-[#004182]';
+
+  const registerFocus = (
+    el: HTMLInputElement | HTMLTextAreaElement,
+    updater: (latest: StructuredResume, nextValue: string) => StructuredResume
+  ) => {
+    if (!onFocusEditableField || !onUpdateResume) return;
+    onFocusEditableField(el, (nextValue: string) => {
+      onUpdateResume(updater(resumeRef.current, nextValue));
+    });
+  };
 
   const refSets = useMemo(() => {
     const expBullets = new Set(
@@ -261,109 +330,218 @@ export function ResumeSheetDocument({
     : 'rounded-r border-l-2 border-amber-500 bg-amber-50/80 pl-1.5 py-0.5';
 
   return (
-    <div id={sheetId} className={className} style={style}>
-      {/* Header */}
+    <div
+      id={sheetId}
+      className={className}
+      style={{ ...style, colorScheme: 'only light' }}
+    >
+      {/* HEADER / CONTACT INFO */}
       <header className="text-center">
         {canEdit && onUpdateResume ? (
-          <input
-            type="text"
-            value={resume.fullName}
-            onChange={(e) =>
-              onUpdateResume({ ...resume, fullName: e.target.value })
-            }
-            className="w-full border-b border-neutral-300 text-center text-2xl font-extrabold tracking-tight uppercase focus:outline-none"
-          />
-        ) : (
-          <h1 className="text-[22px] font-extrabold tracking-tight text-black uppercase">
-            {resume.fullName}
-          </h1>
-        )}
+          <div className="space-y-1.5 rounded-lg border border-dashed border-neutral-300 bg-neutral-50/70 p-2 print:border-none print:bg-transparent print:p-0">
+            <input
+              type="text"
+              value={resume.fullName}
+              onFocus={(e) =>
+                registerFocus(e.currentTarget, (latest, val) => ({
+                  ...latest,
+                  fullName: val,
+                }))
+              }
+              onChange={(e) =>
+                onUpdateResume({ ...resume, fullName: e.target.value })
+              }
+              placeholder="Full Name"
+              className="w-full border-b border-neutral-300 bg-white px-2 py-1 text-center text-xl font-extrabold tracking-tight text-black uppercase placeholder:text-neutral-400 focus:border-[#0a66c2] focus:outline-none"
+            />
+            <input
+              type="text"
+              value={resume.targetHeadline}
+              onFocus={(e) =>
+                registerFocus(e.currentTarget, (latest, val) => ({
+                  ...latest,
+                  targetHeadline: val,
+                }))
+              }
+              onChange={(e) =>
+                onUpdateResume({ ...resume, targetHeadline: e.target.value })
+              }
+              placeholder="Professional Headline (e.g. Lead BI Analyst | SQL, Python, Power BI)"
+              className="w-full border-b border-neutral-200 bg-white px-2 py-0.5 text-center text-[11px] font-semibold text-neutral-800 placeholder:text-neutral-400 focus:border-[#0a66c2] focus:outline-none"
+            />
 
-        {canEdit && onUpdateResume ? (
-          <input
-            type="text"
-            value={resume.targetHeadline}
-            onChange={(e) =>
-              onUpdateResume({
-                ...resume,
-                targetHeadline: e.target.value,
-              })
-            }
-            className="mt-0.5 w-full border-b border-neutral-200 text-center text-[11px] font-semibold text-neutral-700 focus:outline-none"
-          />
+            <div className="grid grid-cols-1 gap-1 text-[10px] sm:grid-cols-3">
+              <input
+                type="email"
+                value={resume.email}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    email: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({ ...resume, email: e.target.value })
+                }
+                placeholder="Email address"
+                className={sheetInputClass}
+              />
+              <input
+                type="text"
+                value={resume.phones.join(' | ')}
+                onChange={(e) =>
+                  onUpdateResume({
+                    ...resume,
+                    phones: e.target.value.split('|').map((p) => p.trim()).filter(Boolean),
+                  })
+                }
+                placeholder="Phone (separate with |)"
+                className={sheetInputClass}
+              />
+              <input
+                type="text"
+                value={resume.location}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    location: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({ ...resume, location: e.target.value })
+                }
+                placeholder="City, Country"
+                className={sheetInputClass}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-1 text-[10px] sm:grid-cols-3">
+              <input
+                type="text"
+                value={resume.linkedin}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    linkedin: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({ ...resume, linkedin: e.target.value })
+                }
+                placeholder="LinkedIn URL / handle"
+                className={sheetInputClass}
+              />
+              <input
+                type="text"
+                value={resume.github}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    github: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({ ...resume, github: e.target.value })
+                }
+                placeholder="GitHub username"
+                className={sheetInputClass}
+              />
+              <input
+                type="text"
+                value={resume.portfolio}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    portfolio: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({ ...resume, portfolio: e.target.value })
+                }
+                placeholder="Portfolio website"
+                className={sheetInputClass}
+              />
+            </div>
+          </div>
         ) : (
-          resume.targetHeadline && (
-            <p
-              className={cn(
-                'mt-0.5 inline-flex flex-wrap items-center justify-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-neutral-700',
-                headlineChanged &&
-                  (isTailoredVariant
-                    ? 'rounded bg-emerald-50 px-2 py-0.5 text-emerald-950 ring-1 ring-emerald-300 print:bg-transparent print:p-0 print:text-neutral-700 print:ring-0'
-                    : 'rounded bg-amber-50 px-2 py-0.5 text-amber-950 ring-1 ring-amber-300')
+          <>
+            <h1 className="text-[22px] font-extrabold tracking-tight text-black uppercase">
+              {resume.fullName}
+            </h1>
+
+            {resume.targetHeadline && (
+              <p
+                className={cn(
+                  'mt-0.5 inline-flex flex-wrap items-center justify-center gap-1.5 text-[10.5px] font-semibold tracking-wide text-neutral-700',
+                  headlineChanged &&
+                    (isTailoredVariant
+                      ? 'rounded bg-emerald-50 px-2 py-0.5 text-emerald-950 ring-1 ring-emerald-300 print:bg-transparent print:p-0 print:text-neutral-700 print:ring-0'
+                      : 'rounded bg-amber-50 px-2 py-0.5 text-amber-950 ring-1 ring-amber-300')
+                )}
+              >
+                <span>{resume.targetHeadline}</span>
+                {headlineChanged && isTailoredVariant && (
+                  <span className="no-print rounded bg-emerald-700 px-1 py-0 text-[8.5px] font-bold uppercase text-white">
+                    AI Headline
+                  </span>
+                )}
+              </p>
+            )}
+
+            <p className="mt-1 text-[10px] text-neutral-800">
+              {resume.email}
+              {resume.phones.length > 0 && ` | ${resume.phones.join(' | ')}`}
+              {resume.location && ` | ${resume.location}`}
+            </p>
+
+            <p className="mt-0.5 text-[10px] text-neutral-800">
+              {resume.linkedin && (
+                <>
+                  LinkedIn:{' '}
+                  <span className="underline decoration-neutral-400 underline-offset-2">
+                    {resume.linkedin}
+                  </span>
+                </>
               )}
-            >
-              <span>{resume.targetHeadline}</span>
-              {headlineChanged && isTailoredVariant && (
-                <span className="no-print rounded bg-emerald-700 px-1 py-0 text-[8.5px] font-bold uppercase text-white">
-                  AI Headline
-                </span>
+              {resume.github && (
+                <>
+                  {' '}
+                  | GitHub:{' '}
+                  <a
+                    href={`https://github.com/${resume.github}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-neutral-400 underline-offset-2"
+                  >
+                    {resume.github}
+                  </a>
+                </>
+              )}
+              {resume.portfolio && (
+                <>
+                  {' '}
+                  | Portfolio:{' '}
+                  <a
+                    href={
+                      resume.portfolio.startsWith('http')
+                        ? resume.portfolio
+                        : `https://${resume.portfolio}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline decoration-neutral-400 underline-offset-2"
+                  >
+                    {resume.portfolio}
+                  </a>
+                </>
               )}
             </p>
-          )
+          </>
         )}
-
-        <p className="mt-1 text-[10px] text-neutral-800">
-          {resume.email}
-          {resume.phones.length > 0 && ` | ${resume.phones.join(' | ')}`}
-          {resume.location && ` | ${resume.location}`}
-        </p>
-
-        <p className="mt-0.5 text-[10px] text-neutral-800">
-          {resume.linkedin && (
-            <>
-              LinkedIn:{' '}
-              <span className="underline decoration-neutral-400 underline-offset-2">
-                {resume.linkedin}
-              </span>
-            </>
-          )}
-          {resume.github && (
-            <>
-              {' '}
-              | GitHub:{' '}
-              <a
-                href={`https://github.com/${resume.github}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline decoration-neutral-400 underline-offset-2"
-              >
-                {resume.github}
-              </a>
-            </>
-          )}
-          {resume.portfolio && (
-            <>
-              {' '}
-              | Portfolio:{' '}
-              <a
-                href={
-                  resume.portfolio.startsWith('http')
-                    ? resume.portfolio
-                    : `https://${resume.portfolio}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline decoration-neutral-400 underline-offset-2"
-              >
-                {resume.portfolio}
-              </a>
-            </>
-          )}
-        </p>
       </header>
 
-      {/* Optional Tailored Summary */}
-      {showSummary && resume.tailoredSummary && (
+      {/* OPTIONAL TAILORED SUMMARY */}
+      {(showSummary || canEdit) && (resume.tailoredSummary || canEdit) && (
         <section
           className={cn(
             'mt-2.5 border-l-2 px-2.5 py-1.5 text-[10.5px] text-neutral-900',
@@ -378,28 +556,74 @@ export function ResumeSheetDocument({
             </div>
           )}
           {canEdit && onUpdateResume ? (
-            <textarea
-              rows={2}
-              value={resume.tailoredSummary}
-              onChange={(e) =>
-                onUpdateResume({
-                  ...resume,
-                  tailoredSummary: e.target.value,
-                })
-              }
-              className="w-full resize-none bg-transparent text-[10.5px] focus:outline-none"
-            />
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-800">
+                Summary / Executive Overview:
+              </div>
+              <textarea
+                rows={3}
+                value={resume.tailoredSummary || ''}
+                onFocus={(e) =>
+                  registerFocus(e.currentTarget, (latest, val) => ({
+                    ...latest,
+                    tailoredSummary: val,
+                  }))
+                }
+                onChange={(e) =>
+                  onUpdateResume({
+                    ...resume,
+                    tailoredSummary: e.target.value,
+                  })
+                }
+                placeholder="Write a concise professional summary tailored to the target role..."
+                className={cn(
+                  'w-full p-1.5 text-[10.5px]',
+                  sheetInputClass,
+                  textAlignClass
+                )}
+              />
+            </div>
           ) : (
-            <p>{renderFormattedLine(resume.tailoredSummary, highlightActive && isTailoredVariant)}</p>
+            <p className={textAlignClass}>
+              {renderFormattedLine(
+                resume.tailoredSummary || '',
+                highlightActive && isTailoredVariant
+              )}
+            </p>
           )}
         </section>
       )}
 
-      {/* EXPERIENCE */}
+      {/* EXPERIENCE SECTION */}
       <section className="mt-3">
-        <h2 className="border-b-[1.5px] border-black pb-0.5 text-[11px] font-bold tracking-wider text-black uppercase">
-          Experience
-        </h2>
+        <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
+          <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+            Experience
+          </h2>
+          {canEdit && onUpdateResume && (
+            <button
+              type="button"
+              onClick={() => {
+                const newExpItem = {
+                  id: `exp-${Date.now()}`,
+                  role: 'Job Title',
+                  company: 'Company Name',
+                  location: 'Location',
+                  period: 'Year — Present',
+                  bullets: ['Accomplishment or responsibility statement with measurable impact.'],
+                };
+                onUpdateResume({
+                  ...resume,
+                  experience: [newExpItem, ...resume.experience],
+                });
+              }}
+              className={sectionAddBtnClass}
+            >
+              <Plus className="h-3 w-3" />
+              Add Experience Entry
+            </button>
+          )}
+        </div>
 
         <div className="mt-1.5 space-y-2.5">
           {resume.experience.map((exp, expIdx) => {
@@ -412,52 +636,234 @@ export function ResumeSheetDocument({
               origIdx !== expIdx;
 
             return (
-              <div key={exp.id || `${exp.role}-${expIdx}`}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="inline-flex flex-wrap items-center gap-1.5 font-bold text-black">
-                    <span>{exp.role}</span>
-                    {reordered && (
-                      <span className="no-print rounded border border-blue-300 bg-blue-50 px-1.5 py-0 text-[8.5px] font-semibold text-[#0a66c2]">
-                        ↑ Reordered by AI
+              <div
+                key={exp.id || `${exp.role}-${expIdx}`}
+                className={cn(
+                  canEdit &&
+                    'rounded border border-dashed border-neutral-300 bg-neutral-50/50 p-2 print:border-none print:bg-transparent print:p-0'
+                )}
+              >
+                {canEdit && onUpdateResume ? (
+                  <div className="space-y-1.5">
+                    {/* Item control bar */}
+                    <div className="flex items-center justify-between gap-1 border-b border-neutral-200 pb-1 text-[10px] text-neutral-600">
+                      <span className="font-semibold text-neutral-800">
+                        Position #{expIdx + 1}
                       </span>
-                    )}
-                  </span>
-                  <span className="shrink-0 font-semibold text-neutral-900">
-                    {exp.period}
-                  </span>
-                </div>
-                <p className="italic text-neutral-800">
-                  {exp.company}
-                  {exp.location ? ` | ${exp.location}` : ''}
-                </p>
-                <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-neutral-900">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          disabled={expIdx === 0}
+                          onClick={() => {
+                            if (expIdx === 0) return;
+                            const next = [...resume.experience];
+                            const temp = next[expIdx - 1];
+                            next[expIdx - 1] = next[expIdx];
+                            next[expIdx] = temp;
+                            onUpdateResume({ ...resume, experience: next });
+                          }}
+                          className="rounded p-0.5 text-neutral-700 hover:bg-neutral-200 disabled:opacity-30"
+                          title="Move up"
+                          aria-label="Move experience entry up"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={expIdx === resume.experience.length - 1}
+                          onClick={() => {
+                            if (expIdx === resume.experience.length - 1) return;
+                            const next = [...resume.experience];
+                            const temp = next[expIdx + 1];
+                            next[expIdx + 1] = next[expIdx];
+                            next[expIdx] = temp;
+                            onUpdateResume({ ...resume, experience: next });
+                          }}
+                          className="rounded p-0.5 text-neutral-700 hover:bg-neutral-200 disabled:opacity-30"
+                          title="Move down"
+                          aria-label="Move experience entry down"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = resume.experience.filter((_, idx) => idx !== expIdx);
+                            onUpdateResume({ ...resume, experience: next });
+                          }}
+                          className="rounded p-0.5 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          title="Delete experience entry"
+                          aria-label="Delete experience entry"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-1 text-[10.5px] sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={exp.role}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.experience];
+                            if (!next[expIdx]) return latest;
+                            next[expIdx] = { ...next[expIdx], role: val };
+                            return { ...latest, experience: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.experience];
+                          next[expIdx] = { ...next[expIdx], role: e.target.value };
+                          onUpdateResume({ ...resume, experience: next });
+                        }}
+                        placeholder="Job Title / Role"
+                        className={cn(sheetInputClass, 'font-bold')}
+                      />
+                      <input
+                        type="text"
+                        value={exp.period}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.experience];
+                            if (!next[expIdx]) return latest;
+                            next[expIdx] = { ...next[expIdx], period: val };
+                            return { ...latest, experience: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.experience];
+                          next[expIdx] = { ...next[expIdx], period: e.target.value };
+                          onUpdateResume({ ...resume, experience: next });
+                        }}
+                        placeholder="Employment Period (e.g. 2023 — Present)"
+                        className={sheetInputClass}
+                      />
+                      <input
+                        type="text"
+                        value={exp.company}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.experience];
+                            if (!next[expIdx]) return latest;
+                            next[expIdx] = { ...next[expIdx], company: val };
+                            return { ...latest, experience: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.experience];
+                          next[expIdx] = { ...next[expIdx], company: e.target.value };
+                          onUpdateResume({ ...resume, experience: next });
+                        }}
+                        placeholder="Company Name"
+                        className={sheetInputClass}
+                      />
+                      <input
+                        type="text"
+                        value={exp.location}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.experience];
+                            if (!next[expIdx]) return latest;
+                            next[expIdx] = { ...next[expIdx], location: val };
+                            return { ...latest, experience: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.experience];
+                          next[expIdx] = { ...next[expIdx], location: e.target.value };
+                          onUpdateResume({ ...resume, experience: next });
+                        }}
+                        placeholder="Location (e.g. Taguig City / Remote)"
+                        className={sheetInputClass}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="inline-flex flex-wrap items-center gap-1.5 font-bold text-black">
+                        <span>{exp.role}</span>
+                        {reordered && (
+                          <span className="no-print rounded border border-blue-300 bg-blue-50 px-1.5 py-0 text-[8.5px] font-semibold text-[#0a66c2]">
+                            ↑ Reordered by AI
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 font-semibold text-neutral-900">
+                        {exp.period}
+                      </span>
+                    </div>
+                    <p className="italic text-neutral-800">
+                      {exp.company}
+                      {exp.location ? ` | ${exp.location}` : ''}
+                    </p>
+                  </>
+                )}
+
+                {/* Bullets */}
+                <ul className="mt-1 list-disc space-y-1 pl-4 text-neutral-900">
                   {exp.bullets.map((bullet, bIdx) => {
                     const isBulletDiff =
                       highlightActive && !refSets.expBullets.has(bullet.trim());
                     return (
                       <li
                         key={bIdx}
-                        className={cn(isBulletDiff && changedBoxClass)}
+                        className={cn(isBulletDiff && changedBoxClass, textAlignClass)}
                       >
                         {canEdit && onUpdateResume ? (
-                          <textarea
-                            rows={2}
-                            value={bullet}
-                            onChange={(e) => {
-                              const nextExp = [...resume.experience];
-                              const nextBullets = [...nextExp[expIdx].bullets];
-                              nextBullets[bIdx] = e.target.value;
-                              nextExp[expIdx] = {
-                                ...nextExp[expIdx],
-                                bullets: nextBullets,
-                              };
-                              onUpdateResume({
-                                ...resume,
-                                experience: nextExp,
-                              });
-                            }}
-                            className="w-full rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] focus:outline-none"
-                          />
+                          <div className="flex items-start gap-1">
+                            <textarea
+                              rows={2}
+                              value={bullet}
+                              onFocus={(e) =>
+                                registerFocus(e.currentTarget, (latest, val) => {
+                                  const nextExp = [...latest.experience];
+                                  if (!nextExp[expIdx]) return latest;
+                                  const nextBullets = [...nextExp[expIdx].bullets];
+                                  nextBullets[bIdx] = val;
+                                  nextExp[expIdx] = {
+                                    ...nextExp[expIdx],
+                                    bullets: nextBullets,
+                                  };
+                                  return { ...latest, experience: nextExp };
+                                })
+                              }
+                              onChange={(e) => {
+                                const nextExp = [...resume.experience];
+                                const nextBullets = [...nextExp[expIdx].bullets];
+                                nextBullets[bIdx] = e.target.value;
+                                nextExp[expIdx] = {
+                                  ...nextExp[expIdx],
+                                  bullets: nextBullets,
+                                };
+                                onUpdateResume({
+                                  ...resume,
+                                  experience: nextExp,
+                                });
+                              }}
+                              className={cn(
+                                'flex-1 text-[10px]',
+                                sheetInputClass,
+                                textAlignClass
+                              )}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextExp = [...resume.experience];
+                                nextExp[expIdx].bullets = nextExp[expIdx].bullets.filter(
+                                  (_, idx) => idx !== bIdx
+                                );
+                                onUpdateResume({ ...resume, experience: nextExp });
+                              }}
+                              className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                              title="Delete bullet"
+                              aria-label="Delete experience bullet"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
                         ) : (
                           renderFormattedLine(
                             bullet,
@@ -468,18 +874,58 @@ export function ResumeSheetDocument({
                     );
                   })}
                 </ul>
+
+                {canEdit && onUpdateResume && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextExp = [...resume.experience];
+                      nextExp[expIdx].bullets.push('New key accomplishment or contribution.');
+                      onUpdateResume({ ...resume, experience: nextExp });
+                    }}
+                    className={bulletAddBtnClass}
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Bullet Point
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
       </section>
 
-      {/* PROJECTS */}
-      {resume.projects.length > 0 && (
+      {/* PROJECTS SECTION */}
+      {(resume.projects.length > 0 || canEdit) && (
         <section className="mt-3">
-          <h2 className="border-b-[1.5px] border-black pb-0.5 text-[11px] font-bold tracking-wider text-black uppercase">
-            Projects
-          </h2>
+          <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
+            <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+              Projects
+            </h2>
+            {canEdit && onUpdateResume && (
+              <button
+                type="button"
+                onClick={() => {
+                  const newProj = {
+                    id: `proj-${Date.now()}`,
+                    name: 'Project Name',
+                    subtitle: 'Key Technologies / Description',
+                    period: 'Year',
+                    bullets: ['Project outcome, architecture, or metrics achieved.'],
+                  };
+                  onUpdateResume({
+                    ...resume,
+                    projects: [newProj, ...resume.projects],
+                  });
+                }}
+                className={sectionAddBtnClass}
+              >
+                <Plus className="h-3 w-3" />
+                Add Project Entry
+              </button>
+            )}
+          </div>
+
           <div className="mt-1.5 space-y-2">
             {resume.projects.map((proj, pIdx) => {
               const projKey = proj.id || proj.name.trim().toLowerCase();
@@ -497,42 +943,236 @@ export function ResumeSheetDocument({
               return (
                 <div
                   key={proj.id || `${proj.name}-${pIdx}`}
-                  className={cn(droppedInTailor && changedBoxClass)}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="inline-flex flex-wrap items-center gap-1.5 font-bold text-black">
-                      <span>{proj.name}</span>
-                      {reordered && (
-                        <span className="no-print rounded border border-blue-300 bg-blue-50 px-1.5 py-0 text-[8.5px] font-semibold text-[#0a66c2]">
-                          ↑ Reordered by AI
-                        </span>
-                      )}
-                    </span>
-                    <span className="shrink-0 font-semibold text-neutral-900">
-                      {proj.period}
-                    </span>
-                  </div>
-                  {proj.subtitle && (
-                    <p className="italic text-neutral-800">{proj.subtitle}</p>
+                  className={cn(
+                    droppedInTailor && changedBoxClass,
+                    canEdit &&
+                      'rounded border border-dashed border-neutral-300 bg-neutral-50/50 p-2 print:border-none print:bg-transparent print:p-0'
                   )}
-                  <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-neutral-900">
+                >
+                  {canEdit && onUpdateResume ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-1 border-b border-neutral-200 pb-1 text-[10px] text-neutral-600">
+                        <span className="font-semibold text-neutral-800">
+                          Project #{pIdx + 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            disabled={pIdx === 0}
+                            onClick={() => {
+                              if (pIdx === 0) return;
+                              const next = [...resume.projects];
+                              const temp = next[pIdx - 1];
+                              next[pIdx - 1] = next[pIdx];
+                              next[pIdx] = temp;
+                              onUpdateResume({ ...resume, projects: next });
+                            }}
+                            className="rounded p-0.5 text-neutral-700 hover:bg-neutral-200 disabled:opacity-30"
+                            title="Move up"
+                            aria-label="Move project up"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={pIdx === resume.projects.length - 1}
+                            onClick={() => {
+                              if (pIdx === resume.projects.length - 1) return;
+                              const next = [...resume.projects];
+                              const temp = next[pIdx + 1];
+                              next[pIdx + 1] = next[pIdx];
+                              next[pIdx] = temp;
+                              onUpdateResume({ ...resume, projects: next });
+                            }}
+                            className="rounded p-0.5 text-neutral-700 hover:bg-neutral-200 disabled:opacity-30"
+                            title="Move down"
+                            aria-label="Move project down"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = resume.projects.filter((_, idx) => idx !== pIdx);
+                              onUpdateResume({ ...resume, projects: next });
+                            }}
+                            className="rounded p-0.5 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            title="Delete project"
+                            aria-label="Delete project"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-1 text-[10.5px] sm:grid-cols-3">
+                        <input
+                          type="text"
+                          value={proj.name}
+                          onFocus={(e) =>
+                            registerFocus(e.currentTarget, (latest, val) => {
+                              const next = [...latest.projects];
+                              if (!next[pIdx]) return latest;
+                              next[pIdx] = { ...next[pIdx], name: val };
+                              return { ...latest, projects: next };
+                            })
+                          }
+                          onChange={(e) => {
+                            const next = [...resume.projects];
+                            next[pIdx] = { ...next[pIdx], name: e.target.value };
+                            onUpdateResume({ ...resume, projects: next });
+                          }}
+                          placeholder="Project Name"
+                          className={cn(sheetInputClass, 'sm:col-span-2 font-bold')}
+                        />
+                        <input
+                          type="text"
+                          value={proj.period}
+                          onFocus={(e) =>
+                            registerFocus(e.currentTarget, (latest, val) => {
+                              const next = [...latest.projects];
+                              if (!next[pIdx]) return latest;
+                              next[pIdx] = { ...next[pIdx], period: val };
+                              return { ...latest, projects: next };
+                            })
+                          }
+                          onChange={(e) => {
+                            const next = [...resume.projects];
+                            next[pIdx] = { ...next[pIdx], period: e.target.value };
+                            onUpdateResume({ ...resume, projects: next });
+                          }}
+                          placeholder="Year / Period"
+                          className={sheetInputClass}
+                        />
+                      </div>
+                      <input
+                        type="text"
+                        value={proj.subtitle}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.projects];
+                            if (!next[pIdx]) return latest;
+                            next[pIdx] = { ...next[pIdx], subtitle: val };
+                            return { ...latest, projects: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.projects];
+                          next[pIdx] = { ...next[pIdx], subtitle: e.target.value };
+                          onUpdateResume({ ...resume, projects: next });
+                        }}
+                        placeholder="Subtitle / Technologies Used (e.g. Next.js, Python, PostgreSQL)"
+                        className={cn(sheetInputClass, 'w-full text-[10px] italic')}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="inline-flex flex-wrap items-center gap-1.5 font-bold text-black">
+                          <span>{proj.name}</span>
+                          {reordered && (
+                            <span className="no-print rounded border border-blue-300 bg-blue-50 px-1.5 py-0 text-[8.5px] font-semibold text-[#0a66c2]">
+                              ↑ Reordered by AI
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 font-semibold text-neutral-900">
+                          {proj.period}
+                        </span>
+                      </div>
+                      {proj.subtitle && (
+                        <p className="italic text-neutral-800">{proj.subtitle}</p>
+                      )}
+                    </>
+                  )}
+
+                  <ul className="mt-1 list-disc space-y-1 pl-4 text-neutral-900">
                     {proj.bullets.map((bullet, idx) => {
                       const isBulletDiff =
-                        highlightActive &&
-                        !refSets.projBullets.has(bullet.trim());
+                        highlightActive && !refSets.projBullets.has(bullet.trim());
                       return (
                         <li
                           key={idx}
-                          className={cn(isBulletDiff && changedBoxClass)}
+                          className={cn(isBulletDiff && changedBoxClass, textAlignClass)}
                         >
-                          {renderFormattedLine(
-                            bullet,
-                            highlightActive && isTailoredVariant
+                          {canEdit && onUpdateResume ? (
+                            <div className="flex items-start gap-1">
+                              <textarea
+                                rows={2}
+                                value={bullet}
+                                onFocus={(e) =>
+                                  registerFocus(e.currentTarget, (latest, val) => {
+                                    const nextProj = [...latest.projects];
+                                    if (!nextProj[pIdx]) return latest;
+                                    const nextBullets = [...nextProj[pIdx].bullets];
+                                    nextBullets[idx] = val;
+                                    nextProj[pIdx] = {
+                                      ...nextProj[pIdx],
+                                      bullets: nextBullets,
+                                    };
+                                    return { ...latest, projects: nextProj };
+                                  })
+                                }
+                                onChange={(e) => {
+                                  const nextProj = [...resume.projects];
+                                  const nextBullets = [...nextProj[pIdx].bullets];
+                                  nextBullets[idx] = e.target.value;
+                                  nextProj[pIdx] = {
+                                    ...nextProj[pIdx],
+                                    bullets: nextBullets,
+                                  };
+                                  onUpdateResume({
+                                    ...resume,
+                                    projects: nextProj,
+                                  });
+                                }}
+                                className={cn(
+                                  'flex-1 text-[10px]',
+                                  sheetInputClass,
+                                  textAlignClass
+                                )}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextProj = [...resume.projects];
+                                  nextProj[pIdx].bullets = nextProj[pIdx].bullets.filter(
+                                    (_, bIdx) => bIdx !== idx
+                                  );
+                                  onUpdateResume({ ...resume, projects: nextProj });
+                                }}
+                                className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                                title="Delete bullet"
+                                aria-label="Delete project bullet"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ) : (
+                            renderFormattedLine(
+                              bullet,
+                              highlightActive && isTailoredVariant
+                            )
                           )}
                         </li>
                       );
                     })}
                   </ul>
+
+                  {canEdit && onUpdateResume && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextProj = [...resume.projects];
+                        nextProj[pIdx].bullets.push('Project architecture or key metric.');
+                        onUpdateResume({ ...resume, projects: nextProj });
+                      }}
+                      className={bulletAddBtnClass}
+                    >
+                      <Plus className="h-3 w-3" />
+                      Add Project Bullet
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -540,13 +1180,35 @@ export function ResumeSheetDocument({
         </section>
       )}
 
-      {/* TECHNICAL SKILLS */}
-      {resume.skillCategories.length > 0 && (
+      {/* TECHNICAL SKILLS SECTION */}
+      {(resume.skillCategories.length > 0 || canEdit) && (
         <section className="mt-3">
-          <h2 className="border-b-[1.5px] border-black pb-0.5 text-[11px] font-bold tracking-wider text-black uppercase">
-            Technical Skills
-          </h2>
-          <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-neutral-900">
+          <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
+            <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+              Technical Skills
+            </h2>
+            {canEdit && onUpdateResume && (
+              <button
+                type="button"
+                onClick={() => {
+                  const newCat: ResumeSkillCategory = {
+                    category: 'Tools & Platforms',
+                    items: 'Tool 1, Tool 2, Tool 3',
+                  };
+                  onUpdateResume({
+                    ...resume,
+                    skillCategories: [...resume.skillCategories, newCat],
+                  });
+                }}
+                className={sectionAddBtnClass}
+              >
+                <Plus className="h-3 w-3" />
+                Add Skill Category
+              </button>
+            )}
+          </div>
+
+          <ul className="mt-1.5 list-disc space-y-1 pl-4 text-neutral-900">
             {resume.skillCategories.map((cat, idx) => {
               const refItems = refSets.skillMap.get(
                 cat.category.trim().toLowerCase()
@@ -557,31 +1219,69 @@ export function ResumeSheetDocument({
 
               return (
                 <li
-                  key={cat.category}
-                  className={cn(skillDiff && changedBoxClass)}
+                  key={idx}
+                  className={cn(skillDiff && changedBoxClass, textAlignClass)}
                 >
-                  <strong className="font-bold text-black">
-                    {cat.category}:{' '}
-                  </strong>
                   {canEdit && onUpdateResume ? (
-                    <input
-                      type="text"
-                      value={cat.items}
-                      onChange={(e) => {
-                        const nextCats = [...resume.skillCategories];
-                        nextCats[idx] = {
-                          ...nextCats[idx],
-                          items: e.target.value,
-                        };
-                        onUpdateResume({
-                          ...resume,
-                          skillCategories: nextCats,
-                        });
-                      }}
-                      className="w-full rounded border border-neutral-300 px-1 py-0.5 text-[10px]"
-                    />
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <input
+                        type="text"
+                        value={cat.category}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const nextCats = [...latest.skillCategories];
+                            if (!nextCats[idx]) return latest;
+                            nextCats[idx] = { ...nextCats[idx], category: val };
+                            return { ...latest, skillCategories: nextCats };
+                          })
+                        }
+                        onChange={(e) => {
+                          const nextCats = [...resume.skillCategories];
+                          nextCats[idx] = { ...nextCats[idx], category: e.target.value };
+                          onUpdateResume({ ...resume, skillCategories: nextCats });
+                        }}
+                        placeholder="Category Name"
+                        className={cn(sheetInputClass, 'w-32 font-bold')}
+                      />
+                      <input
+                        type="text"
+                        value={cat.items}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const nextCats = [...latest.skillCategories];
+                            if (!nextCats[idx]) return latest;
+                            nextCats[idx] = { ...nextCats[idx], items: val };
+                            return { ...latest, skillCategories: nextCats };
+                          })
+                        }
+                        onChange={(e) => {
+                          const nextCats = [...resume.skillCategories];
+                          nextCats[idx] = { ...nextCats[idx], items: e.target.value };
+                          onUpdateResume({ ...resume, skillCategories: nextCats });
+                        }}
+                        placeholder="Comma-separated items (e.g. Python, SQL, Tableau)"
+                        className={cn(sheetInputClass, 'flex-1')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextCats = resume.skillCategories.filter((_, cIdx) => cIdx !== idx);
+                          onUpdateResume({ ...resume, skillCategories: nextCats });
+                        }}
+                        className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                        title="Delete category"
+                        aria-label="Delete skill category"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   ) : (
-                    <span>{cat.items}</span>
+                    <>
+                      <strong className="font-bold text-black">
+                        {cat.category}:{' '}
+                      </strong>
+                      <span>{cat.items}</span>
+                    </>
                   )}
                 </li>
               );
@@ -590,39 +1290,222 @@ export function ResumeSheetDocument({
         </section>
       )}
 
-      {/* CERTIFICATIONS */}
-      {resume.certifications.length > 0 && (
+      {/* CERTIFICATIONS SECTION */}
+      {(resume.certifications.length > 0 || canEdit) && (
         <section className="mt-3">
-          <h2 className="border-b-[1.5px] border-black pb-0.5 text-[11px] font-bold tracking-wider text-black uppercase">
-            Certifications
-          </h2>
-          <ul className="mt-1.5 grid list-disc grid-cols-1 gap-x-6 gap-y-0.5 pl-4 text-neutral-900 sm:grid-cols-2">
+          <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
+            <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+              Certifications
+            </h2>
+            {canEdit && onUpdateResume && (
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateResume({
+                    ...resume,
+                    certifications: [...resume.certifications, 'New Certification Name (Issuing Organization)'],
+                  });
+                }}
+                className={sectionAddBtnClass}
+              >
+                <Plus className="h-3 w-3" />
+                Add Certification
+              </button>
+            )}
+          </div>
+
+          <ul className="mt-1.5 grid list-disc grid-cols-1 gap-x-6 gap-y-1 pl-4 text-neutral-900 sm:grid-cols-2">
             {resume.certifications.map((cert, idx) => (
-              <li key={idx}>{cert}</li>
+              <li key={idx} className={textAlignClass}>
+                {canEdit && onUpdateResume ? (
+                  <div className="flex items-center gap-1 text-[10px]">
+                    <input
+                      type="text"
+                      value={cert}
+                      onFocus={(e) =>
+                        registerFocus(e.currentTarget, (latest, val) => {
+                          const next = [...latest.certifications];
+                          next[idx] = val;
+                          return { ...latest, certifications: next };
+                        })
+                      }
+                      onChange={(e) => {
+                        const next = [...resume.certifications];
+                        next[idx] = e.target.value;
+                        onUpdateResume({ ...resume, certifications: next });
+                      }}
+                      className={cn(sheetInputClass, 'flex-1')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = resume.certifications.filter((_, cIdx) => cIdx !== idx);
+                        onUpdateResume({ ...resume, certifications: next });
+                      }}
+                      className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                      title="Delete certification"
+                      aria-label="Delete certification"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <span>{cert}</span>
+                )}
+              </li>
             ))}
           </ul>
         </section>
       )}
 
-      {/* EDUCATION */}
-      {resume.education.length > 0 && (
+      {/* EDUCATION SECTION */}
+      {(resume.education.length > 0 || canEdit) && (
         <section className="mt-3">
-          <h2 className="border-b-[1.5px] border-black pb-0.5 text-[11px] font-bold tracking-wider text-black uppercase">
-            Education
-          </h2>
-          <div className="mt-1.5 space-y-1">
+          <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
+            <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+              Education
+            </h2>
+            {canEdit && onUpdateResume && (
+              <button
+                type="button"
+                onClick={() => {
+                  const newEdu = {
+                    degree: 'Bachelor of Science in Information Technology',
+                    school: 'University Name',
+                    period: 'Year — Year',
+                    honors: '',
+                  };
+                  onUpdateResume({
+                    ...resume,
+                    education: [...resume.education, newEdu],
+                  });
+                }}
+                className={sectionAddBtnClass}
+              >
+                <Plus className="h-3 w-3" />
+                Add Education Entry
+              </button>
+            )}
+          </div>
+
+          <div className="mt-1.5 space-y-1.5">
             {resume.education.map((edu, idx) => (
-              <div key={idx}>
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="font-bold text-black">{edu.degree}</span>
-                  <span className="shrink-0 font-semibold text-neutral-900">
-                    {edu.period}
-                  </span>
-                </div>
-                <p className="text-neutral-900">
-                  {edu.school}
-                  {edu.honors ? ` (${edu.honors})` : ''}
-                </p>
+              <div
+                key={idx}
+                className={cn(
+                  canEdit &&
+                    'rounded border border-dashed border-neutral-300 bg-neutral-50/50 p-2 print:border-none print:bg-transparent print:p-0'
+                )}
+              >
+                {canEdit && onUpdateResume ? (
+                  <div className="space-y-1 text-[10px]">
+                    <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                      <input
+                        type="text"
+                        value={edu.degree}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.education];
+                            if (!next[idx]) return latest;
+                            next[idx] = { ...next[idx], degree: val };
+                            return { ...latest, education: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.education];
+                          next[idx] = { ...next[idx], degree: e.target.value };
+                          onUpdateResume({ ...resume, education: next });
+                        }}
+                        placeholder="Degree / Program"
+                        className={cn(sheetInputClass, 'font-bold')}
+                      />
+                      <input
+                        type="text"
+                        value={edu.period}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.education];
+                            if (!next[idx]) return latest;
+                            next[idx] = { ...next[idx], period: val };
+                            return { ...latest, education: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.education];
+                          next[idx] = { ...next[idx], period: e.target.value };
+                          onUpdateResume({ ...resume, education: next });
+                        }}
+                        placeholder="Graduation Period (e.g. 2019 — 2023)"
+                        className={sheetInputClass}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={edu.school}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.education];
+                            if (!next[idx]) return latest;
+                            next[idx] = { ...next[idx], school: val };
+                            return { ...latest, education: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.education];
+                          next[idx] = { ...next[idx], school: e.target.value };
+                          onUpdateResume({ ...resume, education: next });
+                        }}
+                        placeholder="School / University"
+                        className={cn(sheetInputClass, 'flex-1')}
+                      />
+                      <input
+                        type="text"
+                        value={edu.honors}
+                        onFocus={(e) =>
+                          registerFocus(e.currentTarget, (latest, val) => {
+                            const next = [...latest.education];
+                            if (!next[idx]) return latest;
+                            next[idx] = { ...next[idx], honors: val };
+                            return { ...latest, education: next };
+                          })
+                        }
+                        onChange={(e) => {
+                          const next = [...resume.education];
+                          next[idx] = { ...next[idx], honors: e.target.value };
+                          onUpdateResume({ ...resume, education: next });
+                        }}
+                        placeholder="Honors / Awards"
+                        className={cn(sheetInputClass, 'w-36')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = resume.education.filter((_, eIdx) => eIdx !== idx);
+                          onUpdateResume({ ...resume, education: next });
+                        }}
+                        className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                        title="Delete education"
+                        aria-label="Delete education entry"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="font-bold text-black">{edu.degree}</span>
+                      <span className="shrink-0 font-semibold text-neutral-900">
+                        {edu.period}
+                      </span>
+                    </div>
+                    <p className="text-neutral-900">
+                      {edu.school}
+                      {edu.honors ? ` (${edu.honors})` : ''}
+                    </p>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -640,37 +1523,119 @@ export function A4ResumePreview({
   geminiApiKey,
   personalApiConfigured = false,
   tailoring,
+  resumeRecords = [],
   onUpdateGeminiKey,
   onTailorResume,
   onUpdateResume,
   onResetResume,
+  onApplyToProfile,
+  onSelectResumeVersion,
+  onUpdateResumeRecord,
+  onDeleteResumeRecord,
   onSaveSnapshot,
 }: A4ResumePreviewProps) {
   const [editMode, setEditMode] = useState(false);
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [isVersionsDrawerOpen, setIsVersionsDrawerOpen] = useState(false);
   const [showSaveSnapshotBar, setShowSaveSnapshotBar] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState<ResumeZoomLevel>('fit');
+
+  // Quick Snapshot bar state
   const [snapshotCompany, setSnapshotCompany] = useState(
     activeTailorJob?.company || activeResume.tailoredForCompany || ''
   );
   const [snapshotRole, setSnapshotRole] = useState(
     activeTailorJob?.title || activeResume.tailoredForJobTitle || profile.primaryRole
   );
+  const [snapshotVersionName, setSnapshotVersionName] = useState(
+    activeResume.versionName || ''
+  );
   const [snapshotSent, setSnapshotSent] = useState(true);
   const [snapshotNotes, setSnapshotNotes] = useState('');
   const [savingSnapshot, setSavingSnapshot] = useState(false);
   const [snapshotSavedMsg, setSnapshotSavedMsg] = useState<string | null>(null);
+
   const [showSummary, setShowSummary] = useState(true);
   const [compareMode, setCompareMode] = useState(false);
   const [highlightChanges, setHighlightChanges] = useState(true);
-  const [selectedRoleForFix, setSelectedRoleForFix] = useState(
-    profile.primaryRole || 'Data Analyst / Junior Data Analyst'
-  );
+  const [toolbarStatusMsg, setToolbarStatusMsg] = useState<string | null>(null);
+
+  // Track active editable input/textarea for live Bold/Italic/Code wrapping
+  const activeEditorRef = useRef<{
+    element: HTMLInputElement | HTMLTextAreaElement;
+    applyValue: (nextValue: string) => void;
+  } | null>(null);
+
+  const handleFocusEditableField: EditableFieldFocusHandler = (
+    element,
+    applyValue
+  ) => {
+    activeEditorRef.current = { element, applyValue };
+  };
+
+  const handleWrapSelection = (prefix: string, suffix: string) => {
+    if (!editMode) {
+      setToolbarStatusMsg(
+        'Enable Edit Resume mode, then click inside a field to apply formatting.'
+      );
+      return;
+    }
+
+    const active = activeEditorRef.current;
+    if (!active || !document.contains(active.element)) {
+      setToolbarStatusMsg(
+        'Click inside a resume text field or bullet first to apply formatting.'
+      );
+      return;
+    }
+
+    const { element, applyValue } = active;
+    const value = element.value;
+    const start = element.selectionStart ?? value.length;
+    const end = element.selectionEnd ?? value.length;
+    const selected = value.slice(start, end);
+
+    let nextValue: string;
+    let nextStart: number;
+    let nextEnd: number;
+
+    if (
+      selected.length > prefix.length + suffix.length &&
+      selected.startsWith(prefix) &&
+      selected.endsWith(suffix)
+    ) {
+      const unwrapped = selected.slice(prefix.length, selected.length - suffix.length);
+      nextValue = value.slice(0, start) + unwrapped + value.slice(end);
+      nextStart = start;
+      nextEnd = start + unwrapped.length;
+    } else if (selected.length > 0) {
+      nextValue = value.slice(0, start) + prefix + selected + suffix + value.slice(end);
+      nextStart = start + prefix.length;
+      nextEnd = nextStart + selected.length;
+    } else {
+      const placeholder = 'text';
+      nextValue = value.slice(0, start) + prefix + placeholder + suffix + value.slice(end);
+      nextStart = start + prefix.length;
+      nextEnd = nextStart + placeholder.length;
+    }
+
+    applyValue(nextValue);
+    setToolbarStatusMsg(
+      prefix === '**'
+        ? 'Applied bold formatting.'
+        : prefix === '*'
+          ? 'Applied italic formatting.'
+          : 'Applied tool tag formatting.'
+    );
+
+    requestAnimationFrame(() => {
+      element.focus();
+      element.setSelectionRange(nextStart, nextEnd);
+    });
+  };
 
   const tokens = getThemeTokens(theme);
   const isDark = tokens.isDark;
-  const surfaceClass = tokens.cardSurface;
-  const buttonOutlineClass = tokens.secondaryBtn;
-
   const baseResume = profile.structuredResume;
   const isTailored = Boolean(
     activeResume.tailorMethod && activeResume.tailorMethod !== 'base'
@@ -683,7 +1648,81 @@ export function A4ResumePreview({
   const densityPreset = DENSITY_PRESETS[density] || DENSITY_PRESETS.standard;
   const fontPreset =
     ATS_FONT_PRESETS[fontFamilyKey] || ATS_FONT_PRESETS.calibri;
-  const aiReady = personalApiConfigured || Boolean(geminiApiKey.trim());
+
+  const sheetNaturalWidth =
+    pageSize === 'letter' || pageSize === 'legal' ? 816 : 794;
+
+  // Responsive container & actual sheet height measuring via ResizeObserver
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tailoredMeasureRef = useRef<HTMLDivElement>(null);
+  const baseMeasureRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(800);
+  const [tailoredHeight, setTailoredHeight] = useState<number>(0);
+  const [baseHeight, setBaseHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setContainerWidth(el.clientWidth);
+
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    const observers: ResizeObserver[] = [];
+
+    if (tailoredMeasureRef.current) {
+      setTailoredHeight(tailoredMeasureRef.current.offsetHeight);
+      const obs = new ResizeObserver(() => {
+        if (tailoredMeasureRef.current) {
+          setTailoredHeight(tailoredMeasureRef.current.offsetHeight);
+        }
+      });
+      obs.observe(tailoredMeasureRef.current);
+      observers.push(obs);
+    }
+
+    if (baseMeasureRef.current) {
+      setBaseHeight(baseMeasureRef.current.offsetHeight);
+      const obs = new ResizeObserver(() => {
+        if (baseMeasureRef.current) {
+          setBaseHeight(baseMeasureRef.current.offsetHeight);
+        }
+      });
+      obs.observe(baseMeasureRef.current);
+      observers.push(obs);
+    }
+
+    return () => {
+      observers.forEach((o) => o.disconnect());
+    };
+  }, [activeResume, editMode, showSummary, compareMode, highlightChanges]);
+
+  // Compute scale based on zoom preset or auto-fit container (including 2-column compare)
+  const computedScale = useMemo(() => {
+    if (zoomLevel === '75') return 0.75;
+    if (zoomLevel === '90') return 0.9;
+    if (zoomLevel === '100') return 1.0;
+    if (zoomLevel === '110') return 1.1;
+
+    const isTwoColCompare = compareMode && isTailored && containerWidth >= 1200;
+    const columnWidth = isTwoColCompare
+      ? (containerWidth - 20) / 2
+      : containerWidth;
+    const availableWidth = Math.max(260, columnWidth - 8);
+    if (availableWidth < sheetNaturalWidth) {
+      return Math.max(0.38, Math.min(1.0, availableWidth / sheetNaturalWidth));
+    }
+    return 1.0;
+  }, [zoomLevel, containerWidth, compareMode, isTailored, sheetNaturalWidth]);
 
   const diffSummary = useMemo(() => {
     if (!isTailored) {
@@ -763,14 +1802,6 @@ export function A4ResumePreview({
     };
   }, [activeResume, baseResume, isTailored]);
 
-  const roleChoices = Array.from(
-    new Set([
-      profile.primaryRole,
-      ...(profile.preferredRoles || []),
-      ...(profile.customRoles || []),
-    ])
-  ).filter(Boolean);
-
   const handlePrint = () => {
     window.print();
   };
@@ -788,280 +1819,295 @@ export function A4ResumePreview({
 
   return (
     <div className="flex flex-col gap-3">
-      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; } }`}</style>
+      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; transform: none !important; margin: 0 !important; } }`}</style>
 
-      {/* Studio Controls Toolbar */}
-      <div
-        className={cn(
-          'no-print rounded-lg border p-3.5 space-y-3',
-          surfaceClass
-        )}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="space-y-0.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold">Resume Studio</span>
-              <span
-                className={cn(
-                  'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
-                  isDark
-                    ? 'border-blue-500/35 bg-blue-500/15 text-blue-300'
-                    : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
-                )}
-              >
-                AI
-              </span>
-              <span
-                className={cn(
-                  'rounded border px-2 py-0.5 text-[11px] font-medium',
-                  activeResume.tailorMethod === 'gemini-ai'
-                    ? tokens.primaryBtn
-                    : activeResume.tailorMethod === 'smart-engine'
-                      ? tokens.orangeBadge
-                      : tokens.subSurface
-                )}
-              >
-                {activeResume.tailorMethod === 'gemini-ai'
-                  ? 'Personal Gemini AI'
-                  : activeResume.tailorMethod === 'smart-engine'
-                    ? 'Auto-Tailored'
-                    : `Base ${sizePreset.shortLabel} CV`}
-              </span>
-              <span
-                className={cn(
-                  'rounded border px-2 py-0.5 font-mono text-[11px]',
-                  tokens.subSurface,
-                  tokens.mutedText
-                )}
-              >
-                {sizePreset.shortLabel} • {fontPreset.shortLabel} •{' '}
-                {sizePreset.dimensionsLabel}
-              </span>
-            </div>
-            <p className={cn('text-xs', tokens.mutedText)}>
-              {activeResume.tailoredForJobTitle
-                ? `Tailored for: ${activeResume.tailoredForJobTitle}${
-                    activeResume.tailoredForCompany
-                      ? ` @ ${activeResume.tailoredForCompany}`
-                      : ''
-                  }`
-                : 'Dynamic resume sheet (default A4). Adjust size, ATS font, or AI-tailor below.'}
-            </p>
-          </div>
+      {/* Modern Accessible Toolbar (Word & Docs Formatting Style) */}
+      <ResumeFormatToolbar
+        profile={profile}
+        activeResume={activeResume}
+        activeTailorJob={activeTailorJob}
+        theme={theme}
+        editMode={editMode}
+        versionCount={resumeRecords.length}
+        zoomLevel={zoomLevel}
+        tailoring={tailoring}
+        geminiApiKey={geminiApiKey}
+        personalApiConfigured={personalApiConfigured}
+        statusMessage={toolbarStatusMsg}
+        onToggleEditMode={() => {
+          setEditMode((prev) => {
+            const next = !prev;
+            setToolbarStatusMsg(
+              next
+                ? 'Edit Mode active — click any field in the sheet to edit or format text.'
+                : null
+            );
+            return next;
+          });
+        }}
+        onSetZoomLevel={setZoomLevel}
+        onUpdateResume={onUpdateResume}
+        onOpenVersionsDrawer={() => setIsVersionsDrawerOpen(true)}
+        onOpenSaveSnapshotBar={() => {
+          setSnapshotCompany(
+            activeTailorJob?.company ||
+              activeResume.tailoredForCompany ||
+              ''
+          );
+          setSnapshotRole(
+            activeTailorJob?.title ||
+              activeResume.tailoredForJobTitle ||
+              profile.primaryRole
+          );
+          setSnapshotVersionName(
+            activeResume.versionName ||
+              `${activeTailorJob?.company || activeResume.tailoredForCompany || 'Draft'} - ${
+                activeTailorJob?.title || activeResume.tailoredForJobTitle || 'Resume'
+              }`
+          );
+          setShowSaveSnapshotBar((v) => !v);
+        }}
+        onApplyToProfile={
+          onApplyToProfile ? () => onApplyToProfile(activeResume) : undefined
+        }
+        onTailorResume={onTailorResume}
+        onResetResume={() => {
+          setCompareMode(false);
+          onResetResume();
+        }}
+        onPrint={handlePrint}
+        onToggleKeyInput={() => setShowKeyInput((v) => !v)}
+        onWrapSelection={handleWrapSelection}
+      />
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {aiReady ? (
-              <button
-                type="button"
-                onClick={() => setShowKeyInput((v) => !v)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  isDark
-                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                )}
-                title="Personal Gemini API key from .env is active (click to override)"
-              >
-                <Check className="h-3.5 w-3.5" />
-                <span>{geminiApiKey ? 'Custom AI Key' : 'Personal AI Active'}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowKeyInput((v) => !v)}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  buttonOutlineClass
-                )}
-                title="Optional Gemini API Key override"
-              >
-                <KeyRound className="h-3.5 w-3.5" />
-                Gemini API
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setEditMode((v) => !v)}
-              className={cn(
-                'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                editMode ? tokens.primaryBtn : buttonOutlineClass
-              )}
-            >
-              {editMode ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Done Editing
-                </>
-              ) : (
-                <>
-                  <Edit3 className="h-3.5 w-3.5" />
-                  Edit Resume
-                </>
-              )}
-            </button>
-
-            {isTailored && (
-              <button
-                type="button"
-                onClick={() => {
-                  setCompareMode(false);
-                  onResetResume();
-                }}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  buttonOutlineClass
-                )}
-                title="Reset to base resume"
-              >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
-              </button>
-            )}
-
-            {onSaveSnapshot && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSnapshotCompany(
-                    activeTailorJob?.company ||
-                      activeResume.tailoredForCompany ||
-                      ''
-                  );
-                  setSnapshotRole(
-                    activeTailorJob?.title ||
-                      activeResume.tailoredForJobTitle ||
-                      selectedRoleForFix ||
-                      profile.primaryRole
-                  );
-                  setShowSaveSnapshotBar((v) => !v);
-                }}
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                  showSaveSnapshotBar ? tokens.primaryBtn : buttonOutlineClass
-                )}
-              >
-                <Save className="h-3.5 w-3.5" />
-                Save Version
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={handlePrint}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors',
-                tokens.primaryBtn
-              )}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              Print / Save PDF ({sizePreset.shortLabel})
-            </button>
-          </div>
-        </div>
-
-        {/* Tailor, Dynamic Sizing & Top-5 AI-ATS Font Bar */}
+      {/* Optional Gemini Key Input Drawer */}
+      {showKeyInput && (
         <div
           className={cn(
-            'flex flex-wrap items-center gap-2 border-t pt-2.5',
+            'no-print flex flex-wrap items-center gap-2 rounded-lg border p-2.5 text-xs',
+            tokens.cardSurface,
             tokens.borderSubtle
           )}
         >
-          <select
-            value={selectedRoleForFix}
-            onChange={(e) => setSelectedRoleForFix(e.target.value)}
-            aria-label="Target role for AI tailoring"
-            className={cn(
-              'min-w-[160px] flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-              tokens.inputSurface
-            )}
-          >
-            {roleChoices.map((role) => (
-              <option key={role} value={role}>
-                Target role: {role}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={pageSize}
-            onChange={(e) =>
-              onUpdateResume({
-                ...activeResume,
-                pageSize: e.target.value as ResumePageSize,
-              })
+          <input
+            type="password"
+            value={geminiApiKey}
+            onChange={(e) => onUpdateGeminiKey(e.target.value)}
+            placeholder={
+              personalApiConfigured
+                ? 'Optional browser override key — leave blank to use your personal .env GEMINI_API_KEY'
+                : 'Optional Gemini API Key — leave blank to use built-in Smart Tailor'
             }
-            aria-label="Resume page size"
             className={cn(
-              'rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              'flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
             )}
-          >
-            {(Object.keys(PAGE_SIZE_PRESETS) as ResumePageSize[]).map((key) => (
-              <option key={key} value={key}>
-                Size: {PAGE_SIZE_PRESETS[key].label}
-              </option>
-            ))}
-          </select>
+          />
+          <span className={cn('text-[11px]', tokens.mutedText)}>
+            {personalApiConfigured
+              ? 'Server .env personal key (gemini-3.1-flash-lite) runs by default.'
+              : 'Stored locally in your browser.'}
+          </span>
+        </div>
+      )}
 
-          <select
-            value={fontFamilyKey}
-            onChange={(e) =>
-              onUpdateResume({
-                ...activeResume,
-                fontFamily: e.target.value as ResumeFontFamily,
-              })
+      {/* Save Version Quick Form Bar */}
+      {showSaveSnapshotBar && onSaveSnapshot && (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!snapshotCompany.trim() || !snapshotRole.trim()) return;
+            setSavingSnapshot(true);
+            setSnapshotSavedMsg(null);
+            try {
+              const customName =
+                snapshotVersionName.trim() ||
+                `${snapshotCompany.trim()} — ${snapshotRole.trim()}`;
+              await onSaveSnapshot({
+                company: snapshotCompany.trim(),
+                jobTitle: snapshotRole.trim(),
+                jobId: activeTailorJob?.id || null,
+                versionName: customName,
+                resume: {
+                  ...activeResume,
+                  versionName: customName,
+                  tailoredForCompany: snapshotCompany.trim(),
+                  tailoredForJobTitle: snapshotRole.trim(),
+                },
+                isSent: snapshotSent,
+                notes: snapshotNotes.trim(),
+              });
+              setSnapshotSavedMsg(`Saved version: "${customName}"`);
+              setSnapshotNotes('');
+              setShowSaveSnapshotBar(false);
+            } finally {
+              setSavingSnapshot(false);
             }
-            aria-label="ATS Resume Font"
+          }}
+          className={cn(
+            'no-print grid gap-2 rounded-lg border p-3 sm:grid-cols-12',
+            tokens.subSurface,
+            tokens.borderSubtle
+          )}
+        >
+          <div className="sm:col-span-12 flex items-center justify-between">
+            <span className={cn('text-xs font-bold', tokens.strongText)}>
+              Save New Resume Version:
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSaveSnapshotBar(false)}
+              className={cn(
+                'rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
+                tokens.secondaryBtn
+              )}
+            >
+              Cancel
+            </button>
+          </div>
+          <input
+            type="text"
+            required
+            value={snapshotVersionName}
+            onChange={(e) => setSnapshotVersionName(e.target.value)}
+            placeholder="Custom Version Name (e.g. Canva - Senior BI Analyst v2)"
             className={cn(
-              'rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none font-medium',
               tokens.inputSurface
             )}
-          >
-            {(Object.keys(ATS_FONT_PRESETS) as ResumeFontFamily[]).map((key) => (
-              <option key={key} value={key}>
-                Font: {ATS_FONT_PRESETS[key].label}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={density}
-            onChange={(e) =>
-              onUpdateResume({
-                ...activeResume,
-                density: e.target.value as ResumeDensity,
-              })
-            }
-            aria-label="Resume density"
+          />
+          <input
+            type="text"
+            required
+            value={snapshotCompany}
+            onChange={(e) => setSnapshotCompany(e.target.value)}
+            placeholder="Company name (e.g. Canva, GCash)"
             className={cn(
-              'rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
               tokens.inputSurface
             )}
-          >
-            {(Object.keys(DENSITY_PRESETS) as ResumeDensity[]).map((key) => (
-              <option key={key} value={key}>
-                Density: {DENSITY_PRESETS[key].label}
-              </option>
-            ))}
-          </select>
-
+          />
+          <input
+            type="text"
+            required
+            value={snapshotRole}
+            onChange={(e) => setSnapshotRole(e.target.value)}
+            placeholder="Role applied for"
+            className={cn(
+              'sm:col-span-2 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              tokens.inputSurface
+            )}
+          />
+          <input
+            type="text"
+            value={snapshotNotes}
+            onChange={(e) => setSnapshotNotes(e.target.value)}
+            placeholder="Optional note"
+            className={cn(
+              'sm:col-span-2 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+              tokens.inputSurface
+            )}
+          />
+          <div className="sm:col-span-1 flex items-center gap-1.5 text-xs">
+            <label className="flex cursor-pointer items-center gap-1">
+              <input
+                type="checkbox"
+                checked={snapshotSent}
+                onChange={(e) => setSnapshotSent(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              <span>Sent</span>
+            </label>
+          </div>
           <button
-            type="button"
-            disabled={tailoring}
-            onClick={() => onTailorResume(activeTailorJob, selectedRoleForFix)}
+            type="submit"
+            disabled={savingSnapshot}
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
-              tokens.contrastBtn
+              'sm:col-span-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50',
+              tokens.primaryBtn
             )}
           >
-            {tailoring ? 'Tailoring with AI...' : 'AI Tailor for Role'}
+            {savingSnapshot ? 'Saving...' : 'Save'}
           </button>
+        </form>
+      )}
+
+      {snapshotSavedMsg && (
+        <p
+          className={cn(
+            'no-print text-xs font-medium',
+            isDark ? 'text-emerald-300' : 'text-emerald-800'
+          )}
+        >
+          ✓ {snapshotSavedMsg}
+        </p>
+      )}
+
+      {/* AI Tailoring Changes Bar & Side-by-Side Controls */}
+      {isTailored && (
+        <div
+          className={cn(
+            'no-print flex flex-wrap items-center justify-between gap-2 rounded-lg border p-2.5 text-xs',
+            tokens.cardSurface,
+            tokens.borderSubtle
+          )}
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cn(
+                'rounded border px-2 py-0.5 font-mono text-[11px] tabular-nums',
+                tokens.subSurface,
+                tokens.mutedText
+              )}
+            >
+              {diffSummary.summaryAdded ? '+Summary • ' : ''}
+              {diffSummary.headlineUpdated ? 'Headline • ' : ''}
+              {diffSummary.bulletsModified} rewritten bullets •{' '}
+              {diffSummary.skillsUpdated} skills updated
+              {diffSummary.reorderedCount > 0
+                ? ` • ${diffSummary.reorderedCount} reordered`
+                : ''}
+            </span>
+
+            <button
+              type="button"
+              aria-pressed={highlightChanges}
+              onClick={() => setHighlightChanges((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                highlightChanges
+                  ? cn('border-transparent', tokens.primaryBtn)
+                  : tokens.secondaryBtn
+              )}
+            >
+              <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {highlightChanges ? '✓ Highlights ON' : 'Highlight AI Changes'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              aria-pressed={compareMode}
+              onClick={() => setCompareMode((v) => !v)}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                compareMode
+                  ? cn('border-transparent', tokens.primaryBtn)
+                  : tokens.secondaryBtn
+              )}
+            >
+              <Columns2 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>
+                {compareMode ? '✓ Side-by-Side Active' : 'Side-by-Side Compare'}
+              </span>
+            </button>
+          </div>
 
           <label
             className={cn(
-              'inline-flex cursor-pointer items-center gap-1.5 text-xs',
-              tokens.mutedText
+              'inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium',
+              tokens.strongText
             )}
           >
             <input
@@ -1073,312 +2119,181 @@ export function A4ResumePreview({
             <span>Show Tailored Summary</span>
           </label>
         </div>
+      )}
 
-        {showSaveSnapshotBar && onSaveSnapshot && (
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!snapshotCompany.trim() || !snapshotRole.trim()) return;
-              setSavingSnapshot(true);
-              setSnapshotSavedMsg(null);
-              try {
-                await onSaveSnapshot({
-                  company: snapshotCompany.trim(),
-                  jobTitle: snapshotRole.trim(),
-                  jobId: activeTailorJob?.id || null,
-                  resume: {
-                    ...activeResume,
-                    tailoredForCompany: snapshotCompany.trim(),
-                    tailoredForJobTitle: snapshotRole.trim(),
-                  },
-                  isSent: snapshotSent,
-                  notes: snapshotNotes.trim(),
-                });
-                setSnapshotSavedMsg(
-                  `Saved resume version for ${snapshotCompany.trim()}`
-                );
-                setSnapshotNotes('');
-                setShowSaveSnapshotBar(false);
-              } finally {
-                setSavingSnapshot(false);
-              }
-            }}
-            className={cn(
-              'grid gap-2 rounded-lg border p-3 sm:grid-cols-12',
-              tokens.subSurface
-            )}
-          >
-            <input
-              type="text"
-              required
-              value={snapshotCompany}
-              onChange={(e) => setSnapshotCompany(e.target.value)}
-              placeholder="Company name (e.g. Canva, GCash, Grab)"
-              className={cn(
-                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-                tokens.inputSurface
-              )}
-            />
-            <input
-              type="text"
-              required
-              value={snapshotRole}
-              onChange={(e) => setSnapshotRole(e.target.value)}
-              placeholder="Role applied for"
-              className={cn(
-                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-                tokens.inputSurface
-              )}
-            />
-            <input
-              type="text"
-              value={snapshotNotes}
-              onChange={(e) => setSnapshotNotes(e.target.value)}
-              placeholder="Optional note (e.g. emphasized SQL & Power BI)"
-              className={cn(
-                'sm:col-span-3 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-                tokens.inputSurface
-              )}
-            />
-            <label className="sm:col-span-1 flex items-center gap-1.5 text-xs">
-              <input
-                type="checkbox"
-                checked={snapshotSent}
-                onChange={(e) => setSnapshotSent(e.target.checked)}
-                className="h-3.5 w-3.5"
-              />
-              <span>Sent</span>
-            </label>
-            <button
-              type="submit"
-              disabled={savingSnapshot}
-              className={cn(
-                'sm:col-span-2 rounded-lg px-3 py-1.5 text-xs transition-colors disabled:opacity-50',
-                tokens.primaryBtn
-              )}
-            >
-              {savingSnapshot ? 'Saving...' : 'Save to Compilation'}
-            </button>
-          </form>
-        )}
-
-        {snapshotSavedMsg && (
-          <p
-            className={cn(
-              'text-xs font-medium',
-              isDark ? 'text-emerald-300' : 'text-emerald-800'
-            )}
-          >
-            ✓ {snapshotSavedMsg}
-          </p>
-        )}
-
-        {/* ATS Font Guide + AI Tailor Compare & Highlight Bar */}
-        <div
-          className={cn(
-            'flex flex-wrap items-center justify-between gap-2 border-t pt-2',
-            tokens.borderSubtle
-          )}
-        >
-          <p className={cn('text-[11px]', tokens.mutedText)}>
-            ATS Font Guide:{' '}
-            <strong className={cn('font-semibold', tokens.strongText)}>
-              {fontPreset.shortLabel}
-            </strong>{' '}
-            ({fontPreset.category}) — {fontPreset.atsNote} • Ligatures disabled for
-            AI PDF parsing.
-          </p>
-
-          {isTailored && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={cn(
-                  'rounded border px-2 py-0.5 font-mono text-[11px] tabular-nums',
-                  tokens.subSurface,
-                  tokens.mutedText
-                )}
-              >
-                {diffSummary.summaryAdded ? '+Summary • ' : ''}
-                {diffSummary.headlineUpdated ? 'Headline • ' : ''}
-                {diffSummary.bulletsModified} rewritten bullets •{' '}
-                {diffSummary.skillsUpdated} skills updated
-                {diffSummary.reorderedCount > 0
-                  ? ` • ${diffSummary.reorderedCount} reordered`
-                  : ''}
-              </span>
-
-              <button
-                type="button"
-                onClick={() => setHighlightChanges((v) => !v)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
-                  highlightChanges ? tokens.primaryBtn : buttonOutlineClass
-                )}
-              >
-                <Eye className="h-3.5 w-3.5" />
-                <span>
-                  {highlightChanges ? '✓ Highlights ON' : 'Highlight AI Changes'}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setCompareMode((v) => !v)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
-                  compareMode ? tokens.primaryBtn : buttonOutlineClass
-                )}
-              >
-                <Columns2 className="h-3.5 w-3.5" />
-                <span>
-                  {compareMode ? '✓ Side-by-Side Active' : 'Side-by-Side Compare'}
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        {showKeyInput && (
-          <div
-            className={cn(
-              'flex flex-wrap items-center gap-2 rounded-lg border p-2.5 text-xs',
-              tokens.subSurface
-            )}
-          >
-            <input
-              type="password"
-              value={geminiApiKey}
-              onChange={(e) => onUpdateGeminiKey(e.target.value)}
-              placeholder={
-                personalApiConfigured
-                  ? 'Optional browser override key — leave blank to use your personal .env GEMINI_API_KEY'
-                  : 'Optional Gemini API Key — leave blank to use built-in Smart Tailor'
-              }
-              className={cn(
-                'flex-1 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
-                tokens.inputSurface
-              )}
-            />
-            <span className={cn('text-[11px]', tokens.mutedText)}>
-              {personalApiConfigured
-                ? 'Server .env personal key (gemini-3.1-flash-lite) runs by default.'
-                : 'Stored locally in your browser.'}
-            </span>
-          </div>
-        )}
-
-        {activeResume.tailorNotes && activeResume.tailorNotes.length > 0 && (
-          <div
-            className={cn(
-              'rounded-lg border px-3 py-2 text-xs',
-              tokens.subSurface
-            )}
-          >
-            <div className="mb-1 font-semibold">
-              Changes applied to your {sizePreset.shortLabel} resume sheet:
-            </div>
-            <ul className={cn('list-disc space-y-0.5 pl-4', tokens.mutedText)}>
-              {activeResume.tailorNotes.map((note, idx) => (
-                <li key={idx}>{note}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      {/* Dynamic Resume Paper Preview (Single Sheet or Side-by-Side Comparison) */}
+      {/* RESPONSIVE RESUME SHEET CONTAINER */}
       <div
+        ref={containerRef}
         className={cn(
-          'print-only-container rounded-lg border p-3 sm:p-5',
+          'print-only-container rounded-lg border p-3 sm:p-5 overflow-x-auto',
           compareMode && isTailored
-            ? 'grid grid-cols-1 items-start gap-5 xl:grid-cols-2'
-            : 'flex justify-center overflow-x-auto',
-          isDark
-            ? 'border-slate-800 bg-slate-900/70'
-            : 'border-slate-300 bg-slate-200/70'
+            ? 'grid grid-cols-1 items-start gap-5 xl:grid-cols-2 print:block'
+            : 'block',
+          tokens.subSurface,
+          tokens.borderSubtle
         )}
       >
+        {/* Base Profile Sheet in Compare Mode */}
         {compareMode && isTailored && (
-          <div className="no-print flex min-w-0 flex-col items-center gap-2">
+          <div className="no-print flex min-w-0 flex-col gap-2.5 w-full">
             <div
               className={cn(
-                'flex w-full items-center justify-between rounded-lg border px-3 py-1.5 text-xs',
-                tokens.cardSurface
+                'flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
+                tokens.cardSurface,
+                tokens.borderSubtle
               )}
             >
-              <span className="font-semibold">
-                Before • Base Profile Resume
+              <span className={cn('font-semibold', tokens.strongText)}>
+                Before • Base Profile Master
               </span>
               {highlightChanges && (
-                <span className="inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900">
-                  Amber = modified or trimmed by AI
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium',
+                    isDark
+                      ? 'border-amber-700/70 bg-amber-950/60 text-amber-200'
+                      : 'border-amber-300 bg-amber-50 text-amber-900'
+                  )}
+                >
+                  Amber = modified/trimmed by AI
                 </span>
               )}
             </div>
-            <div className="flex w-full justify-center overflow-x-auto pb-2">
-              <ResumeSheetDocument
-                variant="base"
-                resume={baseResume}
-                compareReference={activeResume}
-                showSummary={showSummary}
-                showHighlights={highlightChanges}
-                isTailored={isTailored}
-                editMode={false}
-                className={sheetClassName}
-                style={sheetStyle}
-              />
+
+            <div className="w-full overflow-x-auto pb-2">
+              <div
+                className="relative mx-auto shrink-0"
+                style={{
+                  width: `${Math.round(sheetNaturalWidth * computedScale)}px`,
+                  height: baseHeight
+                    ? `${Math.ceil(baseHeight * computedScale)}px`
+                    : undefined,
+                }}
+              >
+                <div
+                  ref={baseMeasureRef}
+                  style={{
+                    width: `${sheetNaturalWidth}px`,
+                    transform:
+                      computedScale !== 1 ? `scale(${computedScale})` : undefined,
+                    transformOrigin: 'top left',
+                    transition: 'transform 0.15s ease-out',
+                  }}
+                >
+                  <ResumeSheetDocument
+                    variant="base"
+                    resume={baseResume}
+                    compareReference={activeResume}
+                    showSummary={showSummary}
+                    showHighlights={highlightChanges}
+                    isTailored={isTailored}
+                    editMode={false}
+                    className={sheetClassName}
+                    style={sheetStyle}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
 
+        {/* Active Tailored / Editable Resume Sheet */}
         <div
           className={cn(
             compareMode && isTailored
-              ? 'flex min-w-0 flex-col items-center gap-2 print:block print:w-full'
-              : 'w-full flex justify-center'
+              ? 'flex min-w-0 flex-col gap-2.5 w-full print:block'
+              : 'w-full print:block'
           )}
         >
           {compareMode && isTailored && (
             <div
               className={cn(
-                'no-print flex w-full items-center justify-between rounded-lg border px-3 py-1.5 text-xs',
-                tokens.cardSurface
+                'no-print flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs',
+                tokens.cardSurface,
+                tokens.borderSubtle
               )}
             >
-              <span className="font-semibold">
+              <span className={cn('font-semibold', tokens.strongText)}>
                 After • AI Tailored Resume (Print Active)
               </span>
               {highlightChanges && (
-                <span className="inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-900">
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium',
+                    tokens.badgeSuccess
+                  )}
+                >
                   ✓ Green = AI rewritten, reordered, or bolded
                 </span>
               )}
             </div>
           )}
 
-          <div
-            className={cn(
-              compareMode && isTailored
-                ? 'flex w-full justify-center overflow-x-auto pb-2 print:block print:overflow-visible print:pb-0'
-                : 'w-full flex justify-center print:block'
-            )}
-          >
-            <ResumeSheetDocument
-              sheetId="a4-resume-sheet"
-              variant="tailored"
-              resume={activeResume}
-              compareReference={baseResume}
-              showSummary={showSummary}
-              showHighlights={highlightChanges}
-              isTailored={isTailored}
-              editMode={editMode}
-              className={sheetClassName}
-              style={sheetStyle}
-              onUpdateResume={onUpdateResume}
-            />
+          {/* Scaled Sheet Wrapper for Responsive Mobile / Auto-Fit */}
+          <div className="w-full overflow-x-auto pb-1 print:overflow-visible print:pb-0">
+            <div
+              className="relative mx-auto shrink-0 print:h-auto! print:w-full!"
+              style={{
+                width: `${Math.round(sheetNaturalWidth * computedScale)}px`,
+                height: tailoredHeight
+                  ? `${Math.ceil(tailoredHeight * computedScale)}px`
+                  : undefined,
+              }}
+            >
+              <div
+                ref={tailoredMeasureRef}
+                className="print:w-full! print:transform-none!"
+                style={{
+                  width: `${sheetNaturalWidth}px`,
+                  transform:
+                    computedScale !== 1 ? `scale(${computedScale})` : undefined,
+                  transformOrigin: 'top left',
+                  transition: 'transform 0.15s ease-out',
+                }}
+              >
+                <ResumeSheetDocument
+                  sheetId="a4-resume-sheet"
+                  variant="tailored"
+                  resume={activeResume}
+                  compareReference={baseResume}
+                  showSummary={showSummary}
+                  showHighlights={highlightChanges}
+                  isTailored={isTailored}
+                  editMode={editMode}
+                  className={sheetClassName}
+                  style={sheetStyle}
+                  onUpdateResume={onUpdateResume}
+                  onFocusEditableField={handleFocusEditableField}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Resume Versions Drawer Dialog */}
+      <ResumeVersionsDrawer
+        isOpen={isVersionsDrawerOpen}
+        resumeRecords={resumeRecords}
+        activeResume={activeResume}
+        activeTailorJob={activeTailorJob}
+        theme={theme}
+        onClose={() => setIsVersionsDrawerOpen(false)}
+        onSelectVersion={(selected) => {
+          if (onSelectResumeVersion) {
+            onSelectResumeVersion(selected);
+          } else {
+            onUpdateResume(selected);
+          }
+        }}
+        onUpdateResumeRecord={
+          onUpdateResumeRecord || (async () => {})
+        }
+        onDeleteResumeRecord={
+          onDeleteResumeRecord || (async () => {})
+        }
+        onSaveSnapshot={onSaveSnapshot || (async () => {})}
+      />
     </div>
   );
 }

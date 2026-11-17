@@ -69,7 +69,10 @@ import {
   SettingsSidepanel,
 } from '@/features/settings/components/SettingsSidepanel';
 import { ChangelogModal } from '@/features/changelog/components/ChangelogModal';
-import { USER_CHANGELOG_RELEASES } from '@/features/changelog/data/changelog-data';
+import {
+  CHANGELOG_SEEN_STORAGE_KEY,
+  LATEST_CHANGELOG_RELEASE,
+} from '@/features/changelog/data/changelog-data';
 import type { ActivityNotification } from '@/features/notifications/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LandingPageView } from '@/components/LandingPageView';
@@ -166,16 +169,48 @@ export function PleaseHireMeDashboard({
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [notifications, setNotifications] = useState<ActivityNotification[]>([
     {
-      id: `release-${USER_CHANGELOG_RELEASES[0]?.version || 'latest'}`,
+      id: `release-${LATEST_CHANGELOG_RELEASE.version}`,
       kind: 'release',
-      title: `What is New (${USER_CHANGELOG_RELEASES[0]?.version || 'Latest'})`,
-      detail:
-        USER_CHANGELOG_RELEASES[0]?.headline ||
-        'See the newest updates in your job search workspace.',
-      createdAt: '2026-11-16T00:00:00.000Z',
+      title: `What is New (${LATEST_CHANGELOG_RELEASE.version})`,
+      detail: LATEST_CHANGELOG_RELEASE.headline,
+      createdAt: LATEST_CHANGELOG_RELEASE.isoDate,
       read: false,
     },
   ]);
+
+  const markChangelogSeen = useCallback(() => {
+    try {
+      window.localStorage.setItem(
+        CHANGELOG_SEEN_STORAGE_KEY,
+        LATEST_CHANGELOG_RELEASE.version
+      );
+    } catch {
+      // Ignore storage restriction
+    }
+    setNotifications((prev) =>
+      prev.map((n) => (n.kind === 'release' ? { ...n, read: true } : n))
+    );
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    Promise.resolve().then(() => {
+      if (!active) return;
+      try {
+        const seen = window.localStorage.getItem(CHANGELOG_SEEN_STORAGE_KEY);
+        if (seen === LATEST_CHANGELOG_RELEASE.version) {
+          setNotifications((prev) =>
+            prev.map((n) => (n.kind === 'release' ? { ...n, read: true } : n))
+          );
+        }
+      } catch {
+        // Ignore storage restriction
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Resume Compilation state
   const [resumeRecords, setResumeRecords] = useState<TailoredResumeRecord[]>(
@@ -877,6 +912,7 @@ export function PleaseHireMeDashboard({
     company: string;
     jobTitle: string;
     jobId: string | null;
+    versionName?: string;
     resume: StructuredResume;
     isSent: boolean;
     notes: string;
@@ -888,6 +924,7 @@ export function PleaseHireMeDashboard({
         jobId: params.jobId,
         jobTitle: params.jobTitle,
         company: params.company,
+        versionName: params.versionName || params.resume.versionName,
         tailorMethod: params.resume.tailorMethod || 'base',
         sourceType:
           params.resume.tailorMethod === 'gemini-ai'
@@ -897,7 +934,10 @@ export function PleaseHireMeDashboard({
               : 'manual-edit',
         isSent: params.isSent,
         notes: params.notes,
-        resumeData: params.resume,
+        resumeData: {
+          ...params.resume,
+          ...(params.versionName ? { versionName: params.versionName } : {}),
+        },
       }),
     });
     if (res.ok) {
@@ -908,8 +948,8 @@ export function PleaseHireMeDashboard({
         pushNotification({
           kind: 'resume',
           title: 'Resume snapshot archived',
-          detail: `${params.jobTitle} for ${params.company}`,
-          targetTab: 'applications',
+          detail: params.versionName || `${params.jobTitle} for ${params.company}`,
+          targetTab: 'resume',
         });
       }
       await loadResumeHistory();
@@ -1017,6 +1057,8 @@ export function PleaseHireMeDashboard({
       notes?: string;
       company?: string;
       jobTitle?: string;
+      versionName?: string | null;
+      resumeData?: StructuredResume;
     }
   ) => {
     const res = await fetch('/api/resumes/history', {
@@ -1026,6 +1068,14 @@ export function PleaseHireMeDashboard({
     });
     if (res.ok) {
       await loadResumeHistory();
+      if (patch.versionName) {
+        pushNotification({
+          kind: 'resume',
+          title: 'Resume version renamed',
+          detail: patch.versionName,
+          targetTab: 'resume',
+        });
+      }
     }
   };
 
@@ -1035,7 +1085,32 @@ export function PleaseHireMeDashboard({
     });
     if (res.ok) {
       setResumeRecords((prev) => prev.filter((r) => r.id !== id));
+      pushNotification({
+        kind: 'resume',
+        title: 'Resume version deleted',
+        detail: 'Snapshot removed from history.',
+        targetTab: 'resume',
+      });
     }
+  };
+
+  const handleApplyResumeToProfile = (resume: StructuredResume) => {
+    const nextProfile: UserProfile = {
+      ...activeProfile,
+      name: resume.fullName || activeProfile.name,
+      title: resume.targetHeadline || activeProfile.title,
+      summary: resume.tailoredSummary || activeProfile.summary,
+      location: resume.location || activeProfile.location,
+      structuredResume: resume,
+      resumeText: resumeToPlainText(resume),
+    };
+    updateActiveUserProfile(nextProfile, true);
+    pushNotification({
+      kind: 'resume',
+      title: 'Profile Updated',
+      detail: 'Edits from Resume Studio applied to your master profile.',
+      targetTab: 'profile',
+    });
   };
 
   const handleToggleQueueJob = (jobId: string) => {
@@ -1251,7 +1326,10 @@ export function PleaseHireMeDashboard({
           setSettingsSection('personal');
           setSettingsOpen(true);
         }}
-        onOpenChangelog={() => setChangelogOpen(true)}
+        onOpenChangelog={() => {
+          markChangelogSeen();
+          setChangelogOpen(true);
+        }}
         onMarkAllNotificationsRead={() =>
           setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
         }
@@ -1261,6 +1339,7 @@ export function PleaseHireMeDashboard({
             prev.map((n) => (n.id === item.id ? { ...n, read: true } : n))
           );
           if (item.kind === 'release') {
+            markChangelogSeen();
             setChangelogOpen(true);
             return;
           }
@@ -2106,11 +2185,16 @@ export function PleaseHireMeDashboard({
               geminiApiKey={store.geminiApiKey || ''}
               personalApiConfigured={personalApiConfigured}
               tailoring={tailoring}
+              resumeRecords={resumeRecords}
               onUpdateGeminiKey={(key) =>
                 persistStore({ ...store, geminiApiKey: key }, 'profile-only')
               }
               onTailorResume={(job, role) => void handleTailorInStudio(job, role)}
               onSaveSnapshot={handleSaveResumeSnapshot}
+              onUpdateResumeRecord={handleUpdateResumeRecord}
+              onDeleteResumeRecord={handleDeleteResumeRecord}
+              onApplyToProfile={handleApplyResumeToProfile}
+              onSelectResumeVersion={(selected) => setTailoredResume(selected)}
               onUpdateResume={(nextResume) => {
                 setTailoredResume(nextResume);
                 if (nextResume.tailorMethod === 'base') {

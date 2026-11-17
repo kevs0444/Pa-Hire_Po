@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v4-ux-polish
-commit_ref: "a1059ca"
+milestone: v1.0.3
+commit_ref: "497d282"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-16
+updated: 2026-11-17
 tags:
   - pahirepo
   - timeline
@@ -81,6 +81,15 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 |---|---|---|---|
 | `22c463d` | 2026-11-16 | `feat(ux): add job status persistence, applications compilation, ESCO role library, settings sidepanel, and desktop setup` | Added `0002_applications_roles_and_tracking.sql`, `/applications`, `/api/jobs/status`, `/api/roles/search` (ESCO + catalog), `SettingsSidepanel.tsx`, `electron-builder.json`, PWA `manifest.ts` |
 | `a1059ca` | 2026-11-16 | `feat(ux): fix saved jobs sync, add Show Resume popout modal, real-time bell, loading spinner, and changelog` | Fixed immediate `user_jobs` flush sync, added `SubmittedResumeModal.tsx`, `NotificationBell.tsx` (Realtime + `BroadcastChannel`), `LoadingSpinner.tsx`, `CHANGELOG.md` + `ChangelogModal.tsx` |
+
+---
+
+## Phase 7 — Security Hardening, Direct Resume Editor, Admin Status & `v1.0.3` Release (Nov 17, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `497d282` | 2026-11-17 | `feat(core): 1-min auto refresh, auth lockdown, email OTP, connected logins, 13 Civic email templates, and obsidian second brain sync` | 60s auto-scan, Email OTP (`verifyOtp`), Settings Connected Logins (`linkIdentity`), 13 Civic email templates, and Obsidian Second Brain vault creation |
+| `v1.0.3` (Release) | 2026-11-17 | `feat(release): v1.0.3 admin status console, full v1.0.0-v1.0.3 changelog, and notification sync` | Zero-bypass session hardening + OWASP headers, Ruthless UI Architect Wave 1–3 refactor, fully editable Resume Studio + Versions Drawer, 3-tab Admin Control Center with live Vercel/Supabase status (`/api/admin/platform-status`), and day-versioned `v1.0.0`–`v1.0.3` changelog |
 
 ---
 

@@ -91,6 +91,8 @@ export function AppTopNavbar({
     mutedText,
     navTrack,
     borderSubtle,
+    badgeNeutral,
+    badgeAccent,
   } = getThemeTokens(theme);
 
   const activeNavTabClass = isDark
@@ -100,7 +102,7 @@ export function AppTopNavbar({
   const inactiveNavTabClass = cn(
     'border-b-2 border-transparent font-medium transition-colors',
     mutedText,
-    isDark ? 'hover:text-slate-100' : 'hover:text-slate-900'
+    isDark ? 'hover:text-zinc-100' : 'hover:text-slate-900'
   );
 
   return (
@@ -136,9 +138,7 @@ export function AppTopNavbar({
                 <span
                   className={cn(
                     'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold leading-none',
-                    isDark
-                      ? 'border-slate-700 bg-slate-800 text-slate-200'
-                      : 'border-slate-300 bg-slate-100 text-slate-700'
+                    badgeNeutral
                   )}
                 >
                   Desktop
@@ -153,7 +153,10 @@ export function AppTopNavbar({
 
         {/* Primary Navigation Tabs */}
         <nav
-          className="order-3 flex w-full flex-nowrap items-center gap-1 overflow-x-auto border-t border-slate-200/40 pt-0.5 lg:order-none lg:w-auto lg:border-t-0 lg:pt-0 sm:gap-2"
+          className={cn(
+            'order-3 flex w-full flex-nowrap items-center gap-1 overflow-x-auto border-t pt-0.5 lg:order-none lg:w-auto lg:border-t-0 lg:pt-0 sm:gap-2',
+            borderSubtle
+          )}
           aria-label="Primary sections"
         >
           <button
@@ -247,9 +250,7 @@ export function AppTopNavbar({
             <span
               className={cn(
                 'rounded border px-1 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
-                isDark
-                  ? 'border-zinc-700 bg-zinc-800 text-zinc-200'
-                  : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
+                badgeAccent
               )}
             >
               AI
@@ -346,9 +347,7 @@ export function AppTopNavbar({
                 <span
                   className={cn(
                     'rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase leading-none',
-                    isDark
-                      ? 'border-zinc-700 bg-zinc-800 text-zinc-100'
-                      : 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]'
+                    badgeAccent
                   )}
                 >
                   Admin

@@ -3,7 +3,6 @@ import path from 'node:path';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   DEFAULT_SUPABASE_URL,
-  LOCAL_ADMIN_COOKIE,
   PRIMARY_ADMIN_EMAIL,
   SUPABASE_PROJECT_NAME,
   extractSupabaseProjectRef,
@@ -11,6 +10,10 @@ import {
 import { getServerSupabaseConfig } from '@/lib/supabase/server-env';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveServerSession } from '@/lib/supabase/session';
+import {
+  checkRateLimit,
+  getClientRateLimitKey,
+} from '@/server/rate-limit/api-rate-limiter';
 
 interface SetupProbeResult {
   keyValid: boolean;
@@ -169,7 +172,6 @@ export async function GET() {
       url: cfg.url,
       anonKey: cfg.anonKey,
       enabledProviders: probe.enabledProviders,
-      allowLocalAdmin: false,
     });
   }
 
@@ -187,14 +189,22 @@ export async function GET() {
     adminEmail: PRIMARY_ADMIN_EMAIL,
     vercelEnv,
     personalApiConfigured,
-    allowLocalAdmin: false,
   });
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const rateKey = getClientRateLimitKey(request, 'setup-api');
+    const decision = checkRateLimit(rateKey, 20, 60_000);
+    if (!decision.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please wait a moment before trying again.' },
+        { status: 429, headers: { 'Retry-After': String(decision.retryAfterSeconds) } }
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as {
-      action?: 'save-keys' | 'enable-local-admin' | 'signout';
+      action?: 'save-keys' | 'signout';
       url?: string;
       anonKey?: string;
       serviceRoleKey?: string;
@@ -205,19 +215,7 @@ export async function POST(request: NextRequest) {
       if (supabase) {
         await supabase.auth.signOut().catch(() => undefined);
       }
-      const res = NextResponse.json({ ok: true });
-      res.cookies.delete(LOCAL_ADMIN_COOKIE);
-      return res;
-    }
-
-    if (body.action === 'enable-local-admin') {
-      return NextResponse.json(
-        {
-          error:
-            'Passwordless local Admin access is disabled for security. Sign in with your Supabase credentials.',
-        },
-        { status: 403 }
-      );
+      return NextResponse.json({ ok: true });
     }
 
     const session = await resolveServerSession();

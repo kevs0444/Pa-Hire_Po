@@ -91,6 +91,16 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Supports **A4 (Default • `210 × 297 mm`)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic (`Auto Fit Content`)**, plus **Density** (`Compact`, `Standard`, `Comfortable`).
   - Includes live **ATS Font** selector grounded for AI/LLM parsers and research/technical roles: **Calibri** (Default • #1 AI ATS Standard), **Helvetica** (#2 Tech & Engineering), **Garamond** (#3 Researcher & Academic), **Arial** (#4 Universal Legacy ATS), and **Georgia** (#5 High-Contrast Research Serif).
   - Enforces `font-variant-ligatures: none` and dynamic `@media print { @page { size: ...; margin: 8mm; } }` on `#a4-resume-sheet` so exported PDFs avoid ligature corruption in Workday/Greenhouse/Lever/PDFBox parsers.
+- **Sub-Feature 4.4 — In-Sheet Full-Section Direct Editing & MS Word/Docs Text Formatting Toolbar:**
+  - **In-Sheet Direct Editing**: Every section is directly editable in place when entering Edit Mode (`color-scheme: only light` + explicit light input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location, LinkedIn, GitHub, Portfolio), Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder bullets and positions), Projects (name, subtitle, period, bullets + add/delete/reorder), Technical Skills (categories + items + add/delete), Certifications, and Education (degree, school, period, honors + add/delete).
+  - **Word / Docs Style Accessible Toolbar (`ResumeFormatToolbar`)**: Two-row Civic header & accessible `role="toolbar"` (`focusgroup="toolbar wrap"` + roving-tabindex arrow-key fallback) unified strictly on `getThemeTokens(theme)`, with live Bold (`**`), Italic (`*`), and Tool Tag (`` ` ``) formatting wired to active edit-mode fields via selection tracking, plus 1-click **Apply to Base Profile**.
+  - **Text Alignment (Justify vs Left Align)**: Global toggle between **Justified** (`text-justify [hyphens:auto] [text-align-last:left]` for flush margins) and **Left Align** (`text-left` standard ATS ragged right).
+  - **Responsive Zoom & Symmetric Compare Scaling**: `ResizeObserver`-measured sheet scaling (`Fit to Screen`, `75%`, `90%`, `100%`, `110%`) dynamically adapting Base and Tailored sheets symmetrically across mobile (375px+) and desktop without clipping, with `@media print` resetting to unscaled physical paper.
+- **Sub-Feature 4.5 — Resume Versions Drawer, Custom Naming & Deletion Confirmation (`ResumeVersionsDrawer` & `DeleteVersionConfirmDialog`):**
+  - **Resume Versions Drawer**: Dedicated slide-over drawer and modal showing all saved versions with customizable names (`versionName`), creation timestamps, company/role targets, and tailor method badges (`Personal AI`, `Auto-Tailored`, `Manual Edit`, `Base`).
+  - **Customizable Version Renaming**: In-place rename input with IME-safe keyboard handling (`ime-safe-enter-submit`) and Escape cancel.
+  - **1-Click Load & Restore**: Restores and previews any historical version into active studio state with a single click.
+  - **Native `<dialog>` Deletion Confirmation**: Safe version deletion prompt (`DeleteVersionConfirmDialog`) using native HTML `<dialog>` with focus trapping and light dismiss (`closedby="any"`).
 
 ---
 
@@ -135,22 +145,36 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 ---
 
-## 8. Anti-AI-Slop UI Design System & Guardrails
+## 8. Anti-AI-Slop UI Design System & Guardrails (Ruthless UI Architect Mandate)
 
-**Enforced across:** `AGENTS.md`, `src/app/layout.tsx`, `src/app/globals.css`, `src/lib/theme.ts`
+**Enforced across:** `AGENTS.md`, `src/app/layout.tsx`, `src/app/globals.css`, `src/lib/theme.ts`, `Pa-Hire Po/04 - Design System & Guardrails/Design - Ruthless UI Architect & Anti-AI-Slop Rules.md`
 
-- **Banned Patterns:** Pure black (`#000000`) + neon orange (`#f97316`), `blur-3xl` glow orbs, purple/indigo AI gradients, `rounded-3xl` bubble cards, nested 3-layer cards, `Sparkles`/`Wand2` decorative icons, `Stage 1–4` / `01–03` filler cards, generic `Inter`/`Geist`/`system-ui` display typography, and `fixed inset-0` overlay `<div>` modals.
-- **Enforced Craft:** `Plus Jakarta Sans` + `Source Sans 3` + `JetBrains Mono` (`tabular-nums`), warm `#F3F2EF` / crisp `#FFFFFF` civic palette, hairline `divide-y` sections, native `<dialog>` modals, root `color-scheme: light dark`, non-color-only state cues (`✓` + explicit labels), uniform Civic action buttons (`rounded-lg border px-3 py-1.5 text-xs font-medium`), and client-side compressed LinkedIn profile media (`320×320` avatar, `1200×360` cover banner via `<Image unoptimized />`).
+- **Persona & Stance:** You are a ruthless, opinionated UI Design Architect refusing generic, formulaic defaults that LLMs are trained on. Every UI surface must honor the Civic Career Utility standard.
+- **Categorized Banned AI-Slop Tells:**
+  - **Typography:** No `Inter`, `Roboto`, `Arial`, or bare `system-ui` as primary brand voice. Intentional pairing: `Plus Jakarta Sans` (display) + `Source Sans 3` (body) + `JetBrains Mono` (tabular scores). Resume sheet exclusively uses Top 5 ATS fonts (`Calibri`, `Helvetica`, `Garamond`, `Arial`, `Georgia`) with `font-variant-ligatures: none`.
+  - **Color & Gradients:** No purple-on-white or purple-to-indigo "AI product" gradients; no default warm cream/sand backgrounds as a cheap "premium" shortcut; no near-black + single acid-green/lime accent dark themes (`#000000` canvas with `#f97316` or acid-neon glow).
+  - **Layout & Cards:** No identical 3-column card grids without functional variation; no fake `01/02/03` step markers with no sequential dependency; no nested card-in-card soup (3+ nested borders; use `divide-y` or `border-t` hairlines); no broadsheet hairlines or zero-radius boxes used purely as decoration. Standard radius is `rounded-lg` (max `rounded-xl` on outer modal shells; never `rounded-3xl`).
+  - **UI Chrome & Fake Data:** No invented metrics, fake case-study counts, phantom testimonials, or re-drawn UI chrome (fake browser frames, mobile mockups, floating code windows). No decorative `Sparkles`/`Wand2` icon spam or shouting `font-black uppercase tracking-widest` micro-labels.
+  - **Motion:** No bouncy/elastic easing, random hover-scale transforms (`hover:scale-105`), or scattered micro-animations without a clear interaction purpose.
+- **4 Required Rules for This Build:**
+  1. **Structural Variety:** Never use `Hero -> 3-Feature Cards -> CTA -> Footer`. Invent macro-structures fitting each surface's actual purpose (discovery stream + split reading pane on `/jobs`, ledger on `/applications`, direct A4 sheet in Resume Studio).
+  2. **Token Discipline:** Zero inline color or font-size values bypassing design tokens (`getThemeTokens`, `--background`, `--foreground`).
+  3. **Responsive Safety:** `overflow-x: clip` on `html` and `body` (never hidden); display headers with `overflow-wrap: anywhere; min-width: 0`; zero horizontal scroll at any mobile width (375px+).
+  4. **Content Truth:** Real copy, real layout pacing, and functional states (`empty`, `loading`, `error`) rather than placeholder lorem ipsum or fake statistics. Non-color-only state cues (`✓` + explicit text).
 
 ---
 
 ## 9. Vercel Store Supabase Lock, Clean Auth Surface & Admin Cloud Settings
 
-**Core files:** `src/lib/supabase/config.ts`, `src/lib/supabase/server-env.ts`, `src/app/api/supabase/setup/route.ts`, `src/features/auth/components/AuthScreen.tsx`, `src/features/admin/components/AdminDashboardView.tsx`, `src/features/admin/components/AdminSupabaseSetupDialog.tsx`
+**Core files:** `src/lib/supabase/config.ts`, `src/lib/supabase/server-env.ts`, `src/app/api/supabase/setup/route.ts`, `src/app/api/admin/platform-status/route.ts`, `src/features/auth/components/AuthScreen.tsx`, `src/features/admin/components/AdminDashboardView.tsx`, `src/features/admin/components/AdminOverviewTab.tsx`, `src/features/admin/components/AdminUserDirectoryTab.tsx`, `src/features/admin/components/AdminInfraTab.tsx`, `src/features/admin/components/AdminFreeTierCard.tsx`, `src/features/admin/components/AdminSupabaseSetupDialog.tsx`
 
 - **Single Vercel Store Backend (`Pa-Hire Po` • `muftcprpqnzuzfosvftz`):** All authentication, Postgres RLS storage, and Storage buckets point strictly to the Vercel-integrated Supabase instance (`https://muftcprpqnzuzfosvftz.supabase.co`, env-overridable via `NEXT_PUBLIC_SUPABASE_URL` / `SUPABASE_URL`). Multi-project switchers and separate direct Supabase presets are permanently removed.
-- **Clean Public `/login` & Admin-Only Infrastructure Visibility:** Centered single-column sign-in UI (`Password`, `Create Account` with 6-digit email OTP verification via `signUp` + `verifyOtp`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with zero passwordless Admin bypass (`allowLocalAdmin: false`), neutral blank starter profiles for non-admin users, and all Supabase/`.env`/storage diagnostics hidden from non-admin pages. Includes `/login?switch=1` active-session switching and **Settings → Connected Logins** (`linkIdentity` / `unlinkIdentity`) for linking Google or GitHub to email accounts.
-- **Admin-Only Supabase Cloud Settings & Branded Email Templates (`AdminDashboardView.tsx` & `AdminSupabaseSetupDialog.tsx`):** Live 5-step health diagnostics, 1-click `Copy schema.sql`, `Open SQL Editor`, `.env` credential management, and 1-click copyable **Pa-Hire Po Auth Email Templates** (`supabase/email-templates/`, Civic Career Utility HTML with `{{ .Token }}` OTP cards) live strictly inside the **Admin Control Center**.
+- **Pure Cryptographic Supabase Auth & Zero-Bypass Session Security:**
+  - **Zero-Bypass Architecture**: Local passwordless development bypasses (`enable-local-admin`, `LOCAL_ADMIN_COOKIE`, synthetic mock sessions) are completely eliminated from `proxy.ts`, `session.ts`, and API routes. All environments authenticate strictly through real Supabase GoTrue Auth tokens.
+  - **OWASP Defensive Headers (`proxy.ts`)**: Every middleware response unconditionally injects `X-Frame-Options: DENY` (anti-clickjacking), `X-Content-Type-Options: nosniff` (anti-MIME confusion), `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
+  - **Brute-Force Rate Limiting (`api-rate-limiter.ts`)**: Sensitive endpoints (e.g., `/api/supabase/setup`) enforce IP bucket rate-limiting (20 requests/minute), returning `429 Too Many Requests` on abuse.
+- **Clean Public `/login` & Admin-Only Infrastructure Visibility:** Centered single-column sign-in UI (`Password`, `Create Account` with 6-digit email OTP verification via `signUp` + `verifyOtp`, `Magic Link / OTP`, `Reset Password`, and Social OAuth) with zero passwordless Admin bypass, neutral blank starter profiles for non-admin users, and all Supabase/`.env`/storage diagnostics hidden from non-admin pages. Includes `/login?switch=1` active-session switching and **Settings → Connected Logins** (`linkIdentity` / `unlinkIdentity`) for linking Google or GitHub to email accounts.
+- **Admin-Only 3-Tab Control Center & Live Vercel/Supabase Status (`AdminDashboardView.tsx`, `AdminOverviewTab.tsx`, `AdminUserDirectoryTab.tsx`, `AdminInfraTab.tsx`, `AdminSupabaseSetupDialog.tsx`):** Accessible 3-tab Civic console (`Overview & Platform Status` | `Users` | `Infrastructure & Free-Tier`) backed by admin-only `GET /api/admin/platform-status` (60s cache + `?force=1`), pairing live **Vercel Status** (Hobby runtime/git/cron + `vercel-status.com` + optional `VERCEL_TOKEN`) and **Supabase Status** (Auth GoTrue, Postgres DB & RLS, Storage `resumes` latency probes + `status.supabase.com`), MOC-aligned **P0 Launch Readiness**, `@container` responsive User Directory table, hairline-divided `AdminFreeTierCard`, 1-click `Copy schema.sql`, `.env` key configuration, and 13 copyable **Pa-Hire Po Auth & Security Email Templates** (`supabase/email-templates/`).
 
 
 ---
@@ -199,8 +223,9 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 ## 12. Active Progress Ledger, Verification State & Next Milestones
 
 - **Verified Production Deployment**:
-  - **Latest Git Commit**: `a1059ca` (`feat(ux): fix saved jobs sync, add Show Resume popout modal, real-time bell, loading spinner, and changelog`) pushed to `https://github.com/kevs0444/Pa-Hire_Po.git` on branch `main`.
-  - **Obsidian Second Brain**: Full deep context, 20-commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
+  - **Current Release Version**: `v1.0.3` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
+  - **Latest Git Commit**: `497d282` (followed by `v1.0.3` release polish, Admin 3-tab Vercel/Supabase status console, and full `v1.0.0`–`v1.0.3` changelog) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Obsidian Second Brain (Mandatory First-Read)**: Full deep context, 21+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
     - `https://pa-hire-po.vercel.app/` (`200 OK`)

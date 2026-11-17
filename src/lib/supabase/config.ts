@@ -2,7 +2,6 @@ export const SUPABASE_PROJECT_NAME = 'Pa-Hire Po';
 export const DEFAULT_SUPABASE_URL = 'https://muftcprpqnzuzfosvftz.supabase.co';
 export const DEFAULT_SUPABASE_PROJECT_REF = 'muftcprpqnzuzfosvftz';
 export const PRIMARY_ADMIN_EMAIL = 'markevinalcantara40@gmail.com';
-export const LOCAL_ADMIN_COOKIE = 'pahirepo_local_admin';
 export const LOCAL_ADMIN_ID = '00000000-0000-4000-8000-000000000001';
 
 export const SUPABASE_PROJECT_PRESETS = [

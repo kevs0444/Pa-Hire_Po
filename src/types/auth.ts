@@ -16,7 +16,7 @@ export interface AuthSessionUser {
   role: UserRole;
   isAdmin: boolean;
   provider: string;
-  mode: 'supabase' | 'local-admin';
+  mode: 'supabase';
   createdAt?: string | null;
   lastSignInAt?: string | null;
 }

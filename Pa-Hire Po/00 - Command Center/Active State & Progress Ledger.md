@@ -22,13 +22,13 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`0.1.0`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.3` — day-based releases `v1.0.0` → `v1.0.3`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Git Commit** | `a1059ca` (`feat(ux): fix saved jobs sync, add Show Resume popout modal, real-time bell, loading spinner, and changelog`) |
+| **Latest Base Commit** | `497d282` (`feat(core): 1-min auto refresh, auth lockdown, email OTP, connected logins, 13 Civic email templates, and obsidian second brain sync`) + `v1.0.3` release pending push |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
@@ -45,7 +45,7 @@ tags:
 - `/privacy` — Privacy Policy (`src/app/privacy/page.tsx`)
 - `/terms` — Terms of Service (`src/app/terms/page.tsx`)
 
-### API Routes (11 Total)
+### API Routes (12 Total)
 - `POST /api/jobs/search` — Concurrent 3-board scraping + rate limit + 90s TTL cache
 - `POST /api/jobs/status` — Persistent `saved`/`applied`/`hidden` + stage/notes updates
 - `POST /api/resume/tailor` — Gemini 3.1 Flash-Lite tailoring + local fallback
@@ -54,6 +54,7 @@ tags:
 - `GET /api/roles/search` — ESCO API + cross-industry catalog search
 - `GET|POST /api/state` — Full user workspace state hydrate & sync
 - `GET /api/admin/users` & `PATCH|DELETE /api/admin/users/[userId]` — Admin directory & moderation
+- `GET /api/admin/platform-status` — Admin-only live Vercel Hobby & Supabase Free-Tier probes + global status feeds (60s cache)
 - `GET /api/supabase/keepalive` — Vercel Cron (`0 8 */4 * *`) keeping free-tier Postgres warm
 - `GET|POST /api/supabase/setup` — Health probe & auth provider status
 
@@ -72,9 +73,15 @@ tags:
 - [x] Mobile-responsive Multi-Board Filter Bar & Top Nav layout (375px+)
 - [x] Server Gemini Key isolation: strictly private to owner, hidden from public/non-admin
 - [x] 13 Civic Auth & Security Email Templates in `supabase/email-templates/` and Step 3 Admin Dialog with category filter pills and 1-click copy
+- [x] Fully Editable Resume Studio in-sheet + Google Docs/MS Word style text formatting (Justify vs Left alignment, live Bold/Italic/Code wrapping) + Versions Drawer with customizable naming & native `<dialog>` deletion confirmation + `getThemeTokens(theme)` text-contrast unification, `color-scheme: only light` paper isolation, and `ResizeObserver` symmetric scaling
+- [x] Ruthless UI Architect & Anti-AI-Slop Rules: Dedicated Second Brain mandate (`04 - Design System & Guardrails/Design - Ruthless UI Architect & Anti-AI-Slop Rules.md`), categorized banned tells, and 4 Required Rules (Structural Variety, Token Discipline, Responsive Safety with `overflow-x: clip`, Content Truth)
+- [x] Zero-Bypass Session Security & Login Hardening: Complete elimination of local dev passwordless bypasses, pure Supabase GoTrue authentication, OWASP defense headers in middleware (X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy), and IP rate-limiting on sensitive setup endpoints
+- [x] Admin Control Center Restructure & Live Vercel/Supabase Status: Refactored `AdminDashboardView.tsx` into an accessible 3-tab console (`Overview & Platform Status` | `Users` | `Infrastructure & Free-Tier`) powered by `GET /api/admin/platform-status` (Vercel runtime/cron/`vercel-status.com` + Supabase Auth/DB/Storage latency/`status.supabase.com` + P0 Launch Readiness + `@container` responsive User Directory table + hairline-divided `AdminFreeTierCard` using `getThemeTokens(theme)`)
+- [x] Day-Based `v1.0.0`–`v1.0.3` Changelog & Notification Read Sync: Updated `package.json` (`1.0.3`), `CHANGELOG.md`, `changelog-data.ts`, `ChangelogModal.tsx` (native `<details>`/`<summary>`), `NotificationBell.tsx`, `PleaseHireMeDashboard.tsx` (`pahirepo_seen_changelog_version` read tracking), and strengthened `AGENTS.md` mandatory Obsidian MOC first-read rule
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes
 - [[00 - Home MOC]]
+- [[Design - Ruthless UI Architect & Anti-AI-Slop Rules]]
 - [[Project Evolution Timeline (Start to Present)]]
 - [[Roadmap Tracker.base]]

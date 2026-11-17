@@ -20,6 +20,12 @@ export interface ThemeTokens {
   barFill: string;
   borderSubtle: string;
   navTrack: string;
+  activeBorder: string;
+  badgeSuccess: string;
+  badgeNeutral: string;
+  badgeAccent: string;
+  badgeWarning: string;
+  badgeDanger: string;
 }
 
 export function getThemeTokens(theme: MonochromeTheme): ThemeTokens {
@@ -52,6 +58,12 @@ export function getThemeTokens(theme: MonochromeTheme): ThemeTokens {
       barFill: 'bg-zinc-300',
       borderSubtle: 'border-zinc-800/80',
       navTrack: 'border-zinc-800 bg-zinc-900',
+      activeBorder: 'border-zinc-300',
+      badgeSuccess: 'border-emerald-800/70 bg-emerald-950/60 text-emerald-300',
+      badgeNeutral: 'border-zinc-700 bg-zinc-800 text-zinc-300',
+      badgeAccent: 'border-zinc-700 bg-zinc-800 text-zinc-200',
+      badgeWarning: 'border-amber-700/70 bg-amber-950/50 text-amber-300',
+      badgeDanger: 'border-red-700/70 bg-red-950/50 text-red-300',
     };
   }
 
@@ -82,5 +94,11 @@ export function getThemeTokens(theme: MonochromeTheme): ThemeTokens {
     barFill: 'bg-[#0a66c2]',
     borderSubtle: 'border-slate-200',
     navTrack: 'border-slate-200 bg-slate-100',
+    activeBorder: 'border-[#0a66c2]',
+    badgeSuccess: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    badgeNeutral: 'border-slate-200 bg-slate-100 text-slate-700',
+    badgeAccent: 'border-[#0a66c2]/25 bg-[#0a66c2]/10 text-[#0a66c2]',
+    badgeWarning: 'border-amber-300 bg-amber-50 text-amber-800',
+    badgeDanger: 'border-red-300 bg-red-50 text-red-800',
   };
 }

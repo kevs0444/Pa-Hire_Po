@@ -43,7 +43,7 @@ tags:
 | `/privacy` | `src/app/privacy/page.tsx` | Public (Static `○`) | Privacy Policy |
 | `/terms` | `src/app/terms/page.tsx` | Public (Static `○`) | Terms of Service |
 
-## API Route Inventory (11 Handlers)
+## API Route Inventory (12 Handlers)
 
 | Endpoint | Methods | Purpose | Key Guards / Services |
 |---|---|---|---|
@@ -54,7 +54,8 @@ tags:
 | `/api/resumes/history` | `GET`, `POST` | Read/save `public.tailored_resumes` | Session auth + `50` snapshot cap |
 | `/api/roles/search` | `GET` | ESCO + cross-industry role search | `TtlCache(30m)`, max `250` entries |
 | `/api/state` | `GET`, `POST` | Hydrate/sync full workspace state | `pruneJobsForFreeTier` + `store-mapper.ts` |
-| `/api/admin/users` | `GET` | List platform users for Admin | `is_admin()` + Service Role |
+| `/api/admin/platform-status` | `GET` | Vercel Hobby & Supabase Free-Tier probes + global status feeds | `is_admin()`, `checkRateLimit(30/60s)`, 60s cache (`?force=1`) |
+| `/api/admin/users` | `GET`, `POST` | List platform users & free-tier DB prune | `is_admin()` + Service Role |
 | `/api/admin/users/[userId]` | `PATCH`, `DELETE` | Suspend, promote, inspect, delete | `is_admin()` + Service Role |
 | `/api/supabase/keepalive` | `GET` | Cron (`0 8 */4 * *`) DB heartbeat | `vercel.json` scheduled |
 | `/api/supabase/setup` | `GET`, `POST` | Schema probe & OAuth settings check | Admin diagnostics |

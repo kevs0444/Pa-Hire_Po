@@ -71,6 +71,7 @@ export function JobAnalyticsView({
   onAddSkillToProfile,
 }: JobAnalyticsViewProps) {
   const {
+    isDark,
     cardSurface,
     subSurface,
     primaryBtn,
@@ -294,9 +295,15 @@ export function JobAnalyticsView({
         </button>
       </section>
 
-      {/* SECTION 1: TOP SUMMARY KPIS */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className={cn('rounded-lg border p-4 space-y-1', cardSurface)}>
+      {/* SECTION 1: TOP SUMMARY KPIS (Unified Telemetry Strip) */}
+      <section
+        className={cn(
+          'grid divide-y overflow-hidden rounded-lg border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0',
+          borderSubtle,
+          cardSurface
+        )}
+      >
+        <div className="space-y-1 p-4">
           <div className={cn('flex items-center gap-1.5 text-xs font-medium', mutedText)}>
             <Layers className="h-3.5 w-3.5" />
             Total Active Jobs
@@ -309,7 +316,7 @@ export function JobAnalyticsView({
           </p>
         </div>
 
-        <div className={cn('rounded-lg border p-4 space-y-1', cardSurface)}>
+        <div className="space-y-1 p-4">
           <div className={cn('flex items-center gap-1.5 text-xs font-medium', mutedText)}>
             <Award className="h-3.5 w-3.5" />
             Applicable Exp Fit
@@ -324,7 +331,7 @@ export function JobAnalyticsView({
           </p>
         </div>
 
-        <div className={cn('rounded-lg border p-4 space-y-1', cardSurface)}>
+        <div className="space-y-1 p-4">
           <div className={cn('flex items-center gap-1.5 text-xs font-medium', mutedText)}>
             <Target className="h-3.5 w-3.5" />
             Average Match Score
@@ -337,7 +344,7 @@ export function JobAnalyticsView({
           </p>
         </div>
 
-        <div className={cn('rounded-lg border p-4 space-y-1', cardSurface)}>
+        <div className="space-y-1 p-4">
           <div className={cn('flex items-center gap-1.5 text-xs font-medium', mutedText)}>
             <CheckCircle2 className="h-3.5 w-3.5" />
             Pipeline Actions
@@ -351,28 +358,25 @@ export function JobAnalyticsView({
         </div>
       </section>
 
-      {/* SECTION 2: JOBS PER BOARD */}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      {/* SECTION 2: JOBS PER BOARD (Hairline-Divided Board Breakdown) */}
+      <section className={cn('overflow-hidden rounded-lg border', cardSurface)}>
+        <div className={cn('flex flex-wrap items-baseline justify-between gap-2 border-b px-5 py-3.5', borderSubtle)}>
           <h3 className="text-sm font-semibold">Jobs Available Per Job Board</h3>
           <span className={cn('text-xs', mutedText)}>
             Jump straight to filtered listings
           </span>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className={cn('grid divide-y md:grid-cols-3 md:divide-x md:divide-y-0', borderSubtle)}>
           {stats.byBoard.map((board) => (
             <div
               key={board.source}
-              className={cn(
-                'flex flex-col justify-between gap-4 rounded-lg border p-5',
-                cardSurface
-              )}
+              className="flex flex-col justify-between gap-4 p-5"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <BoardLogo source={board.source} theme={theme} size="md" />
-                  <span className={cn('rounded border px-2 py-0.5 text-[11px] font-medium', secondaryBtn)}>
+                  <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px] font-medium', secondaryBtn)}>
                     {board.liveCount > 0 ? `${board.liveCount} live` : board.status}
                   </span>
                 </div>
@@ -406,12 +410,12 @@ export function JobAnalyticsView({
                     type="button"
                     onClick={() => onOpenJobInExplorer(board.topJob!.id)}
                     className={cn(
-                      'w-full rounded-lg border p-3 text-left transition-opacity hover:opacity-85',
-                      subSurface
+                      'w-full border-t pt-3 text-left transition-opacity hover:opacity-80',
+                      borderSubtle
                     )}
                   >
-                    <div className={cn('text-[11px] font-medium', mutedText)}>
-                      Top match on {board.label} ({board.topJob.matchScore}%)
+                    <div className={cn('font-mono text-[11px] font-medium tabular-nums', mutedText)}>
+                      Top match ({board.topJob.matchScore}%)
                     </div>
                     <div className="mt-0.5 line-clamp-1 text-xs font-semibold">
                       {board.topJob.title}
@@ -421,7 +425,7 @@ export function JobAnalyticsView({
                     </div>
                   </button>
                 ) : (
-                  <div className={cn('rounded-lg border border-dashed p-3 text-xs', subSurface, mutedText)}>
+                  <div className={cn('border-t pt-3 text-xs', borderSubtle, mutedText)}>
                     No jobs loaded yet for {board.label}.
                   </div>
                 )}
@@ -431,7 +435,7 @@ export function JobAnalyticsView({
                 type="button"
                 onClick={() => onSelectBoardFilter(board.source)}
                 className={cn(
-                  'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-colors',
+                  'inline-flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                   secondaryBtn
                 )}
               >
@@ -474,9 +478,15 @@ export function JobAnalyticsView({
             <div className={cn('mb-2 text-xs font-medium', mutedText)}>
               Work Setup Distribution
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div
+              className={cn(
+                'grid grid-cols-2 divide-y overflow-hidden rounded-lg border sm:grid-cols-4 sm:divide-x sm:divide-y-0',
+                borderSubtle,
+                subSurface
+              )}
+            >
               {stats.workTypes.map((wt) => (
-                <div key={wt.label} className={cn('rounded-lg border p-2.5', subSurface)}>
+                <div key={wt.label} className="p-2.5">
                   <div className="font-mono text-lg font-semibold tabular-nums">{wt.count}</div>
                   <div className={cn('text-[11px] font-medium', mutedText)}>
                     {wt.label} ({wt.pct}%)
@@ -493,17 +503,23 @@ export function JobAnalyticsView({
             <h3 className="text-sm font-semibold">Role Demand &amp; Application Funnel</h3>
           </div>
 
-          <div className="max-h-[190px] space-y-2.5 overflow-y-auto pr-1">
+          <div
+            className={cn(
+              'max-h-[190px] divide-y overflow-y-auto rounded-lg border',
+              borderSubtle,
+              subSurface
+            )}
+          >
             {stats.roleDemand.length === 0 ? (
-              <p className={cn('text-xs', mutedText)}>
+              <p className={cn('p-3 text-xs', mutedText)}>
                 Run a scan to see role demand counts.
               </p>
             ) : (
               stats.roleDemand.map((item) => (
-                <div key={item.role} className={cn('space-y-1 rounded-lg border p-2.5', subSurface)}>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold">{item.role}</span>
-                    <span className="font-mono text-[11px] font-medium tabular-nums">
+                <div key={item.role} className="space-y-1 p-2.5">
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate font-semibold">{item.role}</span>
+                    <span className="shrink-0 font-mono text-[11px] font-medium tabular-nums">
                       {item.count} jobs • Avg {item.avgMatch}% ({item.fitCount} entry fit)
                     </span>
                   </div>
@@ -522,9 +538,15 @@ export function JobAnalyticsView({
             <div className={cn('mb-2 text-xs font-medium', mutedText)}>
               Application Funnel
             </div>
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div
+              className={cn(
+                'grid grid-cols-3 divide-x divide-y overflow-hidden rounded-lg border sm:grid-cols-6 sm:divide-y-0',
+                borderSubtle,
+                subSurface
+              )}
+            >
               {funnelRows.map((step) => (
-                <div key={step.label} className={cn('rounded-lg border p-2 text-center', subSurface)}>
+                <div key={step.label} className="p-2 text-center">
                   <div className="font-mono text-base font-semibold tabular-nums">{step.count}</div>
                   <div className={cn('text-[11px] font-medium leading-tight', mutedText)}>
                     {step.label}
@@ -537,8 +559,8 @@ export function JobAnalyticsView({
       </section>
 
       {/* SECTION 4: TOP REQUESTED SKILLS VS YOUR PROFILE */}
-      <section className={cn('space-y-4 rounded-lg border p-5', cardSurface)}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <section className={cn('overflow-hidden rounded-lg border', cardSurface)}>
+        <div className={cn('flex flex-wrap items-baseline justify-between gap-2 border-b px-5 py-3.5', borderSubtle)}>
           <h3 className="text-sm font-semibold">
             Top 12 Most Requested Skills vs {activeProfile.name}&apos;s Profile
           </h3>
@@ -548,17 +570,17 @@ export function JobAnalyticsView({
         </div>
 
         {stats.topSkills.length === 0 ? (
-          <p className={cn('text-xs', mutedText)}>
+          <p className={cn('p-5 text-xs', mutedText)}>
             Scan jobs first to analyze requested skills across JobStreet, LinkedIn, and Indeed.
           </p>
         ) : (
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={cn('grid divide-y sm:grid-cols-2 sm:divide-x lg:grid-cols-3', borderSubtle)}>
             {stats.topSkills.map((item) => (
               <div
                 key={item.skill}
                 className={cn(
-                  'flex items-center justify-between gap-2 rounded-lg border p-3',
-                  subSurface
+                  'flex items-center justify-between gap-3 p-3.5 transition-colors',
+                  isDark ? 'hover:bg-zinc-800/40' : 'hover:bg-slate-50/75'
                 )}
               >
                 <div className="min-w-0 flex-1 space-y-1">
