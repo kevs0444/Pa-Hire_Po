@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowRight,
   Check,
+  ExternalLink,
   KeyRound,
   Lock,
   LogOut,
@@ -24,6 +25,11 @@ import {
   SupportedOAuthProvider,
 } from '@/lib/supabase/config';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import {
+  cancelActiveOAuthPopup,
+  focusActiveOAuthPopup,
+  runOAuthPopupFlow,
+} from '@/lib/supabase/oauth-popup';
 import { clearLegacyUnscopedLocalState } from '@/lib/storage';
 import { SetupStatus } from '@/features/admin/types';
 import { getThemeTokens } from '@/lib/theme';
@@ -122,8 +128,14 @@ export function AuthScreen({
   );
 
   const [submitting, setSubmitting] = useState(false);
+  const [oauthPopupProvider, setOauthPopupProvider] = useState<string | null>(
+    null
+  );
   const [errorMsg, setErrorMsg] = useState(initialError);
   const [successMsg, setSuccessMsg] = useState('');
+
+  const oauthDialogRef = useRef<HTMLDialogElement>(null);
+  const oauthDialogTitleId = useId();
 
   const tokens = getThemeTokens(theme);
   const safeNext =
@@ -161,6 +173,33 @@ export function AuthScreen({
     document.documentElement.style.colorScheme =
       theme === 'dark' ? 'dark' : 'light';
   }, [theme]);
+
+  useEffect(() => {
+    const dialog = oauthDialogRef.current;
+    if (!dialog) return;
+
+    if (oauthPopupProvider && !dialog.open) {
+      dialog.showModal();
+    } else if (!oauthPopupProvider && dialog.open) {
+      dialog.close();
+    }
+  }, [oauthPopupProvider]);
+
+  useEffect(() => {
+    const dialog = oauthDialogRef.current;
+    if (!dialog) return;
+    const onNativeClose = () => {
+      dialog.returnValue = '';
+      if (oauthPopupProvider) {
+        cancelActiveOAuthPopup();
+        setOauthPopupProvider(null);
+      }
+    };
+    dialog.addEventListener('close', onNativeClose);
+    return () => {
+      dialog.removeEventListener('close', onNativeClose);
+    };
+  }, [oauthPopupProvider]);
 
   const getSupabase = () => {
     return createBrowserSupabaseClient(setup.url, setup.anonKey);
@@ -385,12 +424,16 @@ export function AuthScreen({
     setErrorMsg('');
     setSuccessMsg('');
     const shortKey = provider.replace('_oidc', '');
+    const providerMeta = SUPABASE_OAUTH_PROVIDERS.find(
+      (p) => p.id === provider
+    );
+    const providerLabel = providerMeta?.label || shortKey;
     const isEnabled = setup.enabledProviders.some(
       (p) => p === provider || p === shortKey
     );
     if (!isEnabled) {
       setErrorMsg(
-        `${provider} sign-in is currently unavailable. Please use Email & Password or Magic Link / OTP above.`
+        `${providerLabel} sign-in is currently unavailable. Please use Email & Password or Magic Link / OTP above.`
       );
       return;
     }
@@ -404,17 +447,56 @@ export function AuthScreen({
     }
 
     setSubmitting(true);
+    setOauthPopupProvider(providerLabel);
+    setSuccessMsg(
+      `Continue in the ${providerLabel} sign-in popout window...`
+    );
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNext)}`,
+      const popupResult = await runOAuthPopupFlow({
+        providerLabel,
+        getAuthUrl: async () => {
+          const { data, error } = await supabase.auth.signInWithOAuth({
+            provider,
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback?popup=1&next=${encodeURIComponent(safeNext)}`,
+              skipBrowserRedirect: true,
+            },
+          });
+          return {
+            url: data?.url || null,
+            error: error?.message || null,
+          };
+        },
+        verifySessionFallback: async () => {
+          const {
+            data: { user },
+          } = await supabase.auth
+            .getUser()
+            .catch(() => ({ data: { user: null } }));
+          return Boolean(user);
         },
       });
-      if (error) {
-        setErrorMsg(error.message);
+
+      if (popupResult.fallbackRedirected) {
+        return;
+      }
+
+      if (popupResult.ok) {
+        clearLegacyUnscopedLocalState();
+        setOauthPopupProvider(null);
+        setSuccessMsg(`Signed in with ${providerLabel}. Opening workspace...`);
+        router.push(popupResult.next || safeNext);
+        router.refresh();
+        return;
+      }
+
+      setOauthPopupProvider(null);
+      setSuccessMsg('');
+      if (popupResult.error) {
+        setErrorMsg(popupResult.error);
       }
     } finally {
+      setOauthPopupProvider(null);
       setSubmitting(false);
     }
   };
@@ -825,6 +907,61 @@ export function AuthScreen({
           </span>
         </footer>
       </main>
+
+      {/* Active OAuth Popout Focus Overlay — keeps /login visible underneath */}
+      <dialog
+        ref={oauthDialogRef}
+        aria-labelledby={oauthDialogTitleId}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            focusActiveOAuthPopup();
+          }
+        }}
+        className={cn(
+          'm-auto max-w-md rounded-xl border p-0 shadow-xl backdrop:bg-slate-900/35',
+          tokens.cardSurface
+        )}
+      >
+        {oauthPopupProvider && (
+          <div className="space-y-3 p-5">
+            <div className="space-y-1">
+              <h3 id={oauthDialogTitleId} className="text-sm font-semibold">
+                {oauthPopupProvider} sign-in window is open
+              </h3>
+              <p className={cn('text-xs leading-relaxed', tokens.mutedText)}>
+                Complete sign-in in the floating {oauthPopupProvider} popout window. If it went behind your browser, click below to bring it right back to the top.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                data-oauth-cancel="true"
+                onClick={() => {
+                  cancelActiveOAuthPopup();
+                  setOauthPopupProvider(null);
+                }}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                  tokens.secondaryBtn
+                )}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => focusActiveOAuthPopup()}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs transition-colors',
+                  tokens.primaryBtn
+                )}
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Bring Sign-In Window to Front</span>
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
     </div>
   );
 }

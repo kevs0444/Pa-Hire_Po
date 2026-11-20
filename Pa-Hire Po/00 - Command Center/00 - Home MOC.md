@@ -3,15 +3,15 @@ type: moc
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.5
-commit_ref: "d37a867"
+milestone: v1.0.6
+commit_ref: "pending-v1.0.6"
 files:
   - AGENTS.md
   - context.md
   - CHANGELOG.md
   - package.json
   - README.md
-updated: 2026-11-20
+updated: 2026-11-21
 tags:
   - pahirepo
   - moc
@@ -24,7 +24,7 @@ tags:
 
 - **Production Web App:** https://pa-hire-po.vercel.app
 - **Repository:** `https://github.com/kevs0444/Pa-Hire_Po.git` (`main`)
-- **Current Version:** `v1.0.5` (`package.json` • day-based versioning `v1.0.0`–`v1.0.5`)
+- **Current Version:** `v1.0.6` (`package.json` • day-based versioning `v1.0.0`–`v1.0.6`)
 - **Supabase Store Lock:** `Pa-Hire Po` (`muftcprpqnzuzfosvftz`)
 - **Mandatory AI First-Read & Pre/Post-Push Sync Rule:** Every AI session MUST read this MOC, [[Active State & Progress Ledger]], [[Changelog Mirror]], and root [`context.md`](file:///d:/Dev/Pa-Hire%20Po/context.md) before designing or editing code, and **mandatory** update the Second Brain, `context.md`, and day-based changelog both before pushing and after verifying a production push (see `AGENTS.md` Section 8 & [[Frontmatter Schema & Vault Conventions]]).
 
@@ -45,6 +45,7 @@ tags:
 - [[Project Evolution Timeline (Start to Present)]] — Complete 20-commit evolution from `PleaseHireMe` (`41ce8d2`) to `Pa-Hire Po` (`a1059ca`)
 - [[Specs & Plans Archive Index]] — Links to `docs/superpowers/` design specs and implementation plans
 - [[Changelog Mirror]] — Customer-facing updates mirrored from `CHANGELOG.md`
+- [[2026-11-21|Session Log — 2026-11-21 (Dynamic Resume Links, 7 Ranked ATS Fonts, Borderless Print, Zero-Lag INP & Always-on-Top OAuth Popout)]]
 - [[2026-11-20|Session Log — 2026-11-20 (Multi-Platform Extraction, Title+Company Search, Internet Fallback, Copy URL & Job Tracking)]]
 - [[2026-11-18|Session Log — 2026-11-18 (PDF/Word Resume Import, Smart Profile Sync, Justify & Optional Company)]]
 - [[2026-11-17|Session Log — 2026-11-17 (Email Templates, Auth Lockdown & UX Polish)]]

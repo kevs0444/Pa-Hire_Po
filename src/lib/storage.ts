@@ -156,6 +156,32 @@ export function saveLocalState(
   }
 }
 
+let pendingLocalSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingLocalSavePayload: {
+  state: AppStoreState;
+  userId?: string | null;
+} | null = null;
+
+export function saveLocalStateDebounced(
+  state: AppStoreState,
+  userId?: string | null,
+  delayMs = 450
+): void {
+  if (typeof window === 'undefined') return;
+  pendingLocalSavePayload = { state, userId };
+  if (pendingLocalSaveTimer) {
+    clearTimeout(pendingLocalSaveTimer);
+  }
+  pendingLocalSaveTimer = setTimeout(() => {
+    pendingLocalSaveTimer = null;
+    const latest = pendingLocalSavePayload;
+    pendingLocalSavePayload = null;
+    if (latest) {
+      saveLocalState(latest.state, latest.userId);
+    }
+  }, delayMs);
+}
+
 export function clearLegacyUnscopedLocalState(): void {
   if (typeof window === 'undefined') return;
   try {

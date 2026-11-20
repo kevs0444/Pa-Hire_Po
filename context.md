@@ -1,5 +1,7 @@
 # Pa-Hire Po — Complete Feature & Context Breakdown
 
+**Last Updated:** November 21, 2026 (`v1.0.6` — Dynamic Editable, Validated, Reorderable & Deletable Resume Links, 7 Ranked ATS Fonts with `Calibri ★ Best for ATS`, Borderless PDF Print Fix, Zero-Lag INP Editing & Always-on-Top OAuth Popout)
+
 Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design rules, and system architecture, organized into **Main Features**, **Sub-Features**, and **Anti-AI-Slop UI Guardrails**:
 
 ---
@@ -83,7 +85,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 ## 4. Step-by-Step Application & Dynamic Resume Studio (`AI`)
 
-**Core files:** `src/features/jobs/components/ApplyFlowModal.tsx`, `src/features/resume/components/A4ResumePreview.tsx`, `src/features/resume/lib/resume-tailor.ts`, `src/app/api/resume/tailor/route.ts`
+**Core files:** `src/features/jobs/components/ApplyFlowModal.tsx`, `src/features/resume/components/A4ResumePreview.tsx`, `src/features/resume/components/ResumeFormatToolbar.tsx`, `src/features/resume/components/ResumeLinksEditor.tsx`, `src/features/resume/lib/resume-links.ts`, `src/features/resume/lib/resume-tailor.ts`, `src/app/api/resume/tailor/route.ts`, `src/app/globals.css`
 
 - **Sub-Feature 4.1 — Native Top-Layer `<dialog>` Application Flow (`ApplyFlowModal` & `HowItWorksModal`):**
   - Uses native HTML `<dialog>` (`showModal()`, `closedby="any"` + pointer light-dismiss fallback, `aria-labelledby`, `overscroll-behavior: contain` backdrop containment).
@@ -93,12 +95,12 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - `POST /api/resume/tailor` requires an authenticated session (`401` otherwise). Server-side `process.env.GEMINI_API_KEY` is restricted exclusively to **Admin** accounts (`authUser.isAdmin`), while standard users use their own optional Gemini key or the built-in **Smart Career Journey Tailor** deterministic engine.
   - Calls `gemini-3.1-flash-lite` (fallback `gemini-flash-lite-latest` → `gemini-2.5-flash` → deterministic `tailorResumeLocally`) with strict anti-hallucination grounding rules. Displays **Personal AI Active** badge only when authorized.
   - **Side-by-Side Comparison & AI Change Highlighting:** When tailored by AI, toggle **Side-by-Side Compare** (`Base Profile CV` vs. `AI Tailored CV`) and **Highlight AI Changes** (color-coded indicators + `✓ AI Tailored` / `↑ Reordered` tags on modified headlines, tailored summaries, rewritten bullets, skill updates, and bolded keywords, stripped cleanly during PDF printing).
-- **Sub-Feature 4.3 — Dynamic Resume Paper Sizing (Default A4 `210 × 297 mm`) & Top 5 AI-ATS / Researcher Fonts:**
+- **Sub-Feature 4.3 — Dynamic Resume Paper Sizing (Default A4 `210 × 297 mm`), 7 Ranked AI-ATS Fonts (`★ Best for ATS`) & Borderless PDF Export:**
   - Supports **A4 (Default • `210 × 297 mm`)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic (`Auto Fit Content`)**, plus **Density** (`Compact`, `Standard`, `Comfortable`).
-  - Includes live **ATS Font** selector grounded for AI/LLM parsers and research/technical roles: **Calibri** (Default • #1 AI ATS Standard), **Helvetica** (#2 Tech & Engineering), **Garamond** (#3 Researcher & Academic), **Arial** (#4 Universal Legacy ATS), and **Georgia** (#5 High-Contrast Research Serif).
-  - Enforces `font-variant-ligatures: none` and dynamic `@media print { @page { size: ...; margin: 8mm; } }` on `#a4-resume-sheet` so exported PDFs avoid ligature corruption in Workday/Greenhouse/Lever/PDFBox parsers.
+  - Expanded **ATS Font** selector to 7 ranked ATS-safe fonts: **`Calibri ★ Best for ATS (#1 Default)`** (highest OCR & token accuracy in Workday, Greenhouse, Lever & Taleo), **`Helvetica (#2 Tech & Eng ATS)`**, **`Arial (#3 Universal Legacy ATS)`**, **`Garamond (#4 Researcher 1-Page)`**, **`Georgia (#5 Screen & ATS Serif)`**, **`Cambria (#6 Executive Word ATS)`**, and **`Times New Roman (#7 Classic Academic)`**, paired with live ATS compatibility guidance and `aria-live` announcements.
+  - Enforces `font-variant-ligatures: none`, pure white borderless `@media print` overrides on `html, body` and `#a4-resume-sheet` (eliminating `#f3f2ef` canvas bleed/gray borders in saved PDFs), and dynamic `@media print { @page { size: ...; margin: 8mm; } }`.
 - **Sub-Feature 4.4 — In-Sheet Full-Section Direct Editing & MS Word/Docs Text Formatting Toolbar:**
-  - **In-Sheet Direct Editing**: Every section is directly editable in place when entering Edit Mode (`color-scheme: only light` + explicit light input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location, LinkedIn, GitHub, Portfolio), Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder bullets and positions), Projects (name, subtitle, period, bullets + add/delete/reorder), Technical Skills (categories + items + add/delete), Certifications, and Education (degree, school, period, honors + add/delete).
+  - **In-Sheet Direct Editing**: Every section is directly editable in place when entering Edit Mode (`color-scheme: only light` + explicit light input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location, plus dynamic header links), Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder bullets and positions), Projects (name, clickable Project URL, subtitle, period, bullets + add/delete/reorder), Technical Skills (categories + items + add/delete), Certifications (title + clickable URL), and Education (degree, school, period, honors + add/delete).
   - **Word / Docs Style Accessible Toolbar (`ResumeFormatToolbar`)**: Two-row Civic header & accessible `role="toolbar"` (`focusgroup="toolbar wrap"` + roving-tabindex arrow-key fallback) unified strictly on `getThemeTokens(theme)`, with live Bold (`**`), Italic (`*`), and Tool Tag (`` ` ``) formatting wired to active edit-mode fields via selection tracking, plus 1-click **Apply to Base Profile**.
   - **Text Alignment (Justify vs Left Align)**: Global toggle between **Justified** (`text-justify [hyphens:none] [word-break:normal] [overflow-wrap:break-word] [text-justify:inter-word] [text-wrap:pretty] [text-align-last:left]` for flush margins without mid-word hyphenation) and **Left Align** (`text-left [hyphens:none]` standard ATS ragged right).
   - **Responsive Zoom & Symmetric Compare Scaling**: `ResizeObserver`-measured sheet scaling (`Fit to Screen`, `75%`, `90%`, `100%`, `110%`) dynamically adapting Base and Tailored sheets symmetrically across mobile (375px+) and desktop without clipping, with `@media print` resetting to unscaled physical paper.
@@ -107,6 +109,12 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Customizable Version Renaming**: In-place rename input with IME-safe keyboard handling (`ime-safe-enter-submit`) and Escape cancel.
   - **1-Click Load & Restore**: Restores and previews any historical version into active studio state with a single click.
   - **Native `<dialog>` Deletion Confirmation**: Safe version deletion prompt (`DeleteVersionConfirmDialog`) using native HTML `<dialog>` with focus trapping and light dismiss (`closedby="any"`).
+- **Sub-Feature 4.6 — Dynamic Editable, Validated, Reorderable & Deletable Resume URLs (`resume-links.ts`, `ResumeLinksEditor.tsx`):**
+  - **Structured Header Links (`ResumeHeaderLink[]` & `hideHeaderLinks`)**: Supports independent **Display Text** + **Target URL** (`https://...`) for `LinkedIn`, `GitHub`, `Portfolio`, and custom header links (`+ Add Link`, `+ LinkedIn`, `+ GitHub`, `+ Portfolio`), synced cleanly with **My Profile** (`LinkedInProfileView.tsx`), **Settings → Personal Info** (`SettingsSidepanel.tsx`), clickable `mailto:`/`https:` preview/PDF anchors, and AI tailoring URL preservation (`tailor/route.ts`).
+  - **Reorderable & Deletable Controls**: Reorder links vertically (`↑` / `↓`), delete individual links cleanly, or toggle **Remove Links Section** / **Restore Links Section** without discarding saved URLs. Also supports per-item clickable URLs on **Projects** (`project.url`) and **Certifications** (`certificationUrls` with index-shift helper `shiftCertificationUrlsOnDelete`).
+  - **Blur-Deferred Safe Validation (`ValidatedUrlInput`)**: Normalizes handles/bare domains via `normalizeHttpUrl` while blocking unsafe schemes (`javascript:`, `data:`, `vbscript:`, `file:`), displaying `✓ Valid Link`, `✓ Auto-linked`, and warning states only after interaction (`onBlur`), alongside a 1-click **Test** button.
+- **Sub-Feature 4.7 — Zero-Lag INP Resume Editing (`0ms` Typing Response):**
+  - Isolated local `draftOverride` / `draftResume` state inside `A4ResumePreview.tsx` with `320ms` debounced parent sync and immediate `flushDraftResume()` on action/unmount, removed `activeResume` from the `ResizeObserver` creation `useEffect`, applied `@media screen` `.resume-sheet-containment` (`content-visibility: auto` + `@supports not` `contain: layout style paint` fallback in `globals.css`), added `saveLocalStateDebounced` (`450ms` in `storage.ts`), defaulted `updateActiveUserProfile` to `rescore = false` for text/link edits, yielded job rescoring in `rescoreJobsAsync` (`50ms` budget + `scheduler.yield()` / `setTimeout(0)`), and scoped the `1s` countdown interval strictly to `activeTab === 'jobs'`.
 
 ---
 
@@ -133,8 +141,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - Custom uploaded **Cover Banner** (`1200×360` compressed, `#1e293b` Civic fallback) and circular **Profile Photo** (`320×320` compressed, monogram initials fallback) via client-side HTML5 `<canvas>` compression (`src/features/profile/lib/image-upload.ts`), with matching **Profile Photo**, **Cover Photo**, **Change Cover**, and **Reset Photos** Civic buttons synced to Supabase `profile_data` and `localStorage`, plus target salary, experience level, and editable **Open to Work** role chips.
 - **Sub-Feature 6.2 — Full Inline CRUD Synced 2-Way with Resume Studio (`AI`):**
   - Edit **Experience**, **Projects**, **Licenses & Certifications**, **Education**, **Technical Skills**, and **Career Journey Markdown Vault** with instant synchronization.
-- **Sub-Feature 6.3 — Resume File Upload, Structured Extraction & Smart Profile Sync (`/api/resume/parse`, `ResumeUploadDialog.tsx`, `resume-parser.ts`):**
-  - Parse `.pdf` (`unpdf`), `.docx` (`mammoth`), `.txt`, `.md`, or `.json` CVs into full `StructuredResume` (via Gemini `gemini-3.1-flash-lite` when authorized or deterministic `parseResumeTextToStructured`), preview extracted sections in a native `<dialog>`, sync Smart Profile fields (`name`, `title`, `summary`, `skills`, `primaryRole`, `preferredRoles`, `experienceLevel`, `location`, `careerJourneyMarkdown`, `structuredResume`) to `user_profiles`, archive an `"Imported: <filename>"` snapshot in `tailored_resumes`, and open directly in **Resume Studio**.
+- **Sub-Feature 6.3 — Resume File Upload, Hyperlink Extraction & Smart Profile Sync (`/api/resume/parse`, `ResumeUploadDialog.tsx`, `resume-parser.ts`):**
+  - Parse `.pdf` (`unpdf`, plus compressed/uncompressed PDF `/URI` link annotation extraction), `.docx` (`mammoth` raw text + `mammoth.convertToHtml` `<a href>` hyperlink extraction), `.txt`, `.md`, or `.json` CVs into full `StructuredResume` (via Gemini `gemini-3.1-flash-lite` when authorized or deterministic `parseResumeTextToStructured`), restoring clickable LinkedIn, GitHub, Portfolio, project, and certification URLs automatically. Preview extracted sections in a native `<dialog>`, sync Smart Profile fields (`name`, `title`, `summary`, `skills`, `primaryRole`, `preferredRoles`, `experienceLevel`, `location`, `careerJourneyMarkdown`, `structuredResume`) to `user_profiles`, archive an `"Imported: <filename>"` snapshot in `tailored_resumes`, and open directly in **Resume Studio**.
 - **Sub-Feature 6.4 — Multi-User Profile Switcher:**
   - Pre-loaded with **Mar Kevin P. Alcantara** plus `+ Add Profile` support.
 
@@ -157,7 +165,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Persona & Stance:** You are a ruthless, opinionated UI Design Architect refusing generic, formulaic defaults that LLMs are trained on. Every UI surface must honor the Civic Career Utility standard.
 - **Categorized Banned AI-Slop Tells:**
-  - **Typography:** No `Inter`, `Roboto`, `Arial`, or bare `system-ui` as primary brand voice. Intentional pairing: `Plus Jakarta Sans` (display) + `Source Sans 3` (body) + `JetBrains Mono` (tabular scores). Resume sheet exclusively uses Top 5 ATS fonts (`Calibri`, `Helvetica`, `Garamond`, `Arial`, `Georgia`) with `font-variant-ligatures: none`.
+  - **Typography:** No `Inter`, `Roboto`, `Arial`, or bare `system-ui` as primary brand voice. Intentional pairing: `Plus Jakarta Sans` (display) + `Source Sans 3` (body) + `JetBrains Mono` (tabular scores). Resume sheet exclusively uses the Top 7 ranked ATS fonts (`Calibri ★ Best for ATS (#1 Default)`, `Helvetica (#2)`, `Arial (#3)`, `Garamond (#4)`, `Georgia (#5)`, `Cambria (#6)`, `Times New Roman (#7)`) with `font-variant-ligatures: none`.
   - **Color & Gradients:** No purple-on-white or purple-to-indigo "AI product" gradients; no default warm cream/sand backgrounds as a cheap "premium" shortcut; no near-black + single acid-green/lime accent dark themes (`#000000` canvas with `#f97316` or acid-neon glow).
   - **Layout & Cards:** No identical 3-column card grids without functional variation; no fake `01/02/03` step markers with no sequential dependency; no nested card-in-card soup (3+ nested borders; use `divide-y` or `border-t` hairlines); no broadsheet hairlines or zero-radius boxes used purely as decoration. Standard radius is `rounded-lg` (max `rounded-xl` on outer modal shells; never `rounded-3xl`).
   - **UI Chrome & Fake Data:** No invented metrics, fake case-study counts, phantom testimonials, or re-drawn UI chrome (fake browser frames, mobile mockups, floating code windows). No decorative `Sparkles`/`Wand2` icon spam or shouting `font-black uppercase tracking-widest` micro-labels.
@@ -209,7 +217,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 ## 11. Multi-Provider Social OAuth Engine (Google Cloud & GitHub)
 
-**Core files:** `src/features/auth/components/AuthScreen.tsx`, `src/lib/supabase/config.ts`, `src/app/api/supabase/setup/route.ts`, `.env`
+**Core files:** `src/features/auth/components/AuthScreen.tsx`, `src/features/settings/components/SettingsSidepanel.tsx`, `src/lib/supabase/oauth-popup.ts`, `src/app/auth/callback/route.ts`, `src/lib/supabase/config.ts`, `src/app/api/supabase/setup/route.ts`, `electron/main.cjs`, `.env`
 
 - **Sub-Feature 11.1 — Google OAuth 2.0 Integration & Testing Mode Safeguards:**
   - Registered in Google Cloud Console (`pa-hire-po`, Client ID `250527894392-qsbvgolaggk77pdqo28lf4ha5i43623j.apps.googleusercontent.com`).
@@ -223,14 +231,26 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - `AuthScreen.tsx` queries `/api/supabase/setup` (`/auth/v1/settings`) dynamically so only configured providers (`Google ✓`, `GitHub ✓`) render buttons, preventing `Unsupported provider` runtime errors.
   - **Supabase URL Configuration Safeguard**: Set Supabase **Site URL** to `https://pa-hire-po.vercel.app` and added `https://pa-hire-po.vercel.app/**` to **Redirect URLs** (Allow List), eliminating `localhost refused to connect` (`ERR_CONNECTION_REFUSED`) redirection errors on Vercel production.
   - **Magic Link / OTP Fallback**: Built-in passwordless authentication requiring zero third-party developer consoles.
+- **Sub-Feature 11.4 — Always-on-Top Centered OAuth Popout Window (`520×680`, `oauth-popup.ts`, `/auth/callback?popup=1`, Electron):**
+  - **Browser Popout Window (`runOAuthPopupFlow`):** Launches `signInWithOAuth` and `linkIdentity` (Settings → Connected Logins) with `skipBrowserRedirect: true` in a centered `520×680` popout window above `/login` or Settings, keeping the underlying app visible behind a native `<dialog>` translucent overlay with **Bring Sign-In Window to Front** and **Cancel** buttons and re-focusing the popout on opener `focus`/`pointerdown`.
+  - **Origin-Verified Callback & Auto-Close (`/auth/callback?popup=1`):** Exchanges the OAuth code, broadcasts completion via `BroadcastChannel('pa-hire-po-oauth')` + `window.opener.postMessage` (validated by `isTrustedSameOriginMessage` via `Origin.from()` / `isSameOrigin()` with opaque `"null"` rejection), and auto-closes cleanly with automatic full-page redirect fallback when popups are blocked.
+  - **Electron OS-Level Always-on-Top Modal (`electron/main.cjs`):** Handles `frameName === 'pa_hire_po_oauth'` with `parent: mainWindow`, `alwaysOnTop: true`, and `setAlwaysOnTop(true, 'pop-up-menu')` for desktop users.
 
 ---
 
 ## 12. Active Progress Ledger, Verification State & Next Milestones
 
 - **Verified Production Deployment**:
-  - **Current Release Version**: `v1.0.5` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: `d37a867` (`feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Current Release Version**: `v1.0.6` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20 → `v1.0.6` Nov 21, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
+  - **Latest Verified Commit**: Updating for `v1.0.6` pre-push verification on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main` (prior live production: `d37a867`).
+  - **Key File Map (`v1.0.6` Additions & Core Updates)**:
+    - `src/types/resume.ts`, `src/lib/default-profile.ts` — `ResumeHeaderLink`, `headerLinks`, `hideHeaderLinks`, `customLinks`, `certificationUrls`, `project.url`, and expanded 7-font `ResumeFontFamily`.
+    - `src/features/resume/lib/resume-links.ts`, `src/features/resume/components/ResumeLinksEditor.tsx` — URL normalization/validation, smart paste, `↑`/`↓` reordering, section hide/restore, and `ValidatedUrlInput`.
+    - `src/features/resume/components/A4ResumePreview.tsx`, `src/features/resume/components/ResumeFormatToolbar.tsx`, `src/app/globals.css`, `src/features/jobs/components/ApplyFlowModal.tsx` — 7 ranked ATS fonts (`Calibri ★ Best for ATS`), borderless white `@media print` sheet rules, local draft INP isolation (`320ms` debounce), and `.resume-sheet-containment`.
+    - `src/lib/storage.ts`, `src/components/PleaseHireMeDashboard.tsx` — `saveLocalStateDebounced`, `rescore = false` text-edit updates, yielding `rescoreJobsAsync`, and scoped `activeTab === 'jobs'` timer.
+    - `src/app/api/resume/parse/route.ts`, `src/features/resume/lib/resume-parser.ts`, `src/app/api/resume/tailor/route.ts` — PDF `/URI` annotation & `.docx` HTML hyperlink extraction and AI URL preservation.
+    - `src/lib/supabase/oauth-popup.ts`, `src/app/auth/callback/route.ts`, `src/features/auth/components/AuthScreen.tsx`, `src/features/settings/components/SettingsSidepanel.tsx`, `electron/main.cjs` — Centered `520×680` always-on-top OAuth popout window.
+  - **Verification Commands**: `npx tsc --noEmit`, `npm run lint`, and `npm run build` (must all exit `0` pre-push).
   - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 22+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
@@ -247,10 +267,10 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Job Tracking & `Resume Applied` Suite (`/applications`)**: Company application stage tracker (`Applied`, `Interviewing`, `Offer`, `Rejected`), rich `+ Add Job Application` logger with URL auto-detect & common info, inline editing, 1-click `Copy URL`, `Resume Applied` filterable snapshots, and pop-out **View Submitted Resume** `<dialog>` modal (`SubmittedResumeModal.tsx`, `public.tailored_resumes`, `/api/resumes/history`).
   - **Real-Time Notification Bell & What's New Changelog**: Live activity popover (`NotificationBell.tsx`) synced via Supabase Realtime + `BroadcastChannel`, accessible `<progress>` database loading spinners (`LoadingSpinner.tsx`), tactile Civic micro-animations, and customer-facing changelog (`CHANGELOG.md`, `ChangelogModal.tsx`).
   - **Right-Side Settings Sidepanel (`SettingsSidepanel.tsx`)**: Personal Info & Contact, Target Salary & Preferences, ESCO + Cross-Industry Dynamic Role Library search (`Top 5–10` roles via `/api/roles/search`), and end-user **Desktop App Download & Setup** (Windows `.exe` packaging via `electron-builder.json`, PWA `manifest.ts` 1-click desktop install, and collapsed developer CLI disclosure).
-  - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, manual version archiving (`Save Version`), and A4/Letter ATS font printing.
-  - LinkedIn-style profile with client-side canvas compression (`320×320` avatar, `1200×360` banner).
+  - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, manual version archiving (`Save Version`), dynamic editable/validated/reorderable/deletable resume URLs (`ResumeLinksEditor`), 7 ranked ATS fonts (`Calibri ★ Best for ATS`), borderless PDF printing, and zero-lag INP editing.
+  - LinkedIn-style profile with client-side canvas compression (`320×320` avatar, `1200×360` banner) and synced editable resume URLs (`LinkedInProfileView.tsx`, `SettingsSidepanel.tsx`, PDF/Word hyperlink import).
   - Vercel Store Supabase backend (`Pa-Hire Po` • `muftcprpqnzuzfosvftz`) with hardened RLS, automated keep-alive cron (`0 8 */4 * *`), 13 modern Civic HTML email templates (`supabase/email-templates/` — 6 Authentication + 7 Security Notifications), and Admin Control Center (`/admin`) with category filtering and 1-click copy.
-  - Google OAuth (Testing Mode) + GitHub OAuth + Password + Magic Link / OTP.
+  - Google OAuth (Testing Mode) + GitHub OAuth (centered always-on-top `520×680` popout window in web & Electron) + Password + Magic Link / OTP.
 - **Next Strategic Milestones**:
   - [ ] **Custom Domain Setup**: Acquire/connect a custom domain (e.g. `pahirepo.com`) to Vercel and Google Cloud Console to publish Google OAuth to the global public without test user lists.
   - [ ] **Auto-Apply Queue Expansion**: Automated form filling assistant for external job boards.

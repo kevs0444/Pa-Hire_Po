@@ -380,6 +380,19 @@ progress.loading-spinner:indeterminate {
   }
 }
 
+@media screen {
+  .resume-sheet-containment {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 794px auto 1040px;
+  }
+
+  @supports not (content-visibility: auto) {
+    .resume-sheet-containment {
+      contain: layout style paint;
+    }
+  }
+}
+
 @page {
   size: A4 portrait;
   margin: 8mm;
@@ -387,11 +400,21 @@ progress.loading-spinner:indeterminate {
 
 @media print {
   html,
-  body {
+  body,
+  html:has(#a4-resume-sheet),
+  body:has(#a4-resume-sheet),
+  body:has(#a4-resume-sheet) *:has(#a4-resume-sheet) {
     background: #ffffff !important;
+    background-color: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -438,8 +461,13 @@ progress.loading-spinner:indeterminate {
     height: auto !important;
     padding: 0 !important;
     margin: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
     box-shadow: none !important;
+    --tw-shadow: 0 0 #0000 !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
     border: none !important;
+    outline: none !important;
     font-size: 9.5pt !important;
     line-height: 1.32 !important;
   }

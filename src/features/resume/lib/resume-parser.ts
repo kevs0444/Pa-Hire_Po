@@ -2,6 +2,7 @@ import type {
   ExperienceLevel,
   ResumeEducationItem,
   ResumeExperienceItem,
+  ResumeHeaderLink,
   ResumeProjectItem,
   ResumeSkillCategory,
   StructuredResume,
@@ -11,6 +12,7 @@ import {
   extractSkillsFromResume,
   extractSummaryFromResume,
 } from './resume-analyzer';
+import { formatConciseLabelFromUrl, normalizeHttpUrl } from './resume-links';
 
 export interface ParsedResumePayload {
   fileName: string | null;
@@ -92,7 +94,26 @@ function detectSectionHeading(line: string): SectionKey | null {
   return null;
 }
 
-function extractContactInfo(lines: string[], fullText: string) {
+function inferCustomPlatformLabel(url: string): string {
+  const lower = url.toLowerCase();
+  if (lower.includes('kaggle.com')) return 'Kaggle';
+  if (lower.includes('tableau.com')) return 'Tableau';
+  if (lower.includes('scholar.google')) return 'Google Scholar';
+  if (lower.includes('medium.com')) return 'Medium';
+  if (lower.includes('behance.net')) return 'Behance';
+  if (lower.includes('dribbble.com')) return 'Dribbble';
+  if (lower.includes('huggingface.co')) return 'Hugging Face';
+  if (lower.includes('orcid.org')) return 'ORCID';
+  return 'Link';
+}
+
+function extractContactInfo(
+  lines: string[],
+  fullText: string,
+  hintUrls: string[] = []
+) {
+  const linkHaystack = [fullText, ...hintUrls].join('\n');
+
   const emailMatch = fullText.match(
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i
   );
@@ -110,34 +131,77 @@ function extractContactInfo(lines: string[], fullText: string) {
     )
   ).slice(0, 2);
 
-  const linkedinMatch = fullText.match(
-    /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([A-Za-z0-9\-_%]+)/i
+  const linkedinMatch = linkHaystack.match(
+    /(?:https?:\/\/)?(?:[a-z]{2,3}\.)?linkedin\.com\/(?:in|pub)\/([A-Za-z0-9\-_%]+)/i
   );
+  const linkedinUrl = linkedinMatch
+    ? normalizeHttpUrl(linkedinMatch[0], 'linkedin') || ''
+    : '';
   const linkedin = linkedinMatch
     ? `linkedin.com/in/${linkedinMatch[1]}`
     : '';
 
-  const githubMatch = fullText.match(
-    /(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9\-_]+)/i
+  const githubMatches = Array.from(
+    linkHaystack.matchAll(
+      /(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9\-_]+)(\/[A-Za-z0-9._-]+)?/gi
+    )
   );
-  const github = githubMatch ? githubMatch[1] : '';
+  const profileGithubMatch =
+    githubMatches.find((m) => !m[2]) || githubMatches[0];
+  const github = profileGithubMatch ? profileGithubMatch[1] : '';
+  const githubUrl = profileGithubMatch
+    ? `https://github.com/${profileGithubMatch[1]}`
+    : '';
 
-  const urlMatches =
+  const headerAndHintHaystack = [...lines.slice(0, 12), ...hintUrls].join('\n');
+  const rawUrlCandidates =
+    headerAndHintHaystack.match(
+      /(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s,|)]*)?/gi
+    ) || [];
+  const fallbackBodyCandidates =
     fullText.match(/(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}(?:\/[^\s,|)]*)?/gi) ||
     [];
-  const portfolio =
-    urlMatches.find((u) => {
-      const lower = u.toLowerCase();
-      return (
-        !lower.includes('@') &&
-        !lower.includes('linkedin.com') &&
-        !lower.includes('github.com') &&
-        !lower.includes('gmail.com') &&
-        !lower.includes('yahoo.com') &&
-        !lower.endsWith('.pdf') &&
-        !lower.endsWith('.docx')
-      );
-    }) || '';
+
+  const seenNormalizedUrls = new Set<string>();
+  const validGeneralUrls: string[] = [];
+
+  for (const rawCandidate of [...rawUrlCandidates, ...fallbackBodyCandidates]) {
+    const lower = rawCandidate.toLowerCase();
+    if (
+      lower.includes('@') ||
+      lower.includes('linkedin.com') ||
+      lower.includes('github.com') ||
+      lower.includes('gmail.com') ||
+      lower.includes('yahoo.com') ||
+      lower.includes('outlook.com') ||
+      lower.includes('schemas.openxmlformats.org') ||
+      lower.includes('w3.org') ||
+      lower.endsWith('.pdf') ||
+      lower.endsWith('.docx')
+    ) {
+      continue;
+    }
+    const normalized = normalizeHttpUrl(rawCandidate, 'portfolio');
+    if (!normalized || seenNormalizedUrls.has(normalized.toLowerCase())) {
+      continue;
+    }
+    seenNormalizedUrls.add(normalized.toLowerCase());
+    validGeneralUrls.push(normalized);
+  }
+
+  const portfolioUrl = validGeneralUrls[0] || '';
+  const portfolio = portfolioUrl
+    ? formatConciseLabelFromUrl(portfolioUrl, 'portfolio')
+    : '';
+
+  const customLinks: ResumeHeaderLink[] = validGeneralUrls
+    .slice(1, 5)
+    .map((url, idx) => ({
+      id: `link-${idx + 1}`,
+      platform: inferCustomPlatformLabel(url),
+      label: formatConciseLabelFromUrl(url, 'custom'),
+      url,
+    }));
 
   // Infer name & headline from top header lines
   let fullName = '';
@@ -187,8 +251,12 @@ function extractContactInfo(lines: string[], fullText: string) {
     phones,
     location,
     linkedin,
+    linkedinUrl,
     github,
+    githubUrl,
     portfolio,
+    portfolioUrl,
+    customLinks,
   };
 }
 
@@ -289,6 +357,13 @@ function parseProjectLines(lines: string[]): ResumeProjectItem[] {
   };
 
   for (const line of lines) {
+    const lineUrlMatch = line.match(
+      /(https?:\/\/[^\s,|)]+|(?:www\.)?github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+)/i
+    );
+    const detectedProjectUrl = lineUrlMatch
+      ? normalizeHttpUrl(lineUrlMatch[1], 'portfolio') || undefined
+      : undefined;
+
     if (BULLET_PREFIX_RE.test(line)) {
       const bullet = line.replace(BULLET_PREFIX_RE, '').trim();
       if (!current) {
@@ -297,8 +372,11 @@ function parseProjectLines(lines: string[]): ResumeProjectItem[] {
           name: 'Project',
           subtitle: '',
           period: '',
+          url: detectedProjectUrl,
           bullets: [],
         };
+      } else if (!current.url && detectedProjectUrl) {
+        current.url = detectedProjectUrl;
       }
       if (bullet) current.bullets.push(bullet);
       continue;
@@ -308,9 +386,12 @@ function parseProjectLines(lines: string[]): ResumeProjectItem[] {
     if (!current || current.bullets.length > 0 || dateMatch) {
       pushCurrent();
       const period = dateMatch ? dateMatch[0].trim() : '';
-      const clean = period
-        ? line.replace(period, '').replace(/[()|\-–—,\s]+$/, '').trim()
+      const cleanWithoutUrl = detectedProjectUrl
+        ? line.replace(lineUrlMatch?.[1] || '', '').trim()
         : line;
+      const clean = period
+        ? cleanWithoutUrl.replace(period, '').replace(/[()|\-–—,\s]+$/, '').trim()
+        : cleanWithoutUrl;
       const parts = clean
         .split(/\s*[|—–:]\s*/)
         .map((p) => p.trim())
@@ -320,9 +401,13 @@ function parseProjectLines(lines: string[]): ResumeProjectItem[] {
         name: parts[0] || clean || 'Project',
         subtitle: parts.slice(1).join(' | '),
         period,
+        url: detectedProjectUrl,
         bullets: [],
       };
     } else {
+      if (!current.url && detectedProjectUrl) {
+        current.url = detectedProjectUrl;
+      }
       current.bullets.push(line);
     }
   }
@@ -434,10 +519,11 @@ export function inferExperienceLevelFromText(text: string): ExperienceLevel {
 
 export function parseResumeTextToStructured(
   rawText: string,
-  fallback?: Partial<StructuredResume>
+  fallback?: Partial<StructuredResume>,
+  hintUrls: string[] = []
 ): StructuredResume {
   const lines = normalizeLines(rawText);
-  const contact = extractContactInfo(lines, rawText);
+  const contact = extractContactInfo(lines, rawText, hintUrls);
   const extractedSkills = extractSkillsFromResume(rawText);
 
   const buckets: Record<SectionKey, string[]> = {
@@ -482,8 +568,16 @@ export function parseResumeTextToStructured(
     phones: contact.phones.length > 0 ? contact.phones : fallback?.phones || [],
     location: contact.location || fallback?.location || '',
     linkedin: contact.linkedin || fallback?.linkedin || '',
+    linkedinUrl: contact.linkedinUrl || fallback?.linkedinUrl || '',
     github: contact.github || fallback?.github || '',
+    githubUrl: contact.githubUrl || fallback?.githubUrl || '',
     portfolio: contact.portfolio || fallback?.portfolio || '',
+    portfolioUrl: contact.portfolioUrl || fallback?.portfolioUrl || '',
+    customLinks:
+      contact.customLinks.length > 0
+        ? contact.customLinks
+        : fallback?.customLinks || [],
+    certificationUrls: fallback?.certificationUrls || {},
     experience:
       experience.length > 0 ? experience : fallback?.experience || [],
     projects: projects.length > 0 ? projects : fallback?.projects || [],

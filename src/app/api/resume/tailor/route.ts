@@ -165,7 +165,17 @@ STRICT GROUNDING RULES:
         : base.experience,
     projects:
       Array.isArray(parsed.projects) && parsed.projects.length > 0
-        ? parsed.projects
+        ? parsed.projects.map((p) => {
+            const matchedBase = base.projects.find(
+              (bp) =>
+                (bp.id && p.id && bp.id === p.id) ||
+                bp.name.trim().toLowerCase() === (p.name || '').trim().toLowerCase()
+            );
+            return {
+              ...p,
+              url: p.url || matchedBase?.url,
+            };
+          })
         : base.projects,
     skillCategories:
       Array.isArray(parsed.skillCategories) && parsed.skillCategories.length > 0

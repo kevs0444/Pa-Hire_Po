@@ -33,12 +33,40 @@ function createMainWindow() {
     },
   });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (frameName === 'pa_hire_po_oauth') {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          parent: mainWindow,
+          width: 520,
+          height: 680,
+          center: true,
+          alwaysOnTop: true,
+          autoHideMenuBar: true,
+          icon: resolveDesktopIconPath(),
+        },
+      };
+    }
+
     if (isSafeExternalUrl(url) && !url.startsWith(DESKTOP_CONFIG.startUrl)) {
       void shell.openExternal(url);
       return { action: 'deny' };
     }
     return { action: 'allow' };
+  });
+
+  mainWindow.webContents.on('did-create-window', (childWindow, details) => {
+    if (details.frameName === 'pa_hire_po_oauth') {
+      childWindow.setAlwaysOnTop(true, 'pop-up-menu');
+      childWindow.focus();
+      childWindow.once('ready-to-show', () => {
+        if (!childWindow.isDestroyed()) {
+          childWindow.setAlwaysOnTop(true, 'pop-up-menu');
+          childWindow.focus();
+        }
+      });
+    }
   });
 
   mainWindow.webContents.on('did-fail-load', () => {

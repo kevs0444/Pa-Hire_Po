@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.6',
+    date: 'November 21, 2026',
+    isoDate: '2026-11-21T00:00:00.000Z',
+    headline:
+      'Dynamic editable, reorderable, and removable resume links, 7 ranked ATS fonts (Calibri ★ Best for ATS), borderless PDF export, zero-lag editing, and always-on-top OAuth popout',
+    items: [
+      {
+        tag: 'New',
+        title: 'Dynamic editable, validated, reorderable, and removable resume URLs',
+        description:
+          'Edit both Display Text and Target URL for LinkedIn, GitHub, Portfolio, custom header links (+ Add Link), Project titles, and Certifications across Resume Studio, My Profile, and Settings — with blur-deferred URL validation, up/down reordering, Remove/Restore Links Section toggle, and automatic PDF/Word link import.',
+      },
+      {
+        tag: 'Improved',
+        title: '7 ranked ATS fonts (Calibri ★ Best for ATS) & borderless PDF export',
+        description:
+          'Expanded the Resume Studio font selector to 7 ATS-safe fonts led by Calibri ★ Best for ATS (#1 Default) alongside Helvetica (#2), Arial (#3), Garamond (#4), Georgia (#5), Cambria (#6), and Times New Roman (#7), and removed the grayish outer frame around the A4 sheet when saving to PDF.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Zero-lag resume editing (INP) & always-on-top OAuth popout window',
+        description:
+          'Eliminated typing lag in Resume Studio with local draft isolation, layout containment, and yielding job rescoring, and upgraded Google/GitHub sign-in to a centered 520x680 popout window that stays focused on top of /login.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.5',
     date: 'November 20, 2026',
     isoDate: '2026-11-20T00:00:00.000Z',

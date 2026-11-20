@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.5
-commit_ref: "d37a867"
+milestone: v1.0.6
+commit_ref: "pending-v1.0.6"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-20
+updated: 2026-11-21
 tags:
   - pahirepo
   - ledger
@@ -22,13 +22,13 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.5` — day-based releases `v1.0.0` → `v1.0.5`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.6` — day-based releases `v1.0.0` → `v1.0.6`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
-| **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
+| **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `d37a867` (`feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite`) — live on Vercel production |
+| **Latest Verified Commit** | Pending push for `v1.0.6` (prior live production: `d37a867`) — deploying to Vercel production |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
@@ -80,6 +80,7 @@ tags:
 - [x] Day-Based `v1.0.0`–`v1.0.3` Changelog & Notification Read Sync: Updated `package.json` (`1.0.3`), `CHANGELOG.md`, `changelog-data.ts`, `ChangelogModal.tsx` (native `<details>`/`<summary>`), `NotificationBell.tsx`, `PleaseHireMeDashboard.tsx` (`pahirepo_seen_changelog_version` read tracking), and strengthened `AGENTS.md` mandatory Obsidian MOC first-read rule
 - [x] `v1.0.4` PDF & Word (`.docx`) Resume Import, Smart Profile Sync, Hyphen-Free Justify & Optional Company: Added `unpdf` + `mammoth` extraction in `POST /api/resume/parse`, `resume-parser.ts` (`parseResumeTextToStructured`, `buildSmartProfilePatchFromResume`), native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free `[hyphens:none] [text-justify:inter-word] [text-wrap:pretty]` Justify mode, optional Company on Save Version, and direct `user_profiles` sync in `POST /api/resumes/history`
 - [x] `v1.0.5` Dynamic 3-Platform Job Extraction, Title+Company Search, Internet Web Fallback, Strict Search Correlation, Copy URL & Job Tracking (`Resume Applied`): Added `src/server/scrapers/web-fallback.ts`, deeper `linkedin.ts`/`jobstreet.ts`/`indeed.ts`, `parseRoleAndCompanyQuery` + `filterBySearchCorrelation` in `job-search-service.ts`, non-destructive Company input in Find Jobs, reusable `CopyUrlButton.tsx` across Find Jobs & Job Tracking, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` sub-feature & rich `+ Add Job Application` URL auto-detect logger
+- [x] `v1.0.6` Dynamic Editable/Reorderable/Deletable Resume Links, 7 Ranked ATS Fonts (`Calibri ★ Best for ATS`), Borderless Print Export, Zero-Lag INP Editing & Always-on-Top OAuth Popout: Added `ResumeHeaderLink[]` + `hideHeaderLinks` (`src/types/resume.ts`, `resume-links.ts`, `ResumeLinksEditor.tsx`), per-project & per-certification URLs synced across Resume Studio, My Profile, Settings, AI tailoring, and PDF `/URI` + `.docx` hyperlink import; expanded `ATS_FONT_PRESETS` to 7 ranked fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed `#f3f2ef` canvas border on `@media print`; isolated `draftResume` (`0ms` typing latency + `320ms` debounce) + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and added centered `520×680` always-on-top OAuth popout (`oauth-popup.ts`, `/auth/callback?popup=1`, Electron `pa_hire_po_oauth`)
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

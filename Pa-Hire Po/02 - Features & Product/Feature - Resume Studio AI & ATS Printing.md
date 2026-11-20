@@ -3,17 +3,23 @@ type: feature
 status: verified
 priority: p0-now
 area: resume-ai
-milestone: v2-rebrand
-commit_ref: "dd4f6e7"
+milestone: v1.0.6
+commit_ref: "pending-v1.0.6"
 files:
+  - src/types/resume.ts
+  - src/features/resume/lib/resume-links.ts
+  - src/features/resume/components/ResumeLinksEditor.tsx
   - src/features/resume/components/A4ResumePreview.tsx
   - src/features/resume/components/ResumeFormatToolbar.tsx
   - src/features/resume/components/ResumeVersionsDrawer.tsx
   - src/features/resume/components/DeleteVersionConfirmDialog.tsx
   - src/features/resume/lib/resume-tailor.ts
+  - src/features/resume/lib/resume-parser.ts
   - src/features/jobs/components/ApplyFlowModal.tsx
   - src/app/api/resume/tailor/route.ts
-updated: 2026-11-17
+  - src/app/api/resume/parse/route.ts
+  - src/app/globals.css
+updated: 2026-11-21
 tags:
   - pahirepo
   - feature
@@ -36,20 +42,28 @@ Enables job seekers to tailor their factual resume to any target posting using G
   - Strict prompt grounding prevents inventing companies, dates, degrees, or unused tools.
 - **Side-by-Side Comparison & AI Change Highlighting:**
   - Toggle **Side-by-Side Compare** (`Base Profile CV` vs `AI Tailored CV`) and **Highlight AI Changes** (`✓ AI Tailored` / `↑ Reordered` tags + color indicators, automatically stripped when printing PDF).
-- **Dynamic Paper Sizing & Density:**
+- **Dynamic Paper Sizing, Density & Borderless PDF Export:**
   - Paper sizes: **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic Auto-Fit**, synchronized with `@media print { @page { size: ...; margin: 8mm; } }`.
   - Density presets: `Compact`, `Standard`, `Comfortable`.
-- **Top 5 AI-ATS & Researcher Fonts:**
-  - **Calibri** (Default • #1 AI ATS Standard), **Helvetica** (#2 Tech & Engineering), **Garamond** (#3 Researcher & Academic), **Arial** (#4 Universal Legacy ATS), **Georgia** (#5 High-Contrast Research Serif).
-  - Enforces `font-variant-ligatures: none` on preview and print so PDF parsers (Workday, Greenhouse, Lever, PDFBox) never corrupt `fi`/`fl` glyphs.
-- **In-Sheet Full-Section Direct Editing:**
-  - Every resume section is editable in place when entering Edit Mode (`color-scheme: only light` + explicit light paper input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location, LinkedIn, GitHub, Portfolio), Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder bullets and positions), Projects (name, subtitle, period, bullets + add/delete/reorder), Technical Skills (categories + items + add/delete), Certifications, and Education (degree, school, period, honors + add/delete).
+  - **Borderless White `@media print` Reset (`globals.css`, `PleaseHireMeDashboard.tsx`, `A4ResumePreview.tsx`, `ApplyFlowModal.tsx`):** Forces transparent/white backgrounds (`background: #ffffff`) with zero margin/shadow/ring around `html, body` and `#a4-resume-sheet` under `@media print`, preventing any `#f3f2ef` canvas gray frame from appearing when saving PDFs.
+- **Top 7 AI-ATS & Researcher Fonts (`★ Best for ATS`):**
+  - **Calibri ★ Best for ATS (#1 Default):** Highest OCR & token accuracy in Workday, Greenhouse, Lever & Taleo.
+  - **Helvetica (#2 Tech & Engineering ATS):** Crisp geometric parsing in PDFBox, Textkernel & engineering hiring portals.
+  - **Arial (#3 Universal Legacy ATS):** Zero-failure character recognition across all older corporate ATS parsers.
+  - **Garamond (#4 Researcher 1-Page ATS):** High text density to fit extensive publications & technical CVs cleanly onto 1 page.
+  - **Georgia (#5 Screen & ATS Serif):** High legibility on both recruiter screens and ATS document scanners.
+  - **Cambria (#6 Executive Word ATS):** Designed by Microsoft for crisp Word-to-PDF rendering and clear proportions.
+  - **Times New Roman (#7 Classic Academic & Gov ATS):** Traditional academic, legal, and government CV standard supported everywhere.
+  - Enforces `font-variant-ligatures: none` on preview and print so PDF parsers never corrupt `fi`/`fl` glyphs, plus live `aria-live` ATS guidance in `ResumeFormatToolbar.tsx`.
+- **In-Sheet Full-Section Direct Editing & Dynamic Editable/Reorderable/Deletable Links:**
+  - Every resume section is editable in place when entering Edit Mode (`color-scheme: only light` + explicit light paper input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location), **Dynamic Header Links (`ResumeLinksEditor.tsx`, `resume-links.ts`, `ResumeHeaderLink[]`, `hideHeaderLinks`)** with independent Display Text + Target URL (`https://...`) fields for `LinkedIn`, `GitHub`, `Portfolio`, and `+ Add Link`, `↑`/`↓` link reordering, blur-deferred URL validation (`✓ Valid Link` / `✓ Auto-linked` + `Test` link), per-link delete, and **Remove / Restore Links Section**, plus Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder), Projects (name, clickable Project URL, subtitle, period, bullets), Technical Skills, Certifications (title + clickable `certificationUrls` with `shiftCertificationUrlsOnDelete`), and Education.
+  - **Zero-Lag INP Editing Performance:** Uses local `draftOverride` / `draftResume` state inside `A4ResumePreview.tsx` (`0ms` typing response, `320ms` debounced parent sync, immediate `flushDraftResume()` on action/unmount), stable `ResizeObserver`, `@media screen` `.resume-sheet-containment`, debounced `saveLocalStateDebounced`, `rescore = false` default on profile text/link updates, and yielding `rescoreJobsAsync` (`50ms` time slicing).
   - Clean `no-print` action buttons ensure in-sheet edit controls never appear during print or PDF export.
 - **MS Word / Google Docs Style Text Formatting Toolbar (`ResumeFormatToolbar`):**
   - Two-row Civic header & accessible `role="toolbar"` (`focusgroup="toolbar wrap"` + roving-tabindex arrow-key fallback) unified strictly on `getThemeTokens(theme)`, with live Bold (`**`), Italic (`*`), and Tool Tag (`` ` ``) formatting wired to active edit-mode fields.
   - Text Alignment: Global toggle between **Justified** (`text-justify [hyphens:none] [word-break:normal] [overflow-wrap:break-word] [text-justify:inter-word] [text-wrap:pretty] [text-align-last:left]` for flush margins without mid-word hyphenation) and **Left Align** (`text-left [hyphens:none]` standard ATS ragged right).
-- **PDF & Word (`.docx`) Resume Import (`ResumeUploadDialog.tsx`, `resume-parser.ts`, `/api/resume/parse`):**
-  - Upload `.pdf` (`unpdf`), `.docx` (`mammoth`), `.txt`, `.md`, or `.json` resumes from Resume Studio or My Profile, preview extracted sections in a native `<dialog>`, sync Smart Profile fields (`user_profiles`), archive an `"Imported: <filename>"` snapshot (`tailored_resumes`), and edit immediately in-sheet.
+- **PDF & Word (`.docx`) Resume Import & Hyperlink Extraction (`ResumeUploadDialog.tsx`, `resume-parser.ts`, `/api/resume/parse`):**
+  - Upload `.pdf` (`unpdf` + compressed/uncompressed `/URI` annotation hyperlink extractor), `.docx` (`mammoth` raw text + `mammoth.convertToHtml` `<a href>` link extraction), `.txt`, `.md`, or `.json` resumes from Resume Studio or My Profile, restoring clickable LinkedIn, GitHub, Portfolio, project, and certification URLs automatically, previewing extracted sections in a native `<dialog>`, syncing Smart Profile fields (`user_profiles`), archiving an `"Imported: <filename>"` snapshot (`tailored_resumes`), and opening immediately in-sheet.
 - **Flexible Version Saving (`A4ResumePreview.tsx`, `ResumeVersionsDrawer.tsx`, `/api/resumes/history`):**
   - Optional `company` (`null` for general edits), `Sent` defaulting to `false` when no target job is active, and `Sync to My Profile & Base CV` (`syncToProfile`) updating `public.user_profiles` alongside `public.tailored_resumes`.
   - Responsive Zoom & Symmetric Compare Scaling: `ResizeObserver`-measured sheet scaling (`Fit Screen`, `75%`, `90%`, `100%`, `110%`) adapting Base and Tailored sheets symmetrically across mobile (375px+) and desktop without clipping, with `@media print` resetting to unscaled physical paper.

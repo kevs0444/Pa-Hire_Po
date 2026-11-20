@@ -41,7 +41,9 @@ import {
 } from '@/features/roles/lib/role-library';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { SupportedOAuthProvider } from '@/lib/supabase/config';
+import { runOAuthPopupFlow } from '@/lib/supabase/oauth-popup';
 import { resumeToPlainText } from '@/lib/default-profile';
+import { ResumeLinksEditor } from '@/features/resume/components/ResumeLinksEditor';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -223,22 +225,51 @@ export function SettingsSidepanel({
 
     setLinkingProvider(provider);
     setIdentityError(null);
-    setIdentitySuccess(null);
+    setIdentitySuccess(`Continue linking ${provider} in the popout window...`);
     try {
-      const { error } = await supabase.auth.linkIdentity({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=/`,
+      const result = await runOAuthPopupFlow({
+        providerLabel: provider,
+        getAuthUrl: async () => {
+          const { data, error } = await supabase.auth.linkIdentity({
+            provider,
+            options: {
+              redirectTo: `${window.location.origin}/auth/callback?popup=1&next=/`,
+              skipBrowserRedirect: true,
+            },
+          });
+          if (error) {
+            return {
+              url: null,
+              error: error.message.toLowerCase().includes('manual linking')
+                ? isAdmin
+                  ? `${error.message}. Enable "Allow manual linking" in Supabase Dashboard -> Authentication -> Sign In / Providers.`
+                  : 'Account linking is currently unavailable. Please contact support or try again later.'
+                : error.message,
+            };
+          }
+          return {
+            url: data?.url || null,
+            error: null,
+          };
         },
       });
-      if (error) {
-        setIdentityError(
-          error.message.toLowerCase().includes('manual linking')
-            ? isAdmin
-              ? `${error.message}. Enable "Allow manual linking" in Supabase Dashboard -> Authentication -> Sign In / Providers.`
-              : 'Account linking is currently unavailable. Please contact support or try again later.'
-            : error.message
-        );
+
+      if (result.fallbackRedirected) {
+        return;
+      }
+
+      if (result.ok) {
+        const { data: idData } = await supabase.auth.getUserIdentities();
+        if (idData?.identities) {
+          setIdentities(idData.identities);
+        }
+        setIdentitySuccess(`Connected ${provider} to your account.`);
+        return;
+      }
+
+      setIdentitySuccess(null);
+      if (result.error) {
+        setIdentityError(result.error);
       }
     } finally {
       setLinkingProvider(null);
@@ -707,46 +738,14 @@ export function SettingsSidepanel({
                   />
                 </div>
 
-                <div>
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    LinkedIn Handle / URL
-                  </label>
-                  <input
-                    type="text"
-                    value={resume.linkedin}
-                    onChange={(e) =>
-                      updatePersonalField({}, { linkedin: e.target.value })
+                <div className="sm:col-span-2 pt-1">
+                  <ResumeLinksEditor
+                    resume={resume}
+                    theme={theme}
+                    variant="panel"
+                    onChangeResume={(nextResume) =>
+                      updatePersonalField({}, nextResume)
                     }
-                    className={cn('w-full rounded-lg border px-3 py-2 text-xs focus:outline-none', inputSurface)}
-                  />
-                </div>
-
-                <div>
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    GitHub Handle
-                  </label>
-                  <input
-                    type="text"
-                    value={resume.github}
-                    onChange={(e) =>
-                      updatePersonalField({}, { github: e.target.value })
-                    }
-                    className={cn('w-full rounded-lg border px-3 py-2 text-xs focus:outline-none', inputSurface)}
-                  />
-                </div>
-
-                <div className="sm:col-span-2">
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    Portfolio Website
-                  </label>
-                  <input
-                    type="text"
-                    value={resume.portfolio}
-                    onChange={(e) =>
-                      updatePersonalField({}, { portfolio: e.target.value })
-                    }
-                    placeholder="https://your-portfolio.com"
-                    className={cn('w-full rounded-lg border px-3 py-2 text-xs focus:outline-none', inputSurface)}
                   />
                 </div>
               </div>

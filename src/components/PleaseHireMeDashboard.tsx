@@ -53,6 +53,7 @@ import {
   loadLocalState,
   patchPendingSyncJob,
   saveLocalState,
+  saveLocalStateDebounced,
   syncSingleJobToServer,
   syncStateToServer,
 } from '@/lib/storage';
@@ -132,6 +133,79 @@ function rescoreJobsWithProfile(
       statusUpdatedAt: existing.statusUpdatedAt ?? null,
     };
   });
+}
+
+async function yieldToMainThread(): Promise<void> {
+  if (
+    typeof window !== 'undefined' &&
+    'scheduler' in window &&
+    typeof (window as unknown as { scheduler?: { yield?: () => Promise<void> } })
+      .scheduler?.yield === 'function'
+  ) {
+    await (
+      window as unknown as { scheduler: { yield: () => Promise<void> } }
+    ).scheduler.yield();
+    return;
+  }
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
+}
+
+async function rescoreJobsAsync(
+  jobs: JobListing[],
+  profile: UserProfile,
+  signal: { cancelled: boolean }
+): Promise<JobListing[] | null> {
+  const output: JobListing[] = new Array(jobs.length);
+  let deadline =
+    typeof performance !== 'undefined' ? performance.now() + 50 : Infinity;
+
+  for (let i = 0; i < jobs.length; i++) {
+    if (signal.cancelled) return null;
+    const existing = jobs[i];
+    const rescored = scoreJobAgainstProfile(
+      {
+        externalId: existing.id,
+        title: existing.title,
+        company: existing.company,
+        location: existing.location,
+        source: existing.source,
+        url: existing.url,
+        postedAt: existing.postedAt,
+        salary: existing.salary,
+        description: existing.description,
+        workType: existing.workType,
+        searchedRole: existing.searchedRole,
+        isPivotSuggestion: existing.isPivotSuggestion,
+        isFallback: existing.isFallback,
+      },
+      profile
+    );
+
+    output[i] = {
+      ...rescored,
+      id: existing.id,
+      status: existing.status,
+      discoveredAt: existing.discoveredAt,
+      savedAt: existing.savedAt ?? null,
+      appliedAt: existing.appliedAt ?? null,
+      hiddenAt: existing.hiddenAt ?? null,
+      applicationStage: existing.applicationStage || 'applied',
+      applicationNotes: existing.applicationNotes || '',
+      tailoredResumeId: existing.tailoredResumeId ?? null,
+      statusUpdatedAt: existing.statusUpdatedAt ?? null,
+    };
+
+    if (
+      typeof performance !== 'undefined' &&
+      performance.now() >= deadline &&
+      i < jobs.length - 1
+    ) {
+      await yieldToMainThread();
+      deadline = performance.now() + 50;
+    }
+  }
+
+  return signal.cancelled ? null : output;
 }
 
 export function PleaseHireMeDashboard({
@@ -250,6 +324,9 @@ export function PleaseHireMeDashboard({
 
   const initialAutoScanRan = useRef(false);
   const scanInFlightRef = useRef(false);
+  const countdownRef = useRef<number>(AUTO_REFRESH_INTERVAL_SECONDS);
+  const activeTabRef = useRef<ActiveTab>(initialTab);
+  const activeRescoreSignalRef = useRef<{ cancelled: boolean } | null>(null);
   const authUserIdRef = useRef<string | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const storeRef = useRef<AppStoreState>(store);
@@ -262,8 +339,19 @@ export function PleaseHireMeDashboard({
   }, [store]);
 
   useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
     activeSearchMetaRef.current = activeSearchMeta;
   }, [activeSearchMeta]);
+
+  const handleSelectTab = useCallback((nextTab: ActiveTab) => {
+    if (nextTab === 'jobs') {
+      setCountdown(countdownRef.current);
+    }
+    setActiveTab(nextTab);
+  }, []);
 
   const pushNotification = useCallback(
     (
@@ -343,24 +431,46 @@ export function PleaseHireMeDashboard({
   }, []);
 
   const updateActiveUserProfile = useCallback(
-    (nextProfile: UserProfile, rescore = true) => {
-      setRoleDraft(nextProfile.primaryRole);
+    (nextProfile: UserProfile, rescore = false) => {
+      setRoleDraft((prevRole) =>
+        prevRole === nextProfile.primaryRole
+          ? prevRole
+          : nextProfile.primaryRole
+      );
       const prev = storeRef.current;
       const nextUsers = prev.users.map((u) =>
         u.id === nextProfile.id ? nextProfile : u
       );
-      const nextJobs = rescore
-        ? rescoreJobsWithProfile(prev.jobs, nextProfile)
-        : prev.jobs;
       const nextState: AppStoreState = {
         ...prev,
         users: nextUsers,
-        jobs: nextJobs,
       };
       storeRef.current = nextState;
       setStore(nextState);
-      saveLocalState(nextState, authUserIdRef.current);
+      saveLocalStateDebounced(nextState, authUserIdRef.current);
       void syncStateToServer(nextState, rescore ? 'full' : 'profile-only');
+
+      if (rescore && prev.jobs.length > 0) {
+        if (activeRescoreSignalRef.current) {
+          activeRescoreSignalRef.current.cancelled = true;
+        }
+        const signal = { cancelled: false };
+        activeRescoreSignalRef.current = signal;
+        void rescoreJobsAsync(prev.jobs, nextProfile, signal).then(
+          (rescoredJobs) => {
+            if (!rescoredJobs || signal.cancelled) return;
+            const latest = storeRef.current;
+            const rescoredState: AppStoreState = {
+              ...latest,
+              jobs: rescoredJobs,
+            };
+            storeRef.current = rescoredState;
+            setStore(rescoredState);
+            saveLocalStateDebounced(rescoredState, authUserIdRef.current);
+            void syncStateToServer(rescoredState, 'full');
+          }
+        );
+      }
     },
     []
   );
@@ -517,7 +627,10 @@ export function PleaseHireMeDashboard({
       } finally {
         scanInFlightRef.current = false;
         setScanning(false);
-        setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
+        countdownRef.current = AUTO_REFRESH_INTERVAL_SECONDS;
+        if (activeTabRef.current === 'jobs') {
+          setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
+        }
       }
     },
     [enabledSources, pushNotification]
@@ -762,24 +875,32 @@ export function PleaseHireMeDashboard({
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
         return;
       }
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          const currentSearch = activeSearchMetaRef.current;
-          if (currentSearch.role || currentSearch.company) {
-            void runJobScan(
-              undefined,
-              currentSearch.role ? [currentSearch.role] : undefined,
-              {
-                companyQuery: currentSearch.company || undefined,
-              }
-            );
-          } else {
-            void runJobScan();
-          }
-          return AUTO_REFRESH_INTERVAL_SECONDS;
+
+      const nextTick = countdownRef.current - 1;
+      if (nextTick <= 0) {
+        countdownRef.current = AUTO_REFRESH_INTERVAL_SECONDS;
+        if (activeTabRef.current === 'jobs') {
+          setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
         }
-        return prev - 1;
-      });
+        const currentSearch = activeSearchMetaRef.current;
+        if (currentSearch.role || currentSearch.company) {
+          void runJobScan(
+            undefined,
+            currentSearch.role ? [currentSearch.role] : undefined,
+            {
+              companyQuery: currentSearch.company || undefined,
+            }
+          );
+        } else {
+          void runJobScan();
+        }
+        return;
+      }
+
+      countdownRef.current = nextTick;
+      if (activeTabRef.current === 'jobs') {
+        setCountdown(nextTick);
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -1471,13 +1592,16 @@ export function PleaseHireMeDashboard({
 
   return (
     <div
-      className={cn('min-h-screen transition-colors', pageBg)}
+      className={cn(
+        'min-h-screen transition-colors print:min-h-0 print:bg-white! print:text-black!',
+        pageBg
+      )}
       style={{ colorScheme: isDark ? 'dark' : 'light' }}
     >
       <AppTopNavbar
         theme={theme}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         activeProfile={activeProfile}
         isDesktopApp={isDesktopApp}
         hydrated={hydrated}
@@ -1533,7 +1657,7 @@ export function PleaseHireMeDashboard({
         }
       />
 
-      <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6">
+      <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 print:m-0! print:max-w-none! print:p-0! print:bg-white!">
         {!hydrated ? (
           <div className="space-y-4">
             <div className={cn('flex items-center gap-3 rounded-lg border p-5', cardSurface)}>
@@ -2424,15 +2548,17 @@ export function PleaseHireMeDashboard({
             onUpdateGeminiKey={(key) =>
               persistStore({ ...store, geminiApiKey: key }, 'profile-only')
             }
-            onUpdateProfile={(next) => updateActiveUserProfile(next, true)}
-            onOpenA4Studio={() => setActiveTab('resume')}
+            onUpdateProfile={(next, rescore = false) =>
+              updateActiveUserProfile(next, rescore)
+            }
+            onOpenA4Studio={() => handleSelectTab('resume')}
             onImportResume={handleImportParsedResume}
           />
         )}
 
         {/* TAB 4: RESUME STUDIO (AI) */}
         {activeTab === 'resume' && (
-          <div className="mx-auto max-w-[1400px]">
+          <div className="mx-auto max-w-[1400px] print:m-0! print:max-w-none! print:p-0!">
             <A4ResumePreview
               profile={activeProfile}
               activeResume={tailoredResume || activeProfile.structuredResume}
@@ -2455,11 +2581,14 @@ export function PleaseHireMeDashboard({
               onUpdateResume={(nextResume) => {
                 setTailoredResume(nextResume);
                 if (nextResume.tailorMethod === 'base') {
-                  updateActiveUserProfile({
-                    ...activeProfile,
-                    structuredResume: nextResume,
-                    resumeText: resumeToPlainText(nextResume),
-                  });
+                  updateActiveUserProfile(
+                    {
+                      ...activeProfile,
+                      structuredResume: nextResume,
+                      resumeText: resumeToPlainText(nextResume),
+                    },
+                    false
+                  );
                 } else {
                   updateActiveUserProfile(
                     {

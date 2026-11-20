@@ -3,12 +3,14 @@ type: feature
 status: verified
 priority: p0-now
 area: auth-admin
-milestone: v3-supabase-scale
-commit_ref: "44fd508"
+milestone: v1.0.6
+commit_ref: "pending-v1.0.6"
 files:
   - src/app/login/page.tsx
   - src/features/auth/components/AuthScreen.tsx
+  - src/lib/supabase/oauth-popup.ts
   - src/app/auth/callback/route.ts
+  - electron/main.cjs
   - src/app/admin/page.tsx
   - src/features/admin/components/AdminDashboardView.tsx
   - src/features/admin/components/AdminOverviewTab.tsx
@@ -26,7 +28,7 @@ files:
   - src/app/privacy/page.tsx
   - src/app/terms/page.tsx
   - src/features/legal/components/LegalPageShell.tsx
-updated: 2026-11-17
+updated: 2026-11-21
 tags:
   - pahirepo
   - feature
@@ -49,6 +51,10 @@ Provides secure multi-provider authentication on a clean `/login` screen, isolat
   - New user email registrations trigger a 6-digit verification code (`{{ .Token }}`) with inline OTP verification screen (`verifyOtp({ email, token, type: 'signup' })`), preventing unauthorized or unverified email accounts.
 - **Connected Logins (`linkIdentity` in `SettingsSidepanel.tsx`):**
   - Logged-in users can link and unlink alternative OAuth sign-in methods (Google, GitHub) directly from their Account Settings, allowing them to sign in via either credentials or connected social providers.
+- **Always-on-Top Centered OAuth Popout Window (`oauth-popup.ts`, `/auth/callback?popup=1`, `AuthScreen.tsx`, `SettingsSidepanel.tsx`, `electron/main.cjs`):**
+  - Social OAuth (`signInWithOAuth` and Settings `linkIdentity`) uses `skipBrowserRedirect: true` to open a centered `520×680` popout window above the visible `/login` or Settings page.
+  - Displays a translucent native `<dialog>` overlay on `/login` with **Bring Sign-In Window to Front** (`focusActiveOAuthPopup()`) and **Cancel** (`cancelActiveOAuthPopup()`), plus `focus`/`pointerdown` re-focus listeners keeping the sign-in window on top, automatic full-page redirect fallback when popups are blocked, and an Electron child modal window (`frameName === 'pa_hire_po_oauth'`, `parent: mainWindow`, `alwaysOnTop: true`, `setAlwaysOnTop(true, 'pop-up-menu')`).
+  - `/auth/callback?popup=1` exchanges the OAuth code, sends an origin-verified result via `BroadcastChannel('pa-hire-po-oauth')` + `window.opener.postMessage` (validated via `isTrustedSameOriginMessage` using `Origin.from()` / `isSameOrigin()` with opaque `"null"` rejection), and closes the popout automatically.
 - **Admin Control Center (`/admin`):**
   - **Accessible 3-Tab Civic Workspace (`AdminDashboardView.tsx`):** Uses `role="tablist"` with `focusgroup="tablist nomemory"`, arrow/Home/End keyboard navigation, and WCAG 1.4.1 underline indicators across `Overview & Platform Status`, `Users`, and `Infrastructure & Free-Tier`.
   - **Live Vercel & Supabase Status (`AdminOverviewTab.tsx`, `/api/admin/platform-status`):** Admin-only 60s-cached probe endpoint tracking Vercel Hobby runtime (`VERCEL_ENV`, region, git commit/branch, keep-alive cron `0 8 */4 * *`, optional `VERCEL_TOKEN`, `vercel-status.com` components/incidents) alongside Supabase Free-Tier probes (Auth GoTrue, Postgres DB & RLS, Storage `resumes` bucket latencies + `status.supabase.com` components/incidents), unified 5-col KPI ledger, and MOC-aligned **P0 Launch Readiness** checklist.

@@ -1,4 +1,5 @@
 import { StructuredResume, UserProfile } from '@/types/job';
+import { getEffectiveHeaderLinks } from '@/features/resume/lib/resume-links';
 
 export const MAR_KEVIN_CAREER_JOURNEY = `# My Journey: From Computer Engineering Graduate to Data Professional
 As of November 14, 2026
@@ -46,8 +47,12 @@ export const MAR_KEVIN_BASE_RESUME: StructuredResume = {
   phones: ['+63 952 470 2284', '+63 992 003 0148'],
   location: 'Taguig City, Metro Manila, 1630',
   linkedin: 'Mar Kevin Alcantara',
+  linkedinUrl: 'https://www.linkedin.com/in/mar-kevin-alcantara',
   github: 'kevs0444',
+  githubUrl: 'https://github.com/kevs0444',
   portfolio: 'mar-kevs.vercel.app',
+  portfolioUrl: 'https://mar-kevs.vercel.app',
+  customLinks: [],
   experience: [
     {
       id: 'exp-luxasia',
@@ -154,11 +159,21 @@ export const MAR_KEVIN_BASE_RESUME: StructuredResume = {
 };
 
 export function resumeToPlainText(resume: StructuredResume): string {
+  const linkParts = getEffectiveHeaderLinks(resume)
+    .map((l) => {
+      const display = (l.label || l.url || '').trim();
+      if (!display) return null;
+      const prefix = l.platform.trim() ? `${l.platform.trim()}: ` : '';
+      const suffix = l.url.trim() && l.label.trim() ? ` (${l.url.trim()})` : '';
+      return `${prefix}${display}${suffix}`;
+    })
+    .filter(Boolean);
+
   const lines: string[] = [
     resume.fullName,
     resume.targetHeadline,
     `${resume.email} | ${resume.phones.join(' | ')} | ${resume.location}`,
-    `LinkedIn: ${resume.linkedin} | GitHub: ${resume.github} | Portfolio: ${resume.portfolio}`,
+    ...(linkParts.length > 0 ? [linkParts.join(' | ')] : []),
     '',
     'EXPERIENCE',
     ...resume.experience.flatMap((exp) => [
@@ -286,8 +301,12 @@ export function createBlankUserProfile(params: {
     phones: ['+63 900 000 0000'],
     location: loc,
     linkedin: params.name.trim(),
+    linkedinUrl: '',
     github: '',
+    githubUrl: '',
     portfolio: '',
+    portfolioUrl: '',
+    customLinks: [],
     experience: [
       {
         id: 'exp-1',

@@ -8,6 +8,7 @@ import {
   inferExperienceLevelFromText,
   parseResumeTextToStructured,
 } from '@/features/resume/lib/resume-parser';
+import { normalizeHttpUrl } from '@/features/resume/lib/resume-links';
 import { FREE_TIER_LIMITS } from '@/lib/supabase/free-tier-limits';
 import { resolveServerSession } from '@/lib/supabase/session';
 import type { StructuredResume } from '@/types/job';
@@ -55,6 +56,36 @@ function extractReadableTextFromPdfBuffer(buffer: Buffer): string {
     .slice(0, 15000);
 }
 
+function extractPdfAnnotationUrls(buffer: Buffer): string[] {
+  const raw = buffer.toString('latin1');
+  const uriRegex = /\/URI\s*\(([^)\\]+(?:\\.[^)\\]+)*)\)/gi;
+  const urls = new Set<string>();
+  let match: RegExpExecArray | null;
+
+  while ((match = uriRegex.exec(raw)) !== null) {
+    const rawUri = match[1]
+      .replace(/\\\(/g, '(')
+      .replace(/\\\)/g, ')')
+      .replace(/\\\\/g, '\\')
+      .trim();
+    const lower = rawUri.toLowerCase();
+    if (
+      lower.includes('schemas.openxmlformats.org') ||
+      lower.includes('ns.adobe.com') ||
+      lower.includes('w3.org') ||
+      lower.includes('purl.org')
+    ) {
+      continue;
+    }
+    const normalized = normalizeHttpUrl(rawUri, 'portfolio');
+    if (normalized) {
+      urls.add(normalized);
+    }
+  }
+
+  return Array.from(urls);
+}
+
 async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   try {
     const { extractText } = await import('unpdf');
@@ -73,20 +104,38 @@ async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   return extractReadableTextFromPdfBuffer(buffer);
 }
 
-async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+async function extractTextAndLinksFromDocx(buffer: Buffer): Promise<{
+  text: string;
+  links: string[];
+}> {
   const mammoth = await import('mammoth');
-  const result = await mammoth.extractRawText({ buffer });
-  return result.value || '';
+  const rawResult = await mammoth.extractRawText({ buffer });
+  const links = new Set<string>();
+
+  try {
+    const htmlResult = await mammoth.convertToHtml({ buffer });
+    const hrefRegex = /href="(https?:\/\/[^"]+)"/gi;
+    let match: RegExpExecArray | null;
+    while ((match = hrefRegex.exec(htmlResult.value || '')) !== null) {
+      const normalized = normalizeHttpUrl(match[1], 'portfolio');
+      if (normalized) links.add(normalized);
+    }
+  } catch {
+    // Ignore HTML conversion failure if raw text succeeded
+  }
+
+  return { text: rawResult.value || '', links: Array.from(links) };
 }
 
 async function extractStructuredResumeWithGemini(
   apiKey: string,
   rawText: string,
-  fallback: StructuredResume
+  fallback: StructuredResume,
+  hintUrls: string[] = []
 ): Promise<StructuredResume | null> {
   const systemPrompt = `You are an expert resume parser. Convert the provided raw resume text into structured JSON.
 STRICT RULES:
-1. ONLY extract facts actually present in the resume text. NEVER invent companies, dates, skills, degrees, or metrics.
+1. ONLY extract facts actually present in the resume text or hyperlink annotations. NEVER invent URLs, companies, dates, skills, degrees, or metrics.
 2. Return ONLY valid JSON matching this exact schema:
 {
   "fullName": "string",
@@ -96,14 +145,23 @@ STRICT RULES:
   "phones": ["string"],
   "location": "string",
   "linkedin": "string",
+  "linkedinUrl": "string",
   "github": "string",
+  "githubUrl": "string",
   "portfolio": "string",
+  "portfolioUrl": "string",
+  "customLinks": [{ "id": "string", "platform": "string", "label": "string", "url": "string" }],
   "experience": [{ "id": "string", "role": "string", "company": "string", "location": "string", "period": "string", "bullets": ["string"] }],
-  "projects": [{ "id": "string", "name": "string", "subtitle": "string", "period": "string", "bullets": ["string"] }],
+  "projects": [{ "id": "string", "name": "string", "subtitle": "string", "period": "string", "url": "string | null", "bullets": ["string"] }],
   "skillCategories": [{ "category": "string", "items": "string" }],
   "certifications": ["string"],
   "education": [{ "degree": "string", "school": "string", "period": "string", "honors": "string" }]
 }`;
+
+  const promptContent =
+    hintUrls.length > 0
+      ? `${rawText.slice(0, 12500)}\n\nEmbedded Document Hyperlinks:\n${hintUrls.slice(0, 20).join('\n')}`
+      : rawText.slice(0, 14000);
 
   for (const model of GEMINI_PARSE_MODELS) {
     const controller = new AbortController();
@@ -119,7 +177,7 @@ STRICT RULES:
           signal: controller.signal,
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: 'user', parts: [{ text: rawText.slice(0, 14000) }] }],
+            contents: [{ role: 'user', parts: [{ text: promptContent }] }],
             generationConfig: {
               temperature: 0.1,
               responseMimeType: 'application/json',
@@ -148,8 +206,31 @@ STRICT RULES:
             : fallback.phones,
         location: parsed.location?.trim() || fallback.location,
         linkedin: parsed.linkedin?.trim() || fallback.linkedin,
+        linkedinUrl:
+          normalizeHttpUrl(parsed.linkedinUrl, 'linkedin') ||
+          fallback.linkedinUrl ||
+          '',
         github: parsed.github?.trim() || fallback.github,
+        githubUrl:
+          normalizeHttpUrl(parsed.githubUrl, 'github') ||
+          fallback.githubUrl ||
+          '',
         portfolio: parsed.portfolio?.trim() || fallback.portfolio,
+        portfolioUrl:
+          normalizeHttpUrl(parsed.portfolioUrl, 'portfolio') ||
+          fallback.portfolioUrl ||
+          '',
+        customLinks:
+          Array.isArray(parsed.customLinks) && parsed.customLinks.length > 0
+            ? parsed.customLinks
+                .map((l, idx) => ({
+                  id: l.id || `link-${idx + 1}`,
+                  platform: String(l.platform || 'Link').trim(),
+                  label: String(l.label || '').trim(),
+                  url: normalizeHttpUrl(l.url, 'custom') || String(l.url || '').trim(),
+                }))
+                .filter((l) => l.label || l.url)
+            : fallback.customLinks || [],
         experience: Array.isArray(parsed.experience)
           ? parsed.experience.map((e, i) => ({
               id: e.id || `exp-${i + 1}`,
@@ -163,15 +244,26 @@ STRICT RULES:
             }))
           : fallback.experience,
         projects: Array.isArray(parsed.projects)
-          ? parsed.projects.map((p, i) => ({
-              id: p.id || `proj-${i + 1}`,
-              name: p.name || 'Project',
-              subtitle: p.subtitle || '',
-              period: p.period || '',
-              bullets: Array.isArray(p.bullets)
-                ? p.bullets.map((b) => String(b).trim()).filter(Boolean)
-                : [],
-            }))
+          ? parsed.projects.map((p, i) => {
+              const matchedFallback = fallback.projects.find(
+                (fp) =>
+                  fp.name.trim().toLowerCase() ===
+                  (p.name || '').trim().toLowerCase()
+              );
+              return {
+                id: p.id || `proj-${i + 1}`,
+                name: p.name || 'Project',
+                subtitle: p.subtitle || '',
+                period: p.period || '',
+                url:
+                  normalizeHttpUrl(p.url, 'portfolio') ||
+                  matchedFallback?.url ||
+                  undefined,
+                bullets: Array.isArray(p.bullets)
+                  ? p.bullets.map((b) => String(b).trim()).filter(Boolean)
+                  : [],
+              };
+            })
           : fallback.projects,
         skillCategories: Array.isArray(parsed.skillCategories)
           ? parsed.skillCategories
@@ -184,6 +276,7 @@ STRICT RULES:
         certifications: Array.isArray(parsed.certifications)
           ? parsed.certifications.map((c) => String(c).trim()).filter(Boolean)
           : fallback.certifications,
+        certificationUrls: fallback.certificationUrls || {},
         education: Array.isArray(parsed.education)
           ? parsed.education.map((ed) => ({
               degree: ed.degree || '',
@@ -211,6 +304,7 @@ export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
     let resumeText = '';
+    let hintUrls: string[] = [];
     let fileName: string | null = null;
     let primaryRole = '';
     let userGeminiKey = '';
@@ -257,8 +351,11 @@ export async function POST(request: NextRequest) {
 
         if (lowerName.endsWith('.pdf')) {
           resumeText = await extractTextFromPdf(buffer);
+          hintUrls = extractPdfAnnotationUrls(buffer);
         } else if (lowerName.endsWith('.docx')) {
-          resumeText = await extractTextFromDocx(buffer);
+          const docxData = await extractTextAndLinksFromDocx(buffer);
+          resumeText = docxData.text;
+          hintUrls = docxData.links;
         } else {
           resumeText = buffer.toString('utf8');
         }
@@ -290,7 +387,11 @@ export async function POST(request: NextRequest) {
     }
 
     const session = await resolveServerSession().catch(() => null);
-    const deterministicStructured = parseResumeTextToStructured(cleanText);
+    const deterministicStructured = parseResumeTextToStructured(
+      cleanText,
+      undefined,
+      hintUrls
+    );
 
     const serverGeminiKey = process.env.GEMINI_API_KEY?.trim() || '';
     const authorizedKey =
@@ -303,7 +404,8 @@ export async function POST(request: NextRequest) {
       const aiStructured = await extractStructuredResumeWithGemini(
         authorizedKey,
         cleanText,
-        deterministicStructured
+        deterministicStructured,
+        hintUrls
       );
       if (aiStructured) {
         structuredResume = aiStructured;

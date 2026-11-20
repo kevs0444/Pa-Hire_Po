@@ -1,6 +1,24 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.5`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.6`).
+
+## v1.0.6 — November 21, 2026
+
+### Dynamic Editable, Validated, Reorderable & Deletable Resume URLs
+- **Editable Display Text & Target URLs Across Header, Projects & Certifications:** Edit both link labels and target URLs (`https://...`) for **LinkedIn**, **GitHub**, **Portfolio**, custom links (`+ Add Link`), **Project** titles, and **Certifications** directly inside **Resume Studio**, **My Profile**, and **Settings**, synced cleanly to clickable PDF/HTML links and AI tailoring preservation rules.
+- **Blur-Deferred Validation & Safe Auto-Resolution:** Handles and bare domains (e.g., `github.com/kevs0444`, `linkedin.com/in/markevinalcantara`, `markevinalcantara.vercel.app`) resolve automatically to safe `https://` URLs with live `✓ Valid Link` / `✓ Auto-linked` status badges and a 1-click **Test** link button.
+- **Reorderable & Deletable Links Section:** Reorder any header link (`↑` / `↓`), add preset or custom links (`+ LinkedIn`, `+ GitHub`, `+ Portfolio`, `+ Add Link`), delete individual links, or toggle **Remove Links Section** / **Restore Links Section** cleanly without data loss.
+- **PDF & Word (`.docx`) Hyperlink Extraction on Import:** Importing a `.pdf` (extracting PDF `/URI` link annotations) or `.docx` (converting Word `<a href>` hyperlinks via `mammoth.convertToHtml`) automatically restores clickable LinkedIn, GitHub, Portfolio, project, and certification URLs.
+
+### 7 Ranked ATS Fonts (`Calibri ★ Best for ATS`) & Borderless PDF Export
+- **Expanded 7-Font Ranked ATS Selector:** Expanded the Resume Studio font selector to 7 ATS-safe fonts led by **`Calibri ★ Best for ATS (#1 Default)`** (highest OCR & token accuracy in Workday, Greenhouse, Lever & Taleo) alongside **`Helvetica (#2 Tech & Eng ATS)`**, **`Arial (#3 Universal Legacy ATS)`**, **`Garamond (#4 Researcher 1-Page)`**, **`Georgia (#5 Screen & ATS Serif)`**, **`Cambria (#6 Executive Word ATS)`**, and **`Times New Roman (#7 Classic Academic)`**.
+- **Borderless PDF Print Export Fix:** Forced borderless pure white `@media print` backgrounds on `html, body` and `#a4-resume-sheet` so saving to PDF never prints a grayish `#f3f2ef` canvas border around the resume.
+
+### Zero-Lag Editing (INP Optimization) & Always-on-Top OAuth Popout
+- **Zero-Lag Resume & Profile Editing:** Eliminated typing lag with isolated local draft state (`0ms` typing response with `320ms` debounced parent sync and immediate flush on action), CSS layout/paint containment (`content-visibility: auto`), debounced local storage writes, and yielding background job rescoring (`50ms` time slicing).
+- **Always-on-Top Centered OAuth Popout (`520×680`):** Google and GitHub sign-in on `/login` and **Settings → Connected Logins** now open in a centered `520×680` popout window above the dimmed backdrop (plus OS-level always-on-top modal child window in Electron and a **Bring Sign-In Window to Front** control) that auto-closes and signs you in seamlessly.
+
+---
 
 ## v1.0.5 — November 20, 2026
 

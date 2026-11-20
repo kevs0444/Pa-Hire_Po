@@ -33,11 +33,24 @@ import {
   ResumeFormatToolbar,
   ResumeZoomLevel,
 } from './ResumeFormatToolbar';
+import {
+  ResumeLinksEditor,
+  ValidatedUrlInput,
+} from './ResumeLinksEditor';
 import { ResumeVersionsDrawer } from './ResumeVersionsDrawer';
 import {
   ResumeUploadDialog,
   type ResumeUploadConfirmOptions,
 } from './ResumeUploadDialog';
+import {
+  applyHeaderLinksToResume,
+  getEffectiveHeaderLinks,
+  inferLinkKind,
+  normalizeHttpUrl,
+  resolveEmailHref,
+  resolveResumeHeaderLink,
+  shiftCertificationUrlsOnDelete,
+} from '@/features/resume/lib/resume-links';
 import type { ParsedResumePayload } from '@/features/resume/lib/resume-parser';
 
 export interface A4ResumePreviewProps {
@@ -85,6 +98,7 @@ export const ATS_FONT_PRESETS: Record<
   ResumeFontFamily,
   {
     label: string;
+    dropdownLabel: string;
     shortLabel: string;
     category: string;
     fontFamily: string;
@@ -92,39 +106,67 @@ export const ATS_FONT_PRESETS: Record<
   }
 > = {
   calibri: {
-    label: 'Calibri (#1 AI ATS Standard • Default)',
+    label: 'Calibri ★ Best for ATS (#1 Default)',
+    dropdownLabel: 'Font: Calibri ★ Best for ATS (#1 Default)',
     shortLabel: 'Calibri',
-    category: 'Modern ATS Sans',
+    category: 'Best for ATS',
     fontFamily: "Calibri, 'Segoe UI', Carlito, sans-serif",
-    atsNote: 'Best all-rounder for AI parsers & data/tech toolkits',
+    atsNote:
+      '★ Best for ATS (#1 Modern & AI Standard): Highest OCR & token accuracy in Workday, Greenhouse, Lever & Taleo',
   },
   helvetica: {
-    label: 'Helvetica (#2 Tech & Engineering)',
+    label: 'Helvetica (#2 Best for Tech & Engineering ATS)',
+    dropdownLabel: 'Font: Helvetica (#2 Tech & Eng ATS)',
     shortLabel: 'Helvetica',
-    category: 'Tech Sans',
+    category: 'Tech ATS Sans',
     fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-    atsNote: 'Crisp geometric mapping in PDFBox & Textkernel',
-  },
-  garamond: {
-    label: 'Garamond (#3 Researcher & Academic)',
-    shortLabel: 'Garamond',
-    category: 'Research Serif',
-    fontFamily: "Garamond, 'EB Garamond', 'Times New Roman', serif",
-    atsNote: 'High text density for research, publications & quant CVs',
+    atsNote:
+      'Crisp geometric parsing in PDFBox, Textkernel & engineering hiring portals',
   },
   arial: {
-    label: 'Arial (#4 Universal Legacy ATS)',
+    label: 'Arial (#3 Universal Legacy ATS Safe)',
+    dropdownLabel: 'Font: Arial (#3 Universal Legacy ATS)',
     shortLabel: 'Arial',
     category: 'Legacy Safe Sans',
     fontFamily: "Arial, 'Liberation Sans', sans-serif",
-    atsNote: 'Zero-failure character recognition on all legacy ATS',
+    atsNote:
+      'Zero-failure character recognition across all older corporate ATS parsers',
+  },
+  garamond: {
+    label: 'Garamond (#4 Researcher & Compact 1-Page ATS)',
+    dropdownLabel: 'Font: Garamond (#4 Researcher 1-Page)',
+    shortLabel: 'Garamond',
+    category: 'Research Serif',
+    fontFamily: "Garamond, 'EB Garamond', 'Times New Roman', serif",
+    atsNote:
+      'High text density to fit extensive publications & technical CVs cleanly onto 1 page',
   },
   georgia: {
-    label: 'Georgia (#5 High-Contrast Research Serif)',
+    label: 'Georgia (#5 High-Contrast Screen & ATS Serif)',
+    dropdownLabel: 'Font: Georgia (#5 Screen & ATS Serif)',
     shortLabel: 'Georgia',
     category: 'Editorial Serif',
     fontFamily: "Georgia, Cambria, 'Times New Roman', serif",
-    atsNote: 'High legibility on both recruiter screens and print',
+    atsNote:
+      'High legibility on both recruiter screens and ATS document scanners',
+  },
+  cambria: {
+    label: 'Cambria (#6 Executive & Word ATS Serif)',
+    dropdownLabel: 'Font: Cambria (#6 Executive Word ATS)',
+    shortLabel: 'Cambria',
+    category: 'Office ATS Serif',
+    fontFamily: "Cambria, Georgia, 'Times New Roman', serif",
+    atsNote:
+      'Designed by Microsoft for crisp Word-to-PDF rendering and clear proportions',
+  },
+  times: {
+    label: 'Times New Roman (#7 Classic Academic & Gov ATS)',
+    dropdownLabel: 'Font: Times New Roman (#7 Classic Academic)',
+    shortLabel: 'Times New Roman',
+    category: 'Classic Standard',
+    fontFamily: "'Times New Roman', Times, Georgia, serif",
+    atsNote:
+      'Traditional academic, legal, and government CV standard supported everywhere',
   },
 };
 
@@ -425,53 +467,27 @@ export function ResumeSheetDocument({
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-1 text-[10px] sm:grid-cols-3">
-              <input
-                type="text"
-                value={resume.linkedin}
-                onFocus={(e) =>
-                  registerFocus(e.currentTarget, (latest, val) => ({
-                    ...latest,
-                    linkedin: val,
-                  }))
-                }
-                onChange={(e) =>
-                  onUpdateResume({ ...resume, linkedin: e.target.value })
-                }
-                placeholder="LinkedIn URL / handle"
-                className={sheetInputClass}
-              />
-              <input
-                type="text"
-                value={resume.github}
-                onFocus={(e) =>
-                  registerFocus(e.currentTarget, (latest, val) => ({
-                    ...latest,
-                    github: val,
-                  }))
-                }
-                onChange={(e) =>
-                  onUpdateResume({ ...resume, github: e.target.value })
-                }
-                placeholder="GitHub username"
-                className={sheetInputClass}
-              />
-              <input
-                type="text"
-                value={resume.portfolio}
-                onFocus={(e) =>
-                  registerFocus(e.currentTarget, (latest, val) => ({
-                    ...latest,
-                    portfolio: val,
-                  }))
-                }
-                onChange={(e) =>
-                  onUpdateResume({ ...resume, portfolio: e.target.value })
-                }
-                placeholder="Portfolio website"
-                className={sheetInputClass}
-              />
-            </div>
+            <ResumeLinksEditor
+              resume={resume}
+              theme="light"
+              variant="sheet"
+              onChangeResume={onUpdateResume}
+              onFocusLinkLabel={(linkId, element) =>
+                registerFocus(element, (latest, val) => {
+                  const currentLinks = getEffectiveHeaderLinks(latest);
+                  const updatedLinks = currentLinks.map((lnk, idx) =>
+                    (lnk.id || `hdr-${idx}`) === linkId
+                      ? { ...lnk, label: val }
+                      : lnk
+                  );
+                  return applyHeaderLinksToResume(
+                    latest,
+                    updatedLinks,
+                    Boolean(latest.hideHeaderLinks)
+                  );
+                })
+              }
+            />
           </div>
         ) : (
           <>
@@ -499,53 +515,59 @@ export function ResumeSheetDocument({
             )}
 
             <p className="mt-1 text-[10px] text-neutral-800">
-              {resume.email}
+              {(() => {
+                const emailHref = resolveEmailHref(resume.email);
+                return emailHref ? (
+                  <a href={emailHref} className="hover:underline">
+                    {resume.email}
+                  </a>
+                ) : (
+                  resume.email
+                );
+              })()}
               {resume.phones.length > 0 && ` | ${resume.phones.join(' | ')}`}
               {resume.location && ` | ${resume.location}`}
             </p>
 
-            <p className="mt-0.5 text-[10px] text-neutral-800">
-              {resume.linkedin && (
-                <>
-                  LinkedIn:{' '}
-                  <span className="underline decoration-neutral-400 underline-offset-2">
-                    {resume.linkedin}
-                  </span>
-                </>
-              )}
-              {resume.github && (
-                <>
-                  {' '}
-                  | GitHub:{' '}
-                  <a
-                    href={`https://github.com/${resume.github}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-neutral-400 underline-offset-2"
-                  >
-                    {resume.github}
-                  </a>
-                </>
-              )}
-              {resume.portfolio && (
-                <>
-                  {' '}
-                  | Portfolio:{' '}
-                  <a
-                    href={
-                      resume.portfolio.startsWith('http')
-                        ? resume.portfolio
-                        : `https://${resume.portfolio}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline decoration-neutral-400 underline-offset-2"
-                  >
-                    {resume.portfolio}
-                  </a>
-                </>
-              )}
-            </p>
+            {(() => {
+              const headerLinkItems = getEffectiveHeaderLinks(resume)
+                .map((item, idx) => {
+                  const kind = inferLinkKind(item.platform, item.kind);
+                  return {
+                    key: item.id || `hdr-${idx}`,
+                    prefix: item.platform.trim(),
+                    ...resolveResumeHeaderLink(kind, item.label, item.url),
+                  };
+                })
+                .filter((item) => Boolean(item.displayLabel || item.href));
+
+              if (headerLinkItems.length === 0) return null;
+
+              return (
+                <p className="mt-0.5 text-[10px] text-neutral-800">
+                  {headerLinkItems.map((item, idx) => (
+                    <Fragment key={item.key}>
+                      {idx > 0 && ' | '}
+                      {item.prefix ? `${item.prefix}: ` : ''}
+                      {item.href ? (
+                        <a
+                          href={item.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline decoration-neutral-400 underline-offset-2"
+                        >
+                          {item.displayLabel || item.href}
+                        </a>
+                      ) : (
+                        <span className="underline decoration-neutral-400 underline-offset-2">
+                          {item.displayLabel}
+                        </span>
+                      )}
+                    </Fragment>
+                  ))}
+                </p>
+              );
+            })()}
           </>
         )}
       </header>
@@ -1074,12 +1096,38 @@ export function ResumeSheetDocument({
                         placeholder="Subtitle / Technologies Used (e.g. Next.js, Python, PostgreSQL)"
                         className={cn(sheetInputClass, 'w-full text-[10px] italic')}
                       />
+                      <ValidatedUrlInput
+                        label={`Project link for ${proj.name || `Project #${pIdx + 1}`}`}
+                        value={proj.url || ''}
+                        placeholder="Project URL (optional — e.g. https://github.com/user/repo)"
+                        variant="sheet"
+                        theme="light"
+                        onChange={(nextUrl) => {
+                          const next = [...resume.projects];
+                          next[pIdx] = { ...next[pIdx], url: nextUrl };
+                          onUpdateResume({ ...resume, projects: next });
+                        }}
+                      />
                     </div>
                   ) : (
                     <>
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="inline-flex flex-wrap items-center gap-1.5 font-bold text-black">
-                          <span>{proj.name}</span>
+                          {(() => {
+                            const projHref = normalizeHttpUrl(proj.url, 'portfolio');
+                            return projHref ? (
+                              <a
+                                href={projHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline decoration-neutral-400 underline-offset-2"
+                              >
+                                {proj.name}
+                              </a>
+                            ) : (
+                              <span>{proj.name}</span>
+                            );
+                          })()}
                           {reordered && (
                             <span className="no-print rounded border border-blue-300 bg-blue-50 px-1.5 py-0 text-[8.5px] font-semibold text-[#0a66c2]">
                               ↑ Reordered by AI
@@ -1325,45 +1373,86 @@ export function ResumeSheetDocument({
           </div>
 
           <ul className="mt-1.5 grid list-disc grid-cols-1 gap-x-6 gap-y-1 pl-4 text-neutral-900 sm:grid-cols-2">
-            {resume.certifications.map((cert, idx) => (
-              <li key={idx} className={textAlignClass}>
-                {canEdit && onUpdateResume ? (
-                  <div className="flex items-center gap-1 text-[10px]">
-                    <input
-                      type="text"
-                      value={cert}
-                      onFocus={(e) =>
-                        registerFocus(e.currentTarget, (latest, val) => {
-                          const next = [...latest.certifications];
-                          next[idx] = val;
-                          return { ...latest, certifications: next };
-                        })
-                      }
-                      onChange={(e) => {
-                        const next = [...resume.certifications];
-                        next[idx] = e.target.value;
-                        onUpdateResume({ ...resume, certifications: next });
-                      }}
-                      className={cn(sheetInputClass, 'flex-1')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = resume.certifications.filter((_, cIdx) => cIdx !== idx);
-                        onUpdateResume({ ...resume, certifications: next });
-                      }}
-                      className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
-                      title="Delete certification"
-                      aria-label="Delete certification"
+            {resume.certifications.map((cert, idx) => {
+              const certUrl = resume.certificationUrls?.[idx] || '';
+              const certHref = normalizeHttpUrl(certUrl, 'portfolio');
+              return (
+                <li key={idx} className={textAlignClass}>
+                  {canEdit && onUpdateResume ? (
+                    <div className="space-y-1 text-[10px]">
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="text"
+                          value={cert}
+                          onFocus={(e) =>
+                            registerFocus(e.currentTarget, (latest, val) => {
+                              const next = [...latest.certifications];
+                              next[idx] = val;
+                              return { ...latest, certifications: next };
+                            })
+                          }
+                          onChange={(e) => {
+                            const next = [...resume.certifications];
+                            next[idx] = e.target.value;
+                            onUpdateResume({ ...resume, certifications: next });
+                          }}
+                          className={cn(sheetInputClass, 'flex-1')}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = resume.certifications.filter(
+                              (_, cIdx) => cIdx !== idx
+                            );
+                            const nextUrls = shiftCertificationUrlsOnDelete(
+                              resume.certificationUrls,
+                              idx
+                            );
+                            onUpdateResume({
+                              ...resume,
+                              certifications: next,
+                              certificationUrls: nextUrls,
+                            });
+                          }}
+                          className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                          title="Delete certification"
+                          aria-label="Delete certification"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <ValidatedUrlInput
+                        label={`Credential URL for ${cert || `Certification #${idx + 1}`}`}
+                        value={certUrl}
+                        placeholder="Credential URL (optional — https://...)"
+                        variant="sheet"
+                        theme="light"
+                        onChange={(nextUrl) => {
+                          const nextUrls = { ...(resume.certificationUrls || {}) };
+                          if (nextUrl.trim()) nextUrls[idx] = nextUrl;
+                          else delete nextUrls[idx];
+                          onUpdateResume({
+                            ...resume,
+                            certificationUrls: nextUrls,
+                          });
+                        }}
+                      />
+                    </div>
+                  ) : certHref ? (
+                    <a
+                      href={certHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline decoration-neutral-400 underline-offset-2"
                     >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ) : (
-                  <span>{cert}</span>
-                )}
-              </li>
-            ))}
+                      {cert}
+                    </a>
+                  ) : (
+                    <span>{cert}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}
@@ -1650,13 +1739,88 @@ export function A4ResumePreview({
   const tokens = getThemeTokens(theme);
   const isDark = tokens.isDark;
   const baseResume = profile.structuredResume;
+
+  // Fast local draft state: instant 0ms keystroke feedback while debouncing parent/localStorage/DB sync
+  const [draftOverride, setDraftOverride] = useState<{
+    anchorProp: StructuredResume;
+    flushingProp: StructuredResume | null;
+    draft: StructuredResume;
+  } | null>(null);
+
+  const draftResume =
+    draftOverride &&
+    (draftOverride.anchorProp === activeResume ||
+      draftOverride.flushingProp === activeResume)
+      ? draftOverride.draft
+      : activeResume;
+
+  const latestDraftRef = useRef<StructuredResume>(draftResume);
+  const onUpdateResumeRef = useRef(onUpdateResume);
+  const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    onUpdateResumeRef.current = onUpdateResume;
+    latestDraftRef.current = draftResume;
+  }, [onUpdateResume, draftResume]);
+
+  const flushDraftResume = (overrideNext?: StructuredResume) => {
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+      commitTimerRef.current = null;
+    }
+    const target = overrideNext ?? latestDraftRef.current;
+    if (target && target !== activeResume) {
+      onUpdateResumeRef.current(target);
+    }
+    setDraftOverride(null);
+  };
+
+  const handleLocalResumeChange = (next: StructuredResume) => {
+    latestDraftRef.current = next;
+    setDraftOverride((prev) => ({
+      anchorProp:
+        prev && prev.anchorProp === activeResume
+          ? prev.anchorProp
+          : activeResume,
+      flushingProp: prev?.flushingProp ?? null,
+      draft: next,
+    }));
+
+    if (commitTimerRef.current) {
+      clearTimeout(commitTimerRef.current);
+    }
+    commitTimerRef.current = setTimeout(() => {
+      commitTimerRef.current = null;
+      const committed = latestDraftRef.current;
+      setDraftOverride((curr) =>
+        curr ? { ...curr, flushingProp: committed } : null
+      );
+      onUpdateResumeRef.current(committed);
+      setDraftOverride((curr) =>
+        curr && curr.draft === committed ? null : curr
+      );
+    }, 320);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (commitTimerRef.current) {
+        clearTimeout(commitTimerRef.current);
+        commitTimerRef.current = null;
+        if (latestDraftRef.current) {
+          onUpdateResumeRef.current(latestDraftRef.current);
+        }
+      }
+    };
+  }, []);
+
   const isTailored = Boolean(
-    activeResume.tailorMethod && activeResume.tailorMethod !== 'base'
+    draftResume.tailorMethod && draftResume.tailorMethod !== 'base'
   );
 
-  const pageSize: ResumePageSize = activeResume.pageSize || 'a4';
-  const density: ResumeDensity = activeResume.density || 'standard';
-  const fontFamilyKey: ResumeFontFamily = activeResume.fontFamily || 'calibri';
+  const pageSize: ResumePageSize = draftResume.pageSize || 'a4';
+  const density: ResumeDensity = draftResume.density || 'standard';
+  const fontFamilyKey: ResumeFontFamily = draftResume.fontFamily || 'calibri';
   const sizePreset = PAGE_SIZE_PRESETS[pageSize] || PAGE_SIZE_PRESETS.a4;
   const densityPreset = DENSITY_PRESETS[density] || DENSITY_PRESETS.standard;
   const fontPreset =
@@ -1717,7 +1881,7 @@ export function A4ResumePreview({
     return () => {
       observers.forEach((o) => o.disconnect());
     };
-  }, [activeResume, editMode, showSummary, compareMode, highlightChanges]);
+  }, [editMode, showSummary, compareMode]);
 
   // Compute scale based on zoom preset or auto-fit container (including 2-column compare)
   const computedScale = useMemo(() => {
@@ -1776,7 +1940,7 @@ export function A4ResumePreview({
     let bulletsModified = 0;
     let reorderedCount = 0;
 
-    activeResume.experience.forEach((exp, idx) => {
+    draftResume.experience.forEach((exp, idx) => {
       const orig = baseExpOrder.get(exp.id || exp.role.trim().toLowerCase());
       if (orig !== undefined && orig !== idx) reorderedCount++;
       exp.bullets.forEach((b) => {
@@ -1784,7 +1948,7 @@ export function A4ResumePreview({
       });
     });
 
-    activeResume.projects.forEach((proj, idx) => {
+    draftResume.projects.forEach((proj, idx) => {
       const orig = baseProjOrder.get(proj.id || proj.name.trim().toLowerCase());
       if (orig !== undefined && orig !== idx) reorderedCount++;
       proj.bullets.forEach((b) => {
@@ -1793,16 +1957,16 @@ export function A4ResumePreview({
     });
 
     let skillsUpdated = 0;
-    activeResume.skillCategories.forEach((c) => {
+    draftResume.skillCategories.forEach((c) => {
       const orig = baseSkillMap.get(c.category.trim().toLowerCase());
       if (orig === undefined || orig !== c.items.trim()) skillsUpdated++;
     });
 
     const headlineUpdated =
-      activeResume.targetHeadline.trim() !== baseResume.targetHeadline.trim();
+      draftResume.targetHeadline.trim() !== baseResume.targetHeadline.trim();
     const summaryAdded = Boolean(
-      activeResume.tailoredSummary &&
-        activeResume.tailoredSummary.trim() !==
+      draftResume.tailoredSummary &&
+        draftResume.tailoredSummary.trim() !==
           (baseResume.tailoredSummary || '').trim()
     );
 
@@ -1813,14 +1977,15 @@ export function A4ResumePreview({
       skillsUpdated,
       reorderedCount,
     };
-  }, [activeResume, baseResume, isTailored]);
+  }, [draftResume, baseResume, isTailored]);
 
   const handlePrint = () => {
+    flushDraftResume();
     window.print();
   };
 
   const sheetClassName = cn(
-    'w-full bg-white text-black shadow-xl ring-1 ring-black/10 transition-all',
+    'w-full bg-white text-black shadow-xl ring-1 ring-black/10 transition-all print:shadow-none! print:ring-0! print:border-0! print:m-0! print:p-0! print:max-w-none! print:min-h-0! print:bg-white!',
     sizePreset.sheetClass,
     densityPreset.padClass,
     densityPreset.textClass
@@ -1831,13 +1996,13 @@ export function A4ResumePreview({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; transform: none !important; margin: 0 !important; } }`}</style>
+    <div className="flex flex-col gap-3 print:block! print:gap-0! print:m-0! print:p-0! print:bg-white!">
+      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } html, body { background: #ffffff !important; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; transform: none !important; margin: 0 !important; background: #ffffff !important; box-shadow: none !important; border: none !important; padding: 0 !important; } }`}</style>
 
       {/* Modern Accessible Toolbar (Word & Docs Formatting Style) */}
       <ResumeFormatToolbar
         profile={profile}
-        activeResume={activeResume}
+        activeResume={draftResume}
         activeTailorJob={activeTailorJob}
         theme={theme}
         editMode={editMode}
@@ -1850,6 +2015,9 @@ export function A4ResumePreview({
         onToggleEditMode={() => {
           setEditMode((prev) => {
             const next = !prev;
+            if (!next) {
+              flushDraftResume();
+            }
             setToolbarStatusMsg(
               next
                 ? 'Edit Mode active — click any field in the sheet to edit or format text.'
@@ -1859,35 +2027,61 @@ export function A4ResumePreview({
           });
         }}
         onSetZoomLevel={setZoomLevel}
-        onUpdateResume={onUpdateResume}
-        onOpenVersionsDrawer={() => setIsVersionsDrawerOpen(true)}
+        onUpdateResume={(next) => {
+          if (next.fontFamily && next.fontFamily !== draftResume.fontFamily) {
+            const nextPreset = ATS_FONT_PRESETS[next.fontFamily];
+            if (nextPreset) {
+              setToolbarStatusMsg(
+                `Font set to ${nextPreset.shortLabel} — ${nextPreset.atsNote}`
+              );
+            }
+          }
+          flushDraftResume(next);
+        }}
+        onOpenVersionsDrawer={() => {
+          flushDraftResume();
+          setIsVersionsDrawerOpen(true);
+        }}
         onOpenUploadDialog={
           onImportResume ? () => setIsUploadDialogOpen(true) : undefined
         }
         onOpenSaveSnapshotBar={() => {
           setSnapshotCompany(
             activeTailorJob?.company ||
-              activeResume.tailoredForCompany ||
+              draftResume.tailoredForCompany ||
               ''
           );
           setSnapshotRole(
             activeTailorJob?.title ||
-              activeResume.tailoredForJobTitle ||
+              draftResume.tailoredForJobTitle ||
               profile.primaryRole
           );
           setSnapshotVersionName(
-            activeResume.versionName ||
-              `${activeTailorJob?.company || activeResume.tailoredForCompany || 'Draft'} - ${
-                activeTailorJob?.title || activeResume.tailoredForJobTitle || 'Resume'
+            draftResume.versionName ||
+              `${activeTailorJob?.company || draftResume.tailoredForCompany || 'Draft'} - ${
+                activeTailorJob?.title || draftResume.tailoredForJobTitle || 'Resume'
               }`
           );
           setShowSaveSnapshotBar((v) => !v);
         }}
         onApplyToProfile={
-          onApplyToProfile ? () => onApplyToProfile(activeResume) : undefined
+          onApplyToProfile
+            ? () => {
+                flushDraftResume();
+                onApplyToProfile(draftResume);
+              }
+            : undefined
         }
-        onTailorResume={onTailorResume}
+        onTailorResume={(job, role) => {
+          flushDraftResume();
+          onTailorResume(job, role);
+        }}
         onResetResume={() => {
+          if (commitTimerRef.current) {
+            clearTimeout(commitTimerRef.current);
+            commitTimerRef.current = null;
+          }
+          setDraftOverride(null);
           setCompareMode(false);
           onResetResume();
         }}
@@ -1941,13 +2135,14 @@ export function A4ResumePreview({
               const customName =
                 snapshotVersionName.trim() ||
                 (companyVal ? `${companyVal} — ${roleVal}` : `General — ${roleVal}`);
+              flushDraftResume();
               await onSaveSnapshot({
                 company: companyVal,
                 jobTitle: roleVal,
                 jobId: activeTailorJob?.id || null,
                 versionName: customName,
                 resume: {
-                  ...activeResume,
+                  ...draftResume,
                   versionName: customName,
                   tailoredForCompany: companyVal,
                   tailoredForJobTitle: roleVal,
@@ -2154,7 +2349,7 @@ export function A4ResumePreview({
       <div
         ref={containerRef}
         className={cn(
-          'print-only-container rounded-lg border p-3 sm:p-5 overflow-x-auto',
+          'print-only-container rounded-lg border p-3 sm:p-5 overflow-x-auto print:rounded-none! print:border-0! print:bg-white! print:p-0! print:m-0! print:shadow-none! print:overflow-visible!',
           compareMode && isTailored
             ? 'grid grid-cols-1 items-start gap-5 xl:grid-cols-2 print:block'
             : 'block',
@@ -2191,7 +2386,7 @@ export function A4ResumePreview({
 
             <div className="w-full overflow-x-auto pb-2">
               <div
-                className="relative mx-auto shrink-0"
+                className="resume-sheet-containment relative mx-auto shrink-0"
                 style={{
                   width: `${Math.round(sheetNaturalWidth * computedScale)}px`,
                   height: baseHeight
@@ -2212,7 +2407,7 @@ export function A4ResumePreview({
                   <ResumeSheetDocument
                     variant="base"
                     resume={baseResume}
-                    compareReference={activeResume}
+                    compareReference={draftResume}
                     showSummary={showSummary}
                     showHighlights={highlightChanges}
                     isTailored={isTailored}
@@ -2261,7 +2456,7 @@ export function A4ResumePreview({
           {/* Scaled Sheet Wrapper for Responsive Mobile / Auto-Fit */}
           <div className="w-full overflow-x-auto pb-1 print:overflow-visible print:pb-0">
             <div
-              className="relative mx-auto shrink-0 print:h-auto! print:w-full!"
+              className="resume-sheet-containment relative mx-auto shrink-0 print:h-auto! print:w-full!"
               style={{
                 width: `${Math.round(sheetNaturalWidth * computedScale)}px`,
                 height: tailoredHeight
@@ -2283,7 +2478,7 @@ export function A4ResumePreview({
                 <ResumeSheetDocument
                   sheetId="a4-resume-sheet"
                   variant="tailored"
-                  resume={activeResume}
+                  resume={draftResume}
                   compareReference={baseResume}
                   showSummary={showSummary}
                   showHighlights={highlightChanges}
@@ -2291,7 +2486,7 @@ export function A4ResumePreview({
                   editMode={editMode}
                   className={sheetClassName}
                   style={sheetStyle}
-                  onUpdateResume={onUpdateResume}
+                  onUpdateResume={handleLocalResumeChange}
                   onFocusEditableField={handleFocusEditableField}
                 />
               </div>
@@ -2304,11 +2499,12 @@ export function A4ResumePreview({
       <ResumeVersionsDrawer
         isOpen={isVersionsDrawerOpen}
         resumeRecords={resumeRecords}
-        activeResume={activeResume}
+        activeResume={draftResume}
         activeTailorJob={activeTailorJob}
         theme={theme}
         onClose={() => setIsVersionsDrawerOpen(false)}
         onSelectVersion={(selected) => {
+          setDraftOverride(null);
           if (onSelectResumeVersion) {
             onSelectResumeVersion(selected);
           } else {

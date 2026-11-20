@@ -9,11 +9,13 @@ import {
   Camera,
   Check,
   Edit3,
+  ExternalLink,
   FileText,
   FolderGit2,
   GraduationCap,
   ImagePlus,
   KeyRound,
+  Link2,
   MapPin,
   Plus,
   RotateCcw,
@@ -41,6 +43,18 @@ import {
   type ResumeUploadConfirmOptions,
 } from '@/features/resume/components/ResumeUploadDialog';
 import {
+  ResumeLinksEditor,
+  ValidatedUrlInput,
+} from '@/features/resume/components/ResumeLinksEditor';
+import {
+  getEffectiveHeaderLinks,
+  inferLinkKind,
+  normalizeHttpUrl,
+  resolveEmailHref,
+  resolveResumeHeaderLink,
+  shiftCertificationUrlsOnDelete,
+} from '@/features/resume/lib/resume-links';
+import {
   buildSmartProfilePatchFromResume,
   type ParsedResumePayload,
 } from '@/features/resume/lib/resume-parser';
@@ -62,7 +76,7 @@ interface LinkedInProfileViewProps {
     location?: string;
   }) => void;
   onUpdateGeminiKey: (key: string) => void;
-  onUpdateProfile: (next: UserProfile) => void;
+  onUpdateProfile: (next: UserProfile, rescore?: boolean) => void;
   onOpenA4Studio: () => void;
   onImportResume?: (
     parsed: ParsedResumePayload,
@@ -104,14 +118,18 @@ export function LinkedInProfileView({
   });
 
   const [addingProj, setAddingProj] = useState(false);
+  const [editingProjUrlId, setEditingProjUrlId] = useState<string | null>(null);
   const [projForm, setProjForm] = useState({
     name: '',
     subtitle: '',
     period: '',
+    url: '',
     bulletsText: '',
   });
 
   const [newCert, setNewCert] = useState('');
+  const [newCertUrl, setNewCertUrl] = useState('');
+  const [editingCertUrlIdx, setEditingCertUrlIdx] = useState<number | null>(null);
   const [addingEdu, setAddingEdu] = useState(false);
   const [eduForm, setEduForm] = useState({
     degree: '',
@@ -147,13 +165,20 @@ export function LinkedInProfileView({
     .map((n) => n[0]?.toUpperCase() || '')
     .join('');
 
-  const syncResume = (nextResume: StructuredResume, extra?: Partial<UserProfile>) => {
-    onUpdateProfile({
-      ...profile,
-      ...extra,
-      structuredResume: nextResume,
-      resumeText: resumeToPlainText(nextResume),
-    });
+  const syncResume = (
+    nextResume: StructuredResume,
+    extra?: Partial<UserProfile>,
+    rescore = false
+  ) => {
+    onUpdateProfile(
+      {
+        ...profile,
+        ...extra,
+        structuredResume: nextResume,
+        resumeText: resumeToPlainText(nextResume),
+      },
+      rescore
+    );
   };
 
   const handleSaveExp = (e: React.FormEvent) => {
@@ -203,22 +228,35 @@ export function LinkedInProfileView({
       name: projForm.name.trim(),
       subtitle: projForm.subtitle.trim(),
       period: projForm.period.trim(),
+      url:
+        normalizeHttpUrl(projForm.url, 'portfolio') ||
+        projForm.url.trim() ||
+        undefined,
       bullets: bullets.length > 0 ? bullets : ['Built and deployed solution.'],
     };
 
     syncResume({ ...resume, projects: [item, ...resume.projects] });
     setAddingProj(false);
-    setProjForm({ name: '', subtitle: '', period: '', bulletsText: '' });
+    setProjForm({ name: '', subtitle: '', period: '', url: '', bulletsText: '' });
   };
 
   const handleAddCert = () => {
     const clean = newCert.trim();
     if (!clean) return;
+    const cleanUrl =
+      normalizeHttpUrl(newCertUrl, 'portfolio') || newCertUrl.trim();
+    const nextIdx = resume.certifications.length;
+    const nextUrls = cleanUrl
+      ? { ...(resume.certificationUrls || {}), [nextIdx]: cleanUrl }
+      : resume.certificationUrls;
+
     syncResume({
       ...resume,
       certifications: [...resume.certifications, clean],
+      ...(nextUrls ? { certificationUrls: nextUrls } : {}),
     });
     setNewCert('');
+    setNewCertUrl('');
   };
 
   const handleSaveEdu = (e: React.FormEvent) => {
@@ -255,7 +293,7 @@ export function LinkedInProfileView({
       cats.push({ category: 'Core Skills', items: clean });
     }
 
-    syncResume({ ...resume, skillCategories: cats }, { skills: nextSkills });
+    syncResume({ ...resume, skillCategories: cats }, { skills: nextSkills }, true);
     setNewSkill('');
   };
 
@@ -594,7 +632,7 @@ export function LinkedInProfileView({
                 className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
               <input
-                type="text"
+                type="email"
                 value={resume.email}
                 onChange={(e) => syncResume({ ...resume, email: e.target.value })}
                 placeholder="Email"
@@ -614,20 +652,22 @@ export function LinkedInProfileView({
               />
               <input
                 type="text"
-                value={resume.portfolio}
-                onChange={(e) => syncResume({ ...resume, portfolio: e.target.value })}
-                placeholder="Portfolio URL"
-                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
-              />
-              <input
-                type="text"
                 value={profile.salaryExpectation}
                 onChange={(e) =>
                   onUpdateProfile({ ...profile, salaryExpectation: e.target.value })
                 }
                 placeholder="Salary Expectation"
-                className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
+                className={cn('sm:col-span-2 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
               />
+
+              <div className="sm:col-span-2 pt-1">
+                <ResumeLinksEditor
+                  resume={resume}
+                  theme={theme}
+                  variant="panel"
+                  onChangeResume={(nextResume) => syncResume(nextResume)}
+                />
+              </div>
             </div>
           ) : (
             <div className="mt-3 space-y-1.5">
@@ -638,17 +678,51 @@ export function LinkedInProfileView({
                   <MapPin className="h-3.5 w-3.5" />
                   {resume.location}
                 </span>
-                <span>{resume.email}</span>
-                {resume.portfolio && (
-                  <a
-                    href={resume.portfolio.startsWith('http') ? resume.portfolio : `https://${resume.portfolio}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium underline"
-                  >
-                    {resume.portfolio}
-                  </a>
-                )}
+                {(() => {
+                  const emailHref = resolveEmailHref(resume.email);
+                  return emailHref ? (
+                    <a href={emailHref} className="hover:underline">
+                      {resume.email}
+                    </a>
+                  ) : (
+                    <span>{resume.email}</span>
+                  );
+                })()}
+                {(() => {
+                  const items = getEffectiveHeaderLinks(resume)
+                    .map((item, idx) => {
+                      const kind = inferLinkKind(item.platform, item.kind);
+                      return {
+                        key: item.id || `hdr-${idx}`,
+                        prefix: item.platform.trim(),
+                        ...resolveResumeHeaderLink(kind, item.label, item.url),
+                      };
+                    })
+                    .filter((i) => Boolean(i.displayLabel || i.href));
+
+                  return items.map((item) =>
+                    item.href ? (
+                      <a
+                        key={item.key}
+                        href={item.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-medium underline"
+                      >
+                        <span>
+                          {item.prefix ? `${item.prefix}: ` : ''}
+                          {item.displayLabel || item.href}
+                        </span>
+                        <ExternalLink className="h-3 w-3 opacity-75" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span key={item.key}>
+                        {item.prefix ? `${item.prefix}: ` : ''}
+                        {item.displayLabel}
+                      </span>
+                    )
+                  );
+                })()}
                 {profile.salaryExpectation && <span>Target: {profile.salaryExpectation}</span>}
               </div>
             </div>
@@ -670,10 +744,13 @@ export function LinkedInProfileView({
                 <select
                   value={profile.experienceLevel}
                   onChange={(e) =>
-                    onUpdateProfile({
-                      ...profile,
-                      experienceLevel: e.target.value as ExperienceLevel,
-                    })
+                    onUpdateProfile(
+                      {
+                        ...profile,
+                        experienceLevel: e.target.value as ExperienceLevel,
+                      },
+                      true
+                    )
                   }
                   className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
@@ -686,10 +763,13 @@ export function LinkedInProfileView({
                 <select
                   value={profile.workType}
                   onChange={(e) =>
-                    onUpdateProfile({
-                      ...profile,
-                      workType: e.target.value as WorkType,
-                    })
+                    onUpdateProfile(
+                      {
+                        ...profile,
+                        workType: e.target.value as WorkType,
+                      },
+                      true
+                    )
                   }
                   className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
@@ -703,11 +783,14 @@ export function LinkedInProfileView({
                   value={profile.country}
                   onChange={(e) => {
                     const c = e.target.value as CountryCode;
-                    onUpdateProfile({
-                      ...profile,
-                      country: c,
-                      location: COUNTRY_CONFIGS[c].defaultLocation,
-                    });
+                    onUpdateProfile(
+                      {
+                        ...profile,
+                        country: c,
+                        location: COUNTRY_CONFIGS[c].defaultLocation,
+                      },
+                      true
+                    );
                   }}
                   className={cn('rounded-lg border px-2.5 py-1 text-xs focus:outline-none', inputClass)}
                 >
@@ -735,11 +818,14 @@ export function LinkedInProfileView({
                     <button
                       type="button"
                       onClick={() =>
-                        onUpdateProfile({
-                          ...profile,
-                          primaryRole: role,
-                          title: role,
-                        })
+                        onUpdateProfile(
+                          {
+                            ...profile,
+                            primaryRole: role,
+                            title: role,
+                          },
+                          true
+                        )
                       }
                     >
                       {role}
@@ -748,12 +834,15 @@ export function LinkedInProfileView({
                     <button
                       type="button"
                       onClick={() =>
-                        onUpdateProfile({
-                          ...profile,
-                          preferredRoles: profile.preferredRoles.filter(
-                            (r) => r !== role
-                          ),
-                        })
+                        onUpdateProfile(
+                          {
+                            ...profile,
+                            preferredRoles: profile.preferredRoles.filter(
+                              (r) => r !== role
+                            ),
+                          },
+                          true
+                        )
                       }
                       className="opacity-75 hover:opacity-100"
                       aria-label={`Remove ${role}`}
@@ -774,12 +863,15 @@ export function LinkedInProfileView({
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     if (!newRoleOption.trim()) return;
-                    onUpdateProfile({
-                      ...profile,
-                      preferredRoles: Array.from(
-                        new Set([...profile.preferredRoles, newRoleOption.trim()])
-                      ),
-                    });
+                    onUpdateProfile(
+                      {
+                        ...profile,
+                        preferredRoles: Array.from(
+                          new Set([...profile.preferredRoles, newRoleOption.trim()])
+                        ),
+                      },
+                      true
+                    );
                     setNewRoleOption('');
                   }
                 }}
@@ -790,12 +882,15 @@ export function LinkedInProfileView({
                 type="button"
                 onClick={() => {
                   if (!newRoleOption.trim()) return;
-                  onUpdateProfile({
-                    ...profile,
-                    preferredRoles: Array.from(
-                      new Set([...profile.preferredRoles, newRoleOption.trim()])
-                    ),
-                  });
+                  onUpdateProfile(
+                    {
+                      ...profile,
+                      preferredRoles: Array.from(
+                        new Set([...profile.preferredRoles, newRoleOption.trim()])
+                      ),
+                    },
+                    true
+                  );
                   setNewRoleOption('');
                 }}
                 className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
@@ -990,6 +1085,16 @@ export function LinkedInProfileView({
               onChange={(e) => setProjForm({ ...projForm, period: e.target.value })}
               className={cn('rounded-lg border px-3 py-2 text-xs focus:outline-none', inputClass)}
             />
+            <div className="sm:col-span-2">
+              <ValidatedUrlInput
+                label="Project URL (optional)"
+                value={projForm.url}
+                placeholder="https://github.com/user/repo or live demo URL"
+                variant="panel"
+                theme={theme}
+                onChange={(nextUrl) => setProjForm({ ...projForm, url: nextUrl })}
+              />
+            </div>
             <textarea
               rows={3}
               placeholder="Key deliverables (1 bullet per line)"
@@ -1004,36 +1109,86 @@ export function LinkedInProfileView({
         )}
 
         <div className={cn('divide-y', borderSubtle)}>
-          {resume.projects.map((proj) => (
-            <div key={proj.id} className="space-y-1.5 py-4 first:pt-0 last:pb-0">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <h4 className="text-sm font-semibold">{proj.name}</h4>
-                  <p className={cn('text-xs', mutedText)}>
-                    {proj.subtitle} {proj.period ? `• ${proj.period}` : ''}
-                  </p>
+          {resume.projects.map((proj) => {
+            const projHref = normalizeHttpUrl(proj.url, 'portfolio');
+            const isEditingUrl = editingProjUrlId === proj.id;
+            return (
+              <div key={proj.id} className="space-y-1.5 py-4 first:pt-0 last:pb-0">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="text-sm font-semibold">
+                      {projHref ? (
+                        <a
+                          href={projHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 underline"
+                        >
+                          <span>{proj.name}</span>
+                          <ExternalLink className="h-3 w-3 opacity-75" aria-hidden="true" />
+                        </a>
+                      ) : (
+                        proj.name
+                      )}
+                    </h4>
+                    <p className={cn('text-xs', mutedText)}>
+                      {proj.subtitle} {proj.period ? `• ${proj.period}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditingProjUrlId(isEditingUrl ? null : proj.id)
+                      }
+                      className={cn('rounded-lg border p-1.5', secondaryBtn)}
+                      title={proj.url ? 'Edit project URL' : 'Add project URL'}
+                      aria-label={`Edit URL for ${proj.name}`}
+                    >
+                      <Link2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        syncResume({
+                          ...resume,
+                          projects: resume.projects.filter((p) => p.id !== proj.id),
+                        })
+                      }
+                      className={cn('rounded-lg border p-1.5', secondaryBtn)}
+                      aria-label={`Delete ${proj.name}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    syncResume({
-                      ...resume,
-                      projects: resume.projects.filter((p) => p.id !== proj.id),
-                    })
-                  }
-                  className={cn('rounded-lg border p-1.5', secondaryBtn)}
-                  aria-label={`Delete ${proj.name}`}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                {isEditingUrl && (
+                  <div className="pt-1">
+                    <ValidatedUrlInput
+                      label={`Project link URL for ${proj.name}`}
+                      value={proj.url || ''}
+                      placeholder="https://github.com/user/repo or live demo URL"
+                      variant="panel"
+                      theme={theme}
+                      onChange={(nextUrl) =>
+                        syncResume({
+                          ...resume,
+                          projects: resume.projects.map((p) =>
+                            p.id === proj.id ? { ...p, url: nextUrl } : p
+                          ),
+                        })
+                      }
+                    />
+                  </div>
+                )}
+                <ul className={cn('list-disc space-y-1 pl-4 text-xs leading-relaxed', mutedText)}>
+                  {proj.bullets.map((b, i) => (
+                    <li key={i}>{b.replace(/\*\*/g, '')}</li>
+                  ))}
+                </ul>
               </div>
-              <ul className={cn('list-disc space-y-1 pl-4 text-xs leading-relaxed', mutedText)}>
-                {proj.bullets.map((b, i) => (
-                  <li key={i}>{b.replace(/\*\*/g, '')}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -1046,51 +1201,118 @@ export function LinkedInProfileView({
           </div>
 
           <div className={cn('divide-y', borderSubtle)}>
-            {resume.certifications.map((cert, idx) => (
-              <div
-                key={`${cert}-${idx}`}
-                className="flex items-center justify-between gap-2 py-2.5 text-xs first:pt-0 last:pb-0"
-              >
-                <span className="font-medium">{cert}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    syncResume({
-                      ...resume,
-                      certifications: resume.certifications.filter((_, i) => i !== idx),
-                    })
-                  }
-                  className={cn('rounded p-1 transition-colors', mutedText)}
-                  aria-label={`Remove ${cert}`}
+            {resume.certifications.map((cert, idx) => {
+              const certUrl = resume.certificationUrls?.[idx] || '';
+              const certHref = normalizeHttpUrl(certUrl, 'portfolio');
+              const isEditingCertUrl = editingCertUrlIdx === idx;
+              return (
+                <div
+                  key={`${cert}-${idx}`}
+                  className="space-y-1.5 py-2.5 text-xs first:pt-0 last:pb-0"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center justify-between gap-2">
+                    {certHref ? (
+                      <a
+                        href={certHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-medium underline"
+                      >
+                        <span>{cert}</span>
+                        <ExternalLink className="h-3 w-3 opacity-75" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span className="font-medium">{cert}</span>
+                    )}
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setEditingCertUrlIdx(isEditingCertUrl ? null : idx)
+                        }
+                        className={cn('rounded p-1 transition-colors', mutedText)}
+                        title={certUrl ? 'Edit credential URL' : 'Add credential URL'}
+                        aria-label={`Edit credential URL for ${cert}`}
+                      >
+                        <Link2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingCertUrlIdx === idx) setEditingCertUrlIdx(null);
+                          syncResume({
+                            ...resume,
+                            certifications: resume.certifications.filter(
+                              (_, i) => i !== idx
+                            ),
+                            certificationUrls: shiftCertificationUrlsOnDelete(
+                              resume.certificationUrls,
+                              idx
+                            ),
+                          });
+                        }}
+                        className={cn('rounded p-1 transition-colors', mutedText)}
+                        aria-label={`Remove ${cert}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {isEditingCertUrl && (
+                    <ValidatedUrlInput
+                      label={`Credential URL for ${cert}`}
+                      value={certUrl}
+                      placeholder="https://credential.net/... or verification link"
+                      variant="panel"
+                      theme={theme}
+                      onChange={(nextUrl) => {
+                        const nextUrls = { ...(resume.certificationUrls || {}) };
+                        if (nextUrl.trim()) nextUrls[idx] = nextUrl;
+                        else delete nextUrls[idx];
+                        syncResume({
+                          ...resume,
+                          certificationUrls: nextUrls,
+                        });
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
 
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newCert}
-              onChange={(e) => setNewCert(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handleAddCert();
-                }
-              }}
-              placeholder="New certificate (e.g. Google Data Analytics)"
-              className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newCert}
+                onChange={(e) => setNewCert(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddCert();
+                  }
+                }}
+                placeholder="New certificate (e.g. Google Data Analytics)"
+                className={cn('flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputClass)}
+              />
+              <button
+                type="button"
+                onClick={handleAddCert}
+                className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </button>
+            </div>
+            <ValidatedUrlInput
+              label="Credential URL (optional)"
+              value={newCertUrl}
+              placeholder="Optional credential URL (https://...)"
+              variant="panel"
+              theme={theme}
+              onChange={setNewCertUrl}
             />
-            <button
-              type="button"
-              onClick={handleAddCert}
-              className={cn('inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add
-            </button>
           </div>
         </section>
 

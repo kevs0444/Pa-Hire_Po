@@ -157,7 +157,7 @@ function ApplyFlowContent({
   return (
     <div
       className={cn(
-        'flex max-h-[92vh] w-full flex-col overflow-hidden print:max-h-none print:overflow-visible',
+        'flex max-h-[92vh] w-full flex-col overflow-hidden print:max-h-none print:overflow-visible print:w-full! print:max-w-none! print:m-0! print:p-0! print:bg-white!',
         step === 'preview' ? 'sm:w-[min(92vw,1024px)]' : 'sm:w-[min(92vw,672px)]'
       )}
     >
@@ -323,7 +323,7 @@ function ApplyFlowContent({
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 print:space-y-0! print:m-0! print:p-0!">
               {/* Step 2 Action Bar */}
               <div
                 className={cn(
@@ -465,7 +465,7 @@ export function ApplyFlowModal({
       aria-labelledby={titleId}
       {...({ closedby: 'any' } as Record<string, string>)}
       className={cn(
-        'm-auto max-w-[94vw] rounded-xl border p-0 shadow-xl',
+        'm-auto max-w-[94vw] rounded-xl border p-0 shadow-xl print:m-0! print:max-w-none! print:w-full! print:rounded-none! print:border-0! print:bg-white! print:p-0! print:shadow-none!',
         tokens.cardSurface
       )}
     >

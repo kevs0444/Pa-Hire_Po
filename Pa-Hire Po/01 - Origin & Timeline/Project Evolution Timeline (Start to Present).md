@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.5
-commit_ref: "d37a867"
+milestone: v1.0.6
+commit_ref: "pending-v1.0.6"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-20
+updated: 2026-11-21
 tags:
   - pahirepo
   - timeline
@@ -106,6 +106,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `d37a867` (`v1.0.5`) | 2026-11-20 | `feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite` | Created `web-fallback.ts`, upgraded `linkedin.ts`/`jobstreet.ts`/`indeed.ts` + `job-search-service.ts`, added `CopyUrlButton.tsx`, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` + URL auto-detect `+ Add Job Application` |
+
+---
+
+## Phase 10 — Dynamic Editable Resume Links, 7 Ranked ATS Fonts (`★ Best for ATS`), Borderless Print, Zero-Lag INP & Always-on-Top OAuth Popout (`v1.0.6`, Nov 21, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `pending-v1.0.6` (`v1.0.6`) | 2026-11-21 | `feat(release): v1.0.6 dynamic editable resume links, 7 ranked ATS fonts, zero-lag editing, and always-on-top OAuth popout` | Created `resume-links.ts`, `ResumeLinksEditor.tsx`, and `oauth-popup.ts`; added reorderable/deletable Display Text + Target URL links across Header, Projects, Certifications, Settings, Profile, AI tailoring, and PDF/DOCX link extraction; expanded to 7 ranked ATS fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed borderless white `@media print` sheets; eliminated typing lag with `draftResume` + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and shipped centered `520×680` always-on-top OAuth popout for web & Electron |
 
 ---
 

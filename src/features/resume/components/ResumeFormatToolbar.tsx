@@ -279,9 +279,11 @@ export function ResumeFormatToolbar({
                 tokens.subSurface,
                 tokens.mutedText
               )}
+              title={ATS_FONT_PRESETS[fontFamilyKey]?.atsNote}
             >
               {sizePreset.shortLabel} •{' '}
-              {ATS_FONT_PRESETS[fontFamilyKey]?.shortLabel || 'Calibri'} •{' '}
+              {ATS_FONT_PRESETS[fontFamilyKey]?.shortLabel || 'Calibri'}
+              {fontFamilyKey === 'calibri' ? ' ★ Best for ATS' : ''} •{' '}
               {textAlign === 'justify' ? 'Justified' : 'Left Align'}
             </span>
           </div>
@@ -537,11 +539,12 @@ export function ResumeFormatToolbar({
                   })
                 }
                 aria-label="ATS Resume Font Family"
+                title={ATS_FONT_PRESETS[fontFamilyKey]?.atsNote}
                 className={selectClass}
               >
                 {(Object.keys(ATS_FONT_PRESETS) as ResumeFontFamily[]).map((key) => (
                   <option key={key} value={key} className={optionClass}>
-                    Font: {ATS_FONT_PRESETS[key].shortLabel}
+                    {ATS_FONT_PRESETS[key].dropdownLabel}
                   </option>
                 ))}
               </select>

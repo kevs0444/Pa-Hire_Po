@@ -7,7 +7,9 @@ export type ResumeFontFamily =
   | 'helvetica'
   | 'garamond'
   | 'arial'
-  | 'georgia';
+  | 'georgia'
+  | 'cambria'
+  | 'times';
 
 export interface ResumeExperienceItem {
   id: string;
@@ -23,7 +25,16 @@ export interface ResumeProjectItem {
   name: string;
   subtitle: string;
   period: string;
+  url?: string;
   bullets: string[];
+}
+
+export interface ResumeHeaderLink {
+  id: string;
+  kind?: 'linkedin' | 'github' | 'portfolio' | 'custom';
+  platform: string;
+  label: string;
+  url: string;
 }
 
 export interface ResumeSkillCategory {
@@ -46,12 +57,19 @@ export interface StructuredResume {
   phones: string[];
   location: string;
   linkedin: string;
+  linkedinUrl?: string;
   github: string;
+  githubUrl?: string;
   portfolio: string;
+  portfolioUrl?: string;
+  customLinks?: ResumeHeaderLink[];
+  headerLinks?: ResumeHeaderLink[];
+  hideHeaderLinks?: boolean;
   experience: ResumeExperienceItem[];
   projects: ResumeProjectItem[];
   skillCategories: ResumeSkillCategory[];
   certifications: string[];
+  certificationUrls?: Record<number, string>;
   education: ResumeEducationItem[];
   tailoredForJobTitle?: string | null;
   tailoredForCompany?: string | null;
