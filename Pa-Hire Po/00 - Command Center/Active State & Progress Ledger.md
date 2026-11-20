@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.4
+milestone: v1.0.5
 commit_ref: "ce581df"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-18
+updated: 2026-11-20
 tags:
   - pahirepo
   - ledger
@@ -22,13 +22,13 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.4` — day-based releases `v1.0.0` → `v1.0.4`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.5` — day-based releases `v1.0.0` → `v1.0.5`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `c92d9f1` (`feat(release): v1.0.3 admin status console, full v1.0.0-v1.0.3 changelog, notification sync, and MOC rules`) — live on Vercel production |
+| **Latest Verified Commit** | `ce581df` (`v1.0.4`, local `v1.0.5` updates verified) |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
@@ -39,7 +39,7 @@ tags:
 - `/` — Workspace Home (`src/app/page.tsx`)
 - `/jobs` — 2-Column Job Explorer (`src/app/jobs/page.tsx`)
 - `/analytics` — Job Market Analytics (`src/app/analytics/page.tsx`)
-- `/applications` — Applied Companies & Submitted Resumes (`src/app/applications/page.tsx`)
+- `/applications` — Job Tracking & Resume Applied (`src/app/applications/page.tsx`)
 - `/admin` — Admin Control Center & Supabase Diagnostics (`src/app/admin/page.tsx`)
 - `/login` — Clean Auth Surface (`src/app/login/page.tsx`)
 - `/privacy` — Privacy Policy (`src/app/privacy/page.tsx`)
@@ -79,6 +79,7 @@ tags:
 - [x] Admin Control Center Restructure & Live Vercel/Supabase Status: Refactored `AdminDashboardView.tsx` into an accessible 3-tab console (`Overview & Platform Status` | `Users` | `Infrastructure & Free-Tier`) powered by `GET /api/admin/platform-status` (Vercel runtime/cron/`vercel-status.com` + Supabase Auth/DB/Storage latency/`status.supabase.com` + P0 Launch Readiness + `@container` responsive User Directory table + hairline-divided `AdminFreeTierCard` using `getThemeTokens(theme)`)
 - [x] Day-Based `v1.0.0`–`v1.0.3` Changelog & Notification Read Sync: Updated `package.json` (`1.0.3`), `CHANGELOG.md`, `changelog-data.ts`, `ChangelogModal.tsx` (native `<details>`/`<summary>`), `NotificationBell.tsx`, `PleaseHireMeDashboard.tsx` (`pahirepo_seen_changelog_version` read tracking), and strengthened `AGENTS.md` mandatory Obsidian MOC first-read rule
 - [x] `v1.0.4` PDF & Word (`.docx`) Resume Import, Smart Profile Sync, Hyphen-Free Justify & Optional Company: Added `unpdf` + `mammoth` extraction in `POST /api/resume/parse`, `resume-parser.ts` (`parseResumeTextToStructured`, `buildSmartProfilePatchFromResume`), native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free `[hyphens:none] [text-justify:inter-word] [text-wrap:pretty]` Justify mode, optional Company on Save Version, and direct `user_profiles` sync in `POST /api/resumes/history`
+- [x] `v1.0.5` Dynamic 3-Platform Job Extraction, Title+Company Search, Internet Web Fallback, Strict Search Correlation, Copy URL & Job Tracking (`Resume Applied`): Added `src/server/scrapers/web-fallback.ts`, deeper `linkedin.ts`/`jobstreet.ts`/`indeed.ts`, `parseRoleAndCompanyQuery` + `filterBySearchCorrelation` in `job-search-service.ts`, non-destructive Company input in Find Jobs, reusable `CopyUrlButton.tsx` across Find Jobs & Job Tracking, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` sub-feature & rich `+ Add Job Application` URL auto-detect logger
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

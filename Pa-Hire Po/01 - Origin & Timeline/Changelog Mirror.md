@@ -3,7 +3,7 @@ type: timeline
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.4
+milestone: v1.0.5
 commit_ref: "ce581df"
 files:
   - CHANGELOG.md
@@ -11,7 +11,7 @@ files:
   - src/features/changelog/data/changelog-data.ts
   - src/features/changelog/components/ChangelogModal.tsx
   - src/features/notifications/components/NotificationBell.tsx
-updated: 2026-11-18
+updated: 2026-11-20
 tags:
   - pahirepo
   - changelog
@@ -19,7 +19,14 @@ tags:
 
 # Changelog Mirror
 
-Mirrors day-based customer releases (`v1.0.0` → `v1.0.4`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+Mirrors day-based customer releases (`v1.0.0` → `v1.0.5`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+
+---
+
+## `v1.0.5` — November 20, 2026
+- **Specific Title + Company Search, Internet Fallback & Strict Correlation:** Added dedicated **Company Name (Optional)** input + `"Role at Company"` parser in Find Jobs (`PleaseHireMeDashboard.tsx`), deeper multi-board scraping (`20–24` listings across `linkedin.ts`, `jobstreet.ts`, `indeed.ts`), site-scoped Internet Web Search fallback (`src/server/scrapers/web-fallback.ts`), and `filterBySearchCorrelation` (`job-search-service.ts`). See [[Feature - Multi-Board Job Scraper Engine]].
+- **1-Click `Copy URL` Everywhere:** Added `CopyUrlButton.tsx` to Job Cards, `JobDetailPane.tsx`, `TopChoicesSpotlight.tsx`, and tracked applications.
+- **`Job Tracking` & `Resume Applied` Suite:** Renamed `Applied & Resumes` to **Job Tracking** (`AppTopNavbar.tsx`, `LandingPageView.tsx`, `ApplicationsCompilationView.tsx`), introduced the filterable **Resume Applied** sub-feature, and upgraded **`+ Add Job Application`** with URL auto-detection, common application fields (Location, Work Setup, Salary, Stage, Date Applied, Resume Applied), and inline editing. See [[Feature - Applications Compilation & Submitted Resume Modal]].
 
 ---
 

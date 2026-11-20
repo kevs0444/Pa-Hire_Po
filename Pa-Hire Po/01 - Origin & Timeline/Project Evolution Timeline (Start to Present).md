@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.3
-commit_ref: "c92d9f1"
+milestone: v1.0.5
+commit_ref: "ce581df"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-17
+updated: 2026-11-20
 tags:
   - pahirepo
   - timeline
@@ -98,6 +98,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `ce581df` (`v1.0.4`) | 2026-11-18 | `feat(resume): v1.0.4 PDF/Word resume import, Smart Profile sync, hyphen-free Justify mode, and optional Company save` | Added `unpdf` + `mammoth` extraction in `/api/resume/parse`, `resume-parser.ts`, native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free smart Justify mode, optional Company on Save Version, and `user_profiles` sync in `/api/resumes/history` |
+
+---
+
+## Phase 9 — Dynamic 3-Platform Extraction, Internet Fallback, Copy URL & `Job Tracking` (`v1.0.5`, Nov 20, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `v1.0.5` (local pre-push) | 2026-11-20 | Title + Company search, Internet Web Search fallback, strict correlation, Copy URL & `Job Tracking` (`Resume Applied`) | Created `web-fallback.ts`, upgraded `linkedin.ts`/`jobstreet.ts`/`indeed.ts` + `job-search-service.ts`, added `CopyUrlButton.tsx`, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` + URL auto-detect `+ Add Job Application` |
 
 ---
 

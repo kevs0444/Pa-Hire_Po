@@ -6,7 +6,9 @@ import {
   Activity,
   ArrowUp,
   ArrowUpDown,
+  Bookmark,
   Briefcase,
+  Building2,
   Calendar,
   Clock,
   Compass,
@@ -14,6 +16,7 @@ import {
   Search,
   SlidersHorizontal,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -83,6 +86,7 @@ import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { LandingPageView } from '@/components/LandingPageView';
 import { AppTopNavbar } from '@/components/layout/AppTopNavbar';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -238,18 +242,28 @@ export function PleaseHireMeDashboard({
   const [minScore, setMinScore] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleDraft, setRoleDraft] = useState('Data Analyst / Junior Data Analyst');
+  const [companyDraft, setCompanyDraft] = useState('');
+  const [activeSearchMeta, setActiveSearchMeta] = useState<{
+    role: string;
+    company: string;
+  }>({ role: '', company: '' });
 
   const initialAutoScanRan = useRef(false);
   const scanInFlightRef = useRef(false);
   const authUserIdRef = useRef<string | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const storeRef = useRef<AppStoreState>(store);
+  const activeSearchMetaRef = useRef(activeSearchMeta);
   const detailPaneRef = useRef<HTMLDivElement | null>(null);
   const jobListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     storeRef.current = store;
   }, [store]);
+
+  useEffect(() => {
+    activeSearchMetaRef.current = activeSearchMeta;
+  }, [activeSearchMeta]);
 
   const pushNotification = useCallback(
     (
@@ -352,7 +366,15 @@ export function PleaseHireMeDashboard({
   );
 
   const runJobScan = useCallback(
-    async (overrideProfile?: UserProfile, explicitRoles?: string[]) => {
+    async (
+      overrideProfile?: UserProfile,
+      explicitRoles?: string[],
+      options?: {
+        companyQuery?: string;
+        replaceUnsavedSuggestions?: boolean;
+        forceRefresh?: boolean;
+      }
+    ) => {
       if (scanInFlightRef.current) return;
       const targetProfile = overrideProfile || getActiveUser(storeRef.current);
       if (enabledSources.length === 0) {
@@ -373,7 +395,9 @@ export function PleaseHireMeDashboard({
           body: JSON.stringify({
             profile: targetProfile,
             explicitRoles,
+            companyQuery: options?.companyQuery || undefined,
             sources: enabledSources,
+            forceRefresh: Boolean(options?.forceRefresh),
           }),
         });
 
@@ -393,7 +417,18 @@ export function PleaseHireMeDashboard({
         // Read latest state from storeRef AFTER await so any Save/Applied/Hidden clicks
         // made while the scrape was in-flight are strictly preserved.
         const prev = storeRef.current;
-        const existingById = new Map(prev.jobs.map((j) => [j.id, j]));
+        const queuedSet = new Set(prev.queuedJobIds || []);
+        const baseJobs = options?.replaceUnsavedSuggestions
+          ? prev.jobs.filter(
+              (j) =>
+                j.status === 'saved' ||
+                j.status === 'applied' ||
+                j.status === 'hidden' ||
+                queuedSet.has(j.id)
+            )
+          : prev.jobs;
+
+        const existingById = new Map(baseJobs.map((j) => [j.id, j]));
         let newAdded = 0;
 
         for (const item of incoming) {
@@ -465,10 +500,13 @@ export function PleaseHireMeDashboard({
           });
 
         if (incoming.length > 0) {
+          const searchLabel = options?.companyQuery
+            ? `${searchedRoles.map((r) => r.role).slice(0, 1).join(', ')} at ${options.companyQuery}`
+            : searchedRoles.map((r) => r.role).slice(0, 2).join(', ');
           pushNotification({
             kind: 'scan',
             title: 'Job search updated',
-            detail: `Found ${incoming.length} listings for ${searchedRoles.map((r) => r.role).slice(0, 2).join(', ')}.`,
+            detail: `Found ${incoming.length} listings for ${searchLabel}.`,
             targetTab: 'jobs',
           });
         }
@@ -726,7 +764,18 @@ export function PleaseHireMeDashboard({
       }
       setCountdown((prev) => {
         if (prev <= 1) {
-          void runJobScan();
+          const currentSearch = activeSearchMetaRef.current;
+          if (currentSearch.role || currentSearch.company) {
+            void runJobScan(
+              undefined,
+              currentSearch.role ? [currentSearch.role] : undefined,
+              {
+                companyQuery: currentSearch.company || undefined,
+              }
+            );
+          } else {
+            void runJobScan();
+          }
           return AUTO_REFRESH_INTERVAL_SECONDS;
         }
         return prev - 1;
@@ -735,6 +784,39 @@ export function PleaseHireMeDashboard({
 
     return () => clearInterval(timer);
   }, [hydrated, runJobScan]);
+
+  const handleExecuteJobSearch = (roleInput: string, companyInput: string) => {
+    const trimmedRole = roleInput.trim();
+    const trimmedCompany = companyInput.trim();
+
+    let cleanRole = trimmedRole;
+    let cleanCompany = trimmedCompany;
+
+    if (!cleanCompany && trimmedRole) {
+      const atMatch = trimmedRole.match(
+        /^(.+?)\s+(?:at|@)\s+([A-Za-z0-9][A-Za-z0-9\s.&'-]{1,48})$/i
+      );
+      if (atMatch) {
+        cleanRole = atMatch[1].trim();
+        cleanCompany = atMatch[2].trim();
+        setRoleDraft(cleanRole);
+        setCompanyDraft(cleanCompany);
+      }
+    }
+
+    if (!cleanRole && !cleanCompany) return;
+
+    setActiveSearchMeta({ role: cleanRole, company: cleanCompany });
+    void runJobScan(
+      activeProfile,
+      cleanRole ? [cleanRole] : undefined,
+      {
+        companyQuery: cleanCompany || undefined,
+        replaceUnsavedSuggestions: true,
+        forceRefresh: true,
+      }
+    );
+  };
 
   const handleApplyPrimaryRole = (role: string, triggerScan = true) => {
     const clean = role.trim();
@@ -746,7 +828,12 @@ export function PleaseHireMeDashboard({
     };
     updateActiveUserProfile(nextProfile, true);
     if (triggerScan) {
-      void runJobScan(nextProfile);
+      setCompanyDraft('');
+      setActiveSearchMeta({ role: '', company: '' });
+      void runJobScan(nextProfile, undefined, {
+        replaceUnsavedSuggestions: true,
+        forceRefresh: true,
+      });
     }
   };
 
@@ -865,6 +952,10 @@ export function PleaseHireMeDashboard({
       applicationStage?: ApplicationStage;
       applicationNotes?: string;
       tailoredResumeId?: string | null;
+      url?: string;
+      location?: string;
+      workType?: string;
+      salary?: string | null;
     }
   ) => {
     const nowIso = new Date().toISOString();
@@ -1011,10 +1102,23 @@ export function PleaseHireMeDashboard({
     title: string;
     source: JobSource;
     url: string;
+    location?: string;
+    workType?: string;
+    salary?: string;
+    stage?: ApplicationStage;
+    appliedDate?: string;
     notes: string;
+    resumeRecordId?: string;
     resume: StructuredResume;
   }) => {
     const nowIso = new Date().toISOString();
+    const parsedAppliedTime = payload.appliedDate
+      ? new Date(`${payload.appliedDate}T12:00:00`)
+      : null;
+    const appliedIso =
+      parsedAppliedTime && !Number.isNaN(parsedAppliedTime.getTime())
+        ? parsedAppliedTime.toISOString()
+        : nowIso;
     const jobId = `ext-${Date.now().toString(36)}`;
     const inferredSource =
       payload.resume.tailorMethod === 'gemini-ai'
@@ -1024,41 +1128,59 @@ export function PleaseHireMeDashboard({
           : 'base';
     setDbSyncCount((c) => c + 1);
     try {
-      const snapshotRes = await fetch('/api/resumes/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobId,
-          jobTitle: payload.title,
-          company: payload.company,
-          tailorMethod: payload.resume.tailorMethod || 'base',
-          sourceType: inferredSource,
-          isSent: true,
-          notes: payload.notes,
-          resumeData: {
-            ...payload.resume,
-            tailoredForCompany: payload.company,
-            tailoredForJobTitle: payload.title,
-          },
-        }),
-      });
-      const snapshotData = snapshotRes.ok
-        ? ((await snapshotRes.json()) as { record?: TailoredResumeRecord })
-        : null;
+      let linkedResumeId: string | null = null;
+      if (payload.resumeRecordId && payload.resumeRecordId !== 'base') {
+        linkedResumeId = payload.resumeRecordId;
+        await fetch('/api/resumes/history', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: payload.resumeRecordId,
+            isSent: true,
+            company: payload.company,
+            jobTitle: payload.title,
+          }),
+        }).catch(() => undefined);
+      } else {
+        const snapshotRes = await fetch('/api/resumes/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId,
+            jobTitle: payload.title,
+            company: payload.company,
+            tailorMethod: payload.resume.tailorMethod || 'base',
+            sourceType: inferredSource,
+            isSent: true,
+            notes: payload.notes,
+            resumeData: {
+              ...payload.resume,
+              tailoredForCompany: payload.company,
+              tailoredForJobTitle: payload.title,
+            },
+          }),
+        });
+        const snapshotData = snapshotRes.ok
+          ? ((await snapshotRes.json()) as { record?: TailoredResumeRecord })
+          : null;
+        linkedResumeId = snapshotData?.record?.id || null;
+      }
 
+      const cleanUrl = (payload.url || '').trim();
       const newJob: JobListing = {
         id: jobId,
         title: payload.title,
         company: payload.company,
-        location: activeProfile.location || 'Remote',
+        location: payload.location?.trim() || activeProfile.location || 'Remote',
         source: payload.source,
-        url: payload.url || '#',
-        postedAt: nowIso,
-        salary: activeProfile.salaryExpectation || null,
+        url: cleanUrl || '#',
+        postedAt: appliedIso,
+        salary:
+          payload.salary?.trim() || activeProfile.salaryExpectation || null,
         description:
           payload.notes ||
-          `External application logged for ${payload.company}.`,
-        workType: activeProfile.workType || 'any',
+          `Application logged for ${payload.title} at ${payload.company}.`,
+        workType: payload.workType?.trim() || activeProfile.workType || 'Flexible',
         searchedRole: payload.title,
         isPivotSuggestion: false,
         experienceRequired: 'Open / Not Specified',
@@ -1066,14 +1188,14 @@ export function PleaseHireMeDashboard({
         matchScore: 85,
         matchedSkills: activeProfile.skills.slice(0, 4),
         missingSkills: [],
-        matchReason: 'External application logged by user',
+        matchReason: 'Application logged by user in Job Tracking',
         tailoringTips: [],
         status: 'applied',
-        discoveredAt: nowIso,
-        appliedAt: nowIso,
-        applicationStage: 'applied',
+        discoveredAt: appliedIso,
+        appliedAt: appliedIso,
+        applicationStage: payload.stage || 'applied',
         applicationNotes: payload.notes,
-        tailoredResumeId: snapshotData?.record?.id || null,
+        tailoredResumeId: linkedResumeId,
         statusUpdatedAt: nowIso,
       };
 
@@ -1090,7 +1212,7 @@ export function PleaseHireMeDashboard({
       await loadResumeHistory();
       pushNotification({
         kind: 'applied',
-        title: 'External application logged',
+        title: 'Job application logged',
         detail: `${payload.title} at ${payload.company}`,
         targetTab: 'applications',
         targetJobId: jobId,
@@ -1499,10 +1621,10 @@ export function PleaseHireMeDashboard({
             {/* Search Banner */}
             <section className={cn('space-y-3 rounded-lg border p-4', cardSurface)}>
               <div className="grid gap-3 lg:grid-cols-12">
-                {/* WHAT */}
-                <div className="lg:col-span-5">
+                {/* WHAT — ROLE / TITLE */}
+                <div className="lg:col-span-4">
                   <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    Role or keyword
+                    Job title or keyword
                   </label>
                   <div className="relative">
                     <Search className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
@@ -1513,17 +1635,58 @@ export function PleaseHireMeDashboard({
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
-                          handleApplyPrimaryRole(roleDraft, true);
+                          handleExecuteJobSearch(roleDraft, companyDraft);
                         }
                       }}
-                      placeholder="Data Analyst / Junior Data Analyst, BI Analyst, Junior Data Engineer..."
+                      placeholder="Data Analyst, BI Analyst, or 'Role at Company'..."
                       className={cn('w-full rounded-lg border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
                     />
                   </div>
                 </div>
 
+                {/* COMPANY (OPTIONAL) */}
+                <div className="lg:col-span-3">
+                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                    Company name (optional)
+                  </label>
+                  <div className="relative">
+                    <Building2 className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
+                    <input
+                      type="text"
+                      value={companyDraft}
+                      onChange={(e) => setCompanyDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleExecuteJobSearch(roleDraft, companyDraft);
+                        }
+                      }}
+                      placeholder="Any company (e.g. Canva, GCash)"
+                      className={cn('w-full rounded-lg border py-2 pl-9 pr-8 text-xs font-medium focus:outline-none', inputSurface)}
+                    />
+                    {companyDraft && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCompanyDraft('');
+                          if (activeSearchMeta.company) {
+                            handleExecuteJobSearch(roleDraft, '');
+                          }
+                        }}
+                        aria-label="Clear company search"
+                        className={cn(
+                          'absolute right-2 top-2 rounded p-0.5 transition-colors',
+                          mutedText
+                        )}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* WHERE */}
-                <div className="lg:col-span-5">
+                <div className="lg:col-span-3">
                   <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
                     Location
                   </label>
@@ -1566,7 +1729,7 @@ export function PleaseHireMeDashboard({
                   <button
                     type="button"
                     disabled={scanning}
-                    onClick={() => handleApplyPrimaryRole(roleDraft, true)}
+                    onClick={() => handleExecuteJobSearch(roleDraft, companyDraft)}
                     className={cn(
                       'inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors disabled:opacity-60',
                       primaryBtn
@@ -1601,6 +1764,42 @@ export function PleaseHireMeDashboard({
                       </button>
                     );
                   })}
+
+                  {roleDraft.trim() &&
+                    roleDraft.trim().toLowerCase() !==
+                      activeProfile.primaryRole.trim().toLowerCase() && (
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPrimaryRole(roleDraft, false)}
+                        className={cn(
+                          'inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs font-medium transition-colors',
+                          secondaryBtn
+                        )}
+                        title="Save this role as your Profile Primary Target Role"
+                      >
+                        <Bookmark className="h-3 w-3" />
+                        Save as Target Role
+                      </button>
+                    )}
+
+                  {activeSearchMeta.company && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCompanyDraft('');
+                        handleExecuteJobSearch(roleDraft, '');
+                      }}
+                      className={cn(
+                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
+                        primaryBtn
+                      )}
+                      title="Clear company filter"
+                    >
+                      <Building2 className="h-3 w-3" />
+                      <span>Company: {activeSearchMeta.company}</span>
+                      <X className="h-3 w-3" />
+                    </button>
+                  )}
 
                   <label className={cn('ml-2 inline-flex cursor-pointer items-center gap-1.5 text-xs', mutedText)}>
                     <input
@@ -1665,6 +1864,9 @@ export function PleaseHireMeDashboard({
                         {lastSearchedRoles
                           .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
                           .join(' • ')}
+                        {activeSearchMeta.company
+                          ? ` • Company: ${activeSearchMeta.company}`
+                          : ''}
                       </span>
                     )}
                     <strong className="font-semibold">
@@ -2093,13 +2295,16 @@ export function PleaseHireMeDashboard({
                               </span>
                             ))}
                           </div>
-                          <span
-                            className={cn('inline-flex items-center gap-1 font-mono text-[11px]', mutedText)}
-                            title={`Posted: ${job.postedAt}`}
-                          >
-                            <Clock className="h-3 w-3 opacity-70" />
-                            {formatJobDateLabel(job, clientNow ?? undefined)}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <CopyUrlButton url={job.url} theme={theme} compact />
+                            <span
+                              className={cn('inline-flex items-center gap-1 font-mono text-[11px]', mutedText)}
+                              title={`Posted: ${job.postedAt}`}
+                            >
+                              <Clock className="h-3 w-3 opacity-70" />
+                              {formatJobDateLabel(job, clientNow ?? undefined)}
+                            </span>
+                          </div>
                         </div>
                       </article>
                     );

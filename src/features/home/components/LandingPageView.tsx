@@ -137,7 +137,7 @@ export function LandingPageView({
                 )}
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Applied &amp; Resumes
+                Job Tracking
               </button>
 
               <button

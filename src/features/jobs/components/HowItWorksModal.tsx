@@ -79,13 +79,13 @@ export function HowItWorksModal({
   const steps = [
     {
       icon: Layers,
-      title: '1. Live Multi-Board Scraping (LinkedIn, JobStreet & Indeed)',
-      desc: 'Queries all three boards in parallel: LinkedIn Guest Search + ts-jobspy, JobStreet v5 SEEK API (PH/MY/SG/ID), and Indeed via ts-jobspy. If any board rate-limits, direct search links are generated safely.',
+      title: '1. Live Multi-Board Scraping + Internet Search Fallback',
+      desc: 'Queries LinkedIn, JobStreet, and Indeed concurrently for your specific Job Title and optional Company Name. Whenever a board is rate-limited or returns few matches, site-scoped Internet Web Search extracts real postings and Copy URL lets you grab any listing link in one click.',
     },
     {
       icon: RefreshCw,
-      title: '2. Auto-Refresh & Role Rotation',
-      desc: 'When auto-refresh is enabled, Pa-Hire Po waits for the interval to complete, rotates across your target roles and Pivot roles, deduplicates listings, and merges updates without interrupting your reading.',
+      title: '2. Auto-Refresh & Search Correlation',
+      desc: 'Scans on load and refreshes every 60 seconds cleanly while correlating and prioritizing listings that directly match your searched Job Title, Company Name, and target skills.',
     },
     {
       icon: Award,
@@ -99,8 +99,8 @@ export function HowItWorksModal({
     },
     {
       icon: FileText,
-      title: '5. Pre-Application Resume Studio (AI)',
-      desc: 'Clicking Apply offers an instant step to tailor your dynamic resume (A4 default, or Letter/Legal/Dynamic Fit) using your personal Gemini API key with Smart Career Journey fallback, ready to print or save as PDF.',
+      title: '5. Pre-Application Resume Studio (AI) & Job Tracking (Resume Applied)',
+      desc: 'Tailor your dynamic resume (A4 default) with AI or Smart Tailor before applying, then manage all applied companies, stage updates, company URLs, and submitted Resume Applied snapshots inside Job Tracking.',
     },
   ];
 

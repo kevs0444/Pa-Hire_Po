@@ -190,7 +190,7 @@ export function AppTopNavbar({
             )}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
-            Applied &amp; Resumes
+            Job Tracking
             {hydrated && appliedCount > 0 && (
               <span className="font-mono text-[11px] tabular-nums opacity-80">
                 ({appliedCount})

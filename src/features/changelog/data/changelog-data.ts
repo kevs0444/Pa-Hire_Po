@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.5',
+    date: 'November 20, 2026',
+    isoDate: '2026-11-20T00:00:00.000Z',
+    headline:
+      'Specific Title & Company search with Internet fallback, 1-click Copy URL, and the new Job Tracking & Resume Applied suite',
+    items: [
+      {
+        tag: 'New',
+        title: 'Job Title + Company Name search with Internet Web Search fallback',
+        description:
+          'Search any Job Title and optional Company Name (or type "Role at Company") across LinkedIn, JobStreet, and Indeed with strict search correlation and automatic web search fallback when boards rate-limit.',
+      },
+      {
+        tag: 'New',
+        title: '1-click Copy URL across Find Jobs & Job Tracking',
+        description:
+          'Copy any job or company URL directly from Job Cards, the Job Detail Pane, Top 3 Recommended picks, and tracked applications.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Renamed Applied & Resumes to Job Tracking with Resume Applied',
+        description:
+          'Track Applied Jobs, inspect Resume Applied snapshots, paste or copy company URLs, and log common application info (Location, Work Setup, Salary, Date Applied, Stage, and Resume Used) in one form.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.4',
     date: 'November 18, 2026',
     isoDate: '2026-11-18T00:00:00.000Z',

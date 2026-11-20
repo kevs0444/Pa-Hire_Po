@@ -1,6 +1,21 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.4`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.5`).
+
+## v1.0.5 — November 20, 2026
+
+### Multi-Platform Job Extraction, Title + Company Search & Internet Fallback
+- **Specific Job Title & Company Name Search:** Search any Job Title alongside an optional Company Name (or type `"Role at Company"`) across **LinkedIn**, **JobStreet**, and **Indeed** without overwriting your saved Profile Primary Role unless you click **Save as Target Role**.
+- **Site-Scoped Internet Web Search Fallback & Deeper Extraction:** Automatically triggers site-scoped web search (`web-fallback.ts` + `ts-jobspy` Google Jobs) and HTML/JSON-LD extraction whenever any board is blocked, rate-limited, or returns fewer than 3 correlated results.
+- **Strict Search Correlation:** Replaces stale unsaved suggestions from older searches with tightly correlated results (preserving all **Saved**, **Applied**, **Hidden**, and **Queued** jobs) and boosts matching Company + Title listings.
+- **1-Click `Copy URL` Everywhere:** Copy any job listing link directly from Job Cards, the Job Detail Pane, and Top 3 Recommended cards with instant confirmation.
+
+### Job Tracking & Resume Applied Suite
+- **Renamed to `Job Tracking` with `Resume Applied` Sub-Feature:** Manage **Applied Jobs**, **Resume Applied** (filterable by `All`, `✓ Applied`, and `Saved`), **Saved Jobs**, and **Hidden Jobs** from one unified workspace.
+- **Rich `+ Add Job Application` Form & URL Auto-Detect:** Log external or board applications with Company/Job URL (plus **Paste URL** auto-detection of platform, company, and title), Company Name, Job Title, Platform, Location, Work Setup, Salary/Offer, Stage, Date Applied, Resume Version Applied, and Notes.
+- **Inline Application Editing & `Copy URL`:** Edit URLs, Location, Work Setup, Salary, Stage, Linked Resume, and Notes directly inside **Job Tracking**, and copy any company or job link in one click.
+
+---
 
 ## v1.0.4 — November 18, 2026
 

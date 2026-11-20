@@ -3,6 +3,7 @@
 import { Check, ListPlus } from 'lucide-react';
 import { JobListing, MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -141,6 +142,12 @@ export function TopChoicesSpotlight({
                     <ListPlus className="h-3.5 w-3.5" />
                   )}
                 </button>
+                <CopyUrlButton
+                  url={job.url}
+                  theme={theme}
+                  compact
+                  className="py-1.5"
+                />
               </div>
             </div>
           );

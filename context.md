@@ -20,22 +20,24 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 ## 1. Live Multi-Board Job Finder & Scraper Engine
 
-**Core files:** `src/app/api/jobs/search/route.ts`, `src/server/scrapers/linkedin.ts`, `src/server/scrapers/jobstreet.ts`, `src/server/scrapers/indeed.ts`
+**Core files:** `src/app/api/jobs/search/route.ts`, `src/server/services/job-search-service.ts`, `src/server/scrapers/linkedin.ts`, `src/server/scrapers/jobstreet.ts`, `src/server/scrapers/indeed.ts`, `src/server/scrapers/web-fallback.ts`
 
-- **Sub-Feature 1.1 — 3-Board Concurrent Scraping:**
-  - **LinkedIn Scraper:** Queries LinkedIn's Guest Search API (`seeMoreJobPostings/search`) parsed with `cheerio`, enriches top listings via `jobPosting/{jobId}`, and falls back to `ts-jobspy`.
-  - **JobStreet Scraper:** Queries the JobStreet v5 JSON API (`/api/jobsearch/v5/search`) across `PH-Main`, `MY-Main`, `SG-Main`, and `ID-Main`.
-  - **Indeed Scraper:** Fetches live postings via `ts-jobspy` (`scrapeJobs`) mapped to regional Indeed country targets.
-- **Sub-Feature 1.2 — 1-Minute Default Auto-Refresh + Page-Load Scan:**
-  - Automatically scans on initial page load/refresh and silently auto-refreshes every **60 seconds (`1m`)** when the tab is visible (with `scanInFlightRef` preventing overlapping scrapes and a clean `Search Jobs` trigger replacing the manual refresh toggle bar).
-- **Sub-Feature 1.3 — Dynamic Role Choices & Pivot Mode:**
+- **Sub-Feature 1.1 — 3-Board Deeper Concurrent Extraction:**
+  - **LinkedIn Scraper:** Queries LinkedIn's Guest Search API (`seeMoreJobPostings/search`, multi-page `start=0` / `start=25`) parsed with `cheerio`, enriches top 8 listings via `jobPosting/{jobId}`, falls back to `ts-jobspy`, and automatically escalates to site-scoped Internet Web Search fallback.
+  - **JobStreet Scraper:** Queries the JobStreet v5 JSON API (`/api/jobsearch/v5/search`, `pageSize=24`) across `PH-Main`, `MY-Main`, `SG-Main`, and `ID-Main`, falls back to direct HTML/JSON-LD (`JobPosting`) card parsing, and escalates to Internet Web Search fallback.
+  - **Indeed Scraper:** Fetches live postings via `ts-jobspy` (`scrapeJobs`), falls back to direct Indeed HTML mosaic card extraction, and escalates to Internet Web Search fallback.
+- **Sub-Feature 1.2 — Site-Scoped Internet Web Search Fallback (`web-fallback.ts`) & Search Correlation:**
+  - **Specific Job Title + Optional Company Name Search:** Supports separate **Job title or keyword** and **Company name (optional)** inputs (plus smart `"Role at Company"` splitting) without overwriting the user's saved Profile Primary Role unless **Save as Target Role** is clicked.
+  - **Internet Fallback (`searchInternetForBoardJobs`):** Automatically triggers site-scoped web search (`DuckDuckGo HTML`, `Yahoo Search HTML`, and `ts-jobspy` Google Jobs) whenever a board is rate-limited, challenged, or returns `< 3` correlated hits for a specific Title/Company search.
+  - **Strict Search Correlation (`filterBySearchCorrelation`):** Hard-filters uncorrelated noise, boosts exact searched Company (`+12`) and exact Title (`+6`) matches, and replaces stale unsaved `suggested` listings on explicit search while preserving all `Saved`, `Applied`, `Hidden`, and `Queued` jobs.
+- **Sub-Feature 1.3 — 1-Minute Default Auto-Refresh + Page-Load Scan:**
+  - Automatically scans on initial page load/refresh and silently auto-refreshes every **60 seconds (`1m`)** when the tab is visible (preserving active Title/Company search queries across auto-refresh ticks via `activeSearchMetaRef`).
+- **Sub-Feature 1.4 — Dynamic Role Choices & Pivot Mode:**
   - Quick-switch pills for your target roles (default **`Data Analyst / Junior Data Analyst`**, plus `Data Analyst`, `Junior Data Analyst`, `Business Intelligence Analyst`, `Junior Data Engineer`, `Data Scientist`, `AI Engineer`, or any custom role). Compound `/` roles automatically expand into separate clean job-board search queries while scoring both title variants cleanly.
   - **Pivot Mode (`autoPivotRoles`):** Automatically rotates adjacent high-overlap roles (`selectRolesForScan` & `inferDynamicRoles`) into searches and tags them with a `Pivot` badge.
-- **Sub-Feature 1.4 — Multi-Country & Work-Type Targeting:**
+- **Sub-Feature 1.5 — Multi-Country & Work-Type Targeting:**
   - Supports Philippines (`ph`), Malaysia (`my`), Singapore (`sg`), Indonesia (`id`), United States (`us`), and Global Remote (`remote`).
   - Filters by `Any`, `Remote`, `Hybrid`, or `Onsite`.
-- **Sub-Feature 1.5 — Anti-Block Fallback & Deduplication:**
-  - Deduplicates listings by title/company/source and upgrades fallback cards (`isFallback`) automatically whenever live postings arrive.
 - **Sub-Feature 1.6 — Date Recency Filtering & Multi-Strategy Sorting:**
   - **Date Recency Filters (`dateFilter`):** Instant client-side filtering by **All Dates**, **Past 24 Hours / Today** (`24h`), **Past Week** (`7d`), and **Past Month** (`30d`) without losing cached jobs.
   - **Sorting Strategies (`sortBy`):** Sort listings by **Best Match** (match score descending, secondary recency), **Newest First** (latest to past), or **Oldest First** (past to latest). Fallback listings remain deprioritized below live jobs.
@@ -61,17 +63,21 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 ---
 
-## 3. LinkedIn × JobStreet 2-Column Job Explorer
+## 3. LinkedIn × JobStreet 2-Column Job Explorer & 1-Click `Copy URL`
 
-**Core files:** `src/components/PleaseHireMeDashboard.tsx`, `src/features/jobs/components/JobDetailPane.tsx`, `src/components/ui/BrandLogos.tsx`
+**Core files:** `src/components/PleaseHireMeDashboard.tsx`, `src/features/jobs/components/JobDetailPane.tsx`, `src/features/jobs/components/TopChoicesSpotlight.tsx`, `src/components/ui/CopyUrlButton.tsx`, `src/components/ui/BrandLogos.tsx`
 
-- **Sub-Feature 3.1 — Master-Detail Split Layout:**
-  - **Left Column (`lg:col-span-5`):** Scannable `rounded-lg` job cards with `3px` left accent border on active selection, authentic board logo, company, location, salary, experience badge, and `✓` prefixed high-match pills (`>= 75%`).
-  - **Right Column (`JobDetailPane`):** Single-surface reading panel separated by hairline dividers with semantic `MatchScoreRing` (`#057642` emerald `>=75%`, `#0a66c2` blue `>=55%`), experience alignment rationale, matched (`✓`) vs missing (`+`) skills, and full description.
+- **Sub-Feature 3.1 — Master-Detail Split Layout & `Copy URL` Everywhere:**
+  - **Left Column (`lg:col-span-5`):** Scannable `rounded-lg` job cards with `3px` left accent border on active selection, authentic board logo, company, location, salary, experience badge, `✓` prefixed high-match pills (`>= 75%`), and 1-click **Copy URL** (`CopyUrlButton.tsx`).
+  - **Right Column (`JobDetailPane`):** Single-surface reading panel separated by hairline dividers with semantic `MatchScoreRing` (`#057642` emerald `>=75%`, `#0a66c2` blue `>=55%`), **Open Original**, **Copy URL**, experience alignment rationale, matched (`✓`) vs missing (`+`) skills, and full description.
 - **Sub-Feature 3.2 — Official Job Board Logos (`BoardLogo`):**
   - Authentic full-brand SVG emblems (`#0A66C2` LinkedIn, `#0D3880` JobStreet SEEK glyph, `#003A9B` Indeed).
 - **Sub-Feature 3.3 — Multi-Faceted Job Filtering & Status Tracking:**
   - Filter by status (`All Active`, `Saved`, `Applied`, `Hidden`), board (`All Sites`, `LinkedIn`, `JobStreet`, `Indeed`), **Applicable Exp Only** (`fitFilter`), keyword search, and minimum match score slider (`0%–80%`).
+- **Sub-Feature 3.4 — Job Tracking & `Resume Applied` Suite (`/applications`):**
+  - Renamed from *Applied & Resumes* to **Job Tracking** (`AppTopNavbar.tsx`, `LandingPageView.tsx`, `ApplicationsCompilationView.tsx`) with sub-views: **Applied Jobs**, **Resume Applied** (filterable by `All`, `✓ Applied`, and `Saved`), **Saved Jobs**, and **Hidden Jobs**.
+  - **Rich `+ Add Job Application` Form & URL Auto-Detect:** Captures Company/Job URL (with **Paste URL** auto-detection of platform, company, and title + **Copy URL**), Company Name, Job Title, Platform, Location, Work Setup, Salary/Offer, Stage, Date Applied, Resume Applied snapshot selector, and Notes.
+  - **Inline Application Editing & `Copy URL`:** Edit URL, Location, Work Setup, Salary, Stage, Linked Resume, and Notes directly in the detail pane, and copy any company or job link with 1 click.
 
 ---
 
@@ -223,8 +229,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 ## 12. Active Progress Ledger, Verification State & Next Milestones
 
 - **Verified Production Deployment**:
-  - **Current Release Version**: `v1.0.3` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: `c92d9f1` (`feat(release): v1.0.3 admin status console, full v1.0.0-v1.0.3 changelog, notification sync, and MOC rules`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Current Release Version**: `v1.0.5` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
+  - **Latest Verified Commit**: `ce581df` (`v1.0.4`, pre-push local `v1.0.5` updates staged in workspace) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
   - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 22+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
@@ -233,12 +239,12 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
     - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
     - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)
-    - `https://pa-hire-po.vercel.app/api/admin/platform-status` (`401 Unauthorized` when unauthenticated — confirms live deployment of `c92d9f1`)
+    - `https://pa-hire-po.vercel.app/api/admin/platform-status` (`401 Unauthorized` when unauthenticated — confirms live deployment)
 - **Active Verified Capabilities**:
-  - Multi-board concurrent job scraping (LinkedIn, JobStreet, Indeed).
+  - Multi-board concurrent job scraping (LinkedIn, JobStreet, Indeed) with Specific Title + Company search, site-scoped Internet Web Search fallback (`web-fallback.ts`), strict search correlation, and 1-click `Copy URL` (`CopyUrlButton.tsx`).
   - Smart weighted match scoring (28–98%) against user profile, ESCO-backed dynamic role library (`Top 5–10` saved target roles), and structured target salary preferences.
   - Persistent `saved`, `applied`, and `hidden` job tracking in Supabase `public.user_jobs` with immediate flush sync and non-destructive `Clear` / free-tier pruning.
-  - **Applied & Resumes Compilation Workspace (`/applications`)**: Company application stage tracker (`Applied`, `Interviewing`, `Offer`, `Rejected`), external application logger, and pop-out **View Submitted Resume** `<dialog>` modal (`SubmittedResumeModal.tsx`, `public.tailored_resumes`, `/api/resumes/history`).
+  - **Job Tracking & `Resume Applied` Suite (`/applications`)**: Company application stage tracker (`Applied`, `Interviewing`, `Offer`, `Rejected`), rich `+ Add Job Application` logger with URL auto-detect & common info, inline editing, 1-click `Copy URL`, `Resume Applied` filterable snapshots, and pop-out **View Submitted Resume** `<dialog>` modal (`SubmittedResumeModal.tsx`, `public.tailored_resumes`, `/api/resumes/history`).
   - **Real-Time Notification Bell & What's New Changelog**: Live activity popover (`NotificationBell.tsx`) synced via Supabase Realtime + `BroadcastChannel`, accessible `<progress>` database loading spinners (`LoadingSpinner.tsx`), tactile Civic micro-animations, and customer-facing changelog (`CHANGELOG.md`, `ChangelogModal.tsx`).
   - **Right-Side Settings Sidepanel (`SettingsSidepanel.tsx`)**: Personal Info & Contact, Target Salary & Preferences, ESCO + Cross-Industry Dynamic Role Library search (`Top 5–10` roles via `/api/roles/search`), and end-user **Desktop App Download & Setup** (Windows `.exe` packaging via `electron-builder.json`, PWA `manifest.ts` 1-click desktop install, and collapsed developer CLI disclosure).
   - Resume Studio (`AI`) with Google Gemini 3.1 Flash-Lite tailoring, side-by-side diff, manual version archiving (`Save Version`), and A4/Letter ATS font printing.

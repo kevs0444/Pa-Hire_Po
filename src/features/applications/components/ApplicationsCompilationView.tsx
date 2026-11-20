@@ -5,14 +5,18 @@ import {
   BookmarkCheck,
   Building2,
   CheckCircle2,
+  ClipboardPaste,
+  Clock,
   ExternalLink,
   Eye,
   FileText,
+  MapPin,
   Maximize2,
   Plus,
   RotateCcw,
   Search,
   Trash2,
+  Wallet,
 } from 'lucide-react';
 import type {
   ApplicationStage,
@@ -30,10 +34,12 @@ import {
 } from '@/features/resume/components/A4ResumePreview';
 import { SubmittedResumeModal } from '@/features/applications/components/SubmittedResumeModal';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 type CompilationSubView = 'applied' | 'saved' | 'hidden' | 'resumes';
+type ResumeAppliedFilter = 'all' | 'sent' | 'drafts';
 
 interface ApplicationsCompilationViewProps {
   theme: MonochromeTheme;
@@ -49,6 +55,10 @@ interface ApplicationsCompilationViewProps {
       applicationStage?: ApplicationStage;
       applicationNotes?: string;
       tailoredResumeId?: string | null;
+      url?: string;
+      location?: string;
+      workType?: string;
+      salary?: string | null;
     }
   ) => void;
   onLogExternalApplication: (payload: {
@@ -56,7 +66,13 @@ interface ApplicationsCompilationViewProps {
     title: string;
     source: JobSource;
     url: string;
+    location?: string;
+    workType?: string;
+    salary?: string;
+    stage?: ApplicationStage;
+    appliedDate?: string;
     notes: string;
+    resumeRecordId?: string;
     resume: StructuredResume;
   }) => Promise<void>;
   onUpdateResumeRecord: (
@@ -80,6 +96,73 @@ const STAGE_OPTIONS: { value: ApplicationStage; label: string }[] = [
   { value: 'offer', label: '✓ Offer Received' },
   { value: 'rejected', label: 'Closed / Rejected' },
 ];
+
+const WORK_SETUP_OPTIONS = ['Flexible', 'Remote', 'Hybrid', 'Onsite'];
+
+function getTodayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatSlugWords(slug: string): string {
+  return slug
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+    .trim();
+}
+
+function inferJobInfoFromUrl(rawUrl: string): {
+  source?: JobSource;
+  company?: string;
+  title?: string;
+} {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return {};
+  try {
+    const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    const host = parsed.hostname.toLowerCase();
+    const path = parsed.pathname;
+
+    if (host.includes('linkedin.com')) {
+      const viewMatch = path.match(/\/jobs\/view\/([a-z0-9-]+?)(?:-\d+)?\/?$/i);
+      if (viewMatch?.[1]) {
+        const atParts = viewMatch[1].split('-at-');
+        if (atParts.length >= 2) {
+          return {
+            source: 'linkedin',
+            title: formatSlugWords(atParts[0]),
+            company: formatSlugWords(atParts.slice(1).join(' ')),
+          };
+        }
+        return { source: 'linkedin', title: formatSlugWords(viewMatch[1]) };
+      }
+      return { source: 'linkedin' };
+    }
+
+    if (host.includes('jobstreet.')) {
+      const slugMatch = path.match(/\/job\/([a-z0-9-]+?)(?:-\d+)?\/?$/i);
+      return {
+        source: 'jobstreet',
+        title: slugMatch?.[1] && !/^\d+$/.test(slugMatch[1]) ? formatSlugWords(slugMatch[1]) : undefined,
+      };
+    }
+
+    if (host.includes('indeed.')) {
+      return { source: 'indeed' };
+    }
+
+    // Company career portal domain (e.g., careers.canva.com or jobs.gcash.com)
+    const hostParts = host.replace(/^www\./, '').split('.');
+    const filteredParts = hostParts.filter(
+      (p) => !['careers', 'jobs', 'apply', 'boards', 'greenhouse', 'lever', 'workday', 'myworkdayjobs', 'ashbyhq', 'com', 'io', 'co', 'ph', 'sg', 'my', 'net', 'org'].includes(p)
+    );
+    if (filteredParts[0]) {
+      return { company: formatSlugWords(filteredParts[0]) };
+    }
+  } catch {
+    // Ignore invalid URL while typing
+  }
+  return {};
+}
 
 function getSourceMethodLabel(record: TailoredResumeRecord): string {
   if (record.tailorMethod === 'gemini-ai' || record.sourceType === 'ai-tailor') {
@@ -127,6 +210,7 @@ export function ApplicationsCompilationView({
   } = tokens;
 
   const [subView, setSubView] = useState<CompilationSubView>('applied');
+  const [resumeFilter, setResumeFilter] = useState<ResumeAppliedFilter>('all');
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<'all' | ApplicationStage>('all');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
@@ -144,8 +228,48 @@ export function ApplicationsCompilationView({
     title: profile.primaryRole || '',
     source: 'linkedin' as JobSource,
     url: '',
+    location: profile.location || 'Remote',
+    workType:
+      profile.workType === 'remote'
+        ? 'Remote'
+        : profile.workType === 'hybrid'
+          ? 'Hybrid'
+          : profile.workType === 'onsite'
+            ? 'Onsite'
+            : 'Flexible',
+    salary: profile.salaryExpectation || '',
+    stage: 'applied' as ApplicationStage,
+    appliedDate: getTodayDateString(),
+    resumeRecordId: 'base',
     notes: '',
   });
+
+  const applyUrlToLogForm = (nextUrl: string) => {
+    const inferred = inferJobInfoFromUrl(nextUrl);
+    setLogForm((prev) => ({
+      ...prev,
+      url: nextUrl,
+      source: inferred.source ?? prev.source,
+      company: prev.company.trim() ? prev.company : inferred.company || '',
+      title:
+        prev.title.trim() && prev.title !== profile.primaryRole
+          ? prev.title
+          : inferred.title || prev.title,
+    }));
+  };
+
+  const handlePasteUrlIntoForm = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        const text = (await navigator.clipboard.readText()).trim();
+        if (text) {
+          applyUrlToLogForm(text);
+        }
+      }
+    } catch {
+      // Clipboard permission denied — user can paste normally into the input
+    }
+  };
 
   const appliedJobs = useMemo(
     () =>
@@ -242,7 +366,7 @@ export function ApplicationsCompilationView({
           return false;
         }
         if (!q) return true;
-        return `${job.company} ${job.title} ${job.applicationNotes || ''}`
+        return `${job.company} ${job.title} ${job.location} ${job.url} ${job.applicationNotes || ''}`
           .toLowerCase()
           .includes(q);
       })
@@ -300,13 +424,20 @@ export function ApplicationsCompilationView({
 
   const filteredResumeRecords = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return resumeRecords;
-    return resumeRecords.filter((r) =>
-      `${r.company || ''} ${r.jobTitle || ''} ${r.notes} ${r.resumeData.targetHeadline}`
+    return resumeRecords.filter((r) => {
+      if (resumeFilter === 'sent' && !r.isSent) return false;
+      if (resumeFilter === 'drafts' && r.isSent) return false;
+      if (!q) return true;
+      return `${r.versionName || ''} ${r.company || ''} ${r.jobTitle || ''} ${r.notes} ${r.resumeData.targetHeadline}`
         .toLowerCase()
-        .includes(q)
-    );
-  }, [query, resumeRecords]);
+        .includes(q);
+    });
+  }, [query, resumeFilter, resumeRecords]);
+
+  const sentResumeCount = useMemo(
+    () => resumeRecords.filter((r) => r.isSent).length,
+    [resumeRecords]
+  );
 
   const interviewingOrOfferCount = useMemo(
     () =>
@@ -363,19 +494,36 @@ export function ApplicationsCompilationView({
     if (!logForm.company.trim() || !logForm.title.trim()) return;
     setLogging(true);
     try {
+      const selectedRecord =
+        logForm.resumeRecordId !== 'base'
+          ? resumeById.get(logForm.resumeRecordId)
+          : undefined;
       await onLogExternalApplication({
         company: logForm.company.trim(),
         title: logForm.title.trim(),
         source: logForm.source,
         url: logForm.url.trim(),
+        location: logForm.location.trim(),
+        workType: logForm.workType,
+        salary: logForm.salary.trim(),
+        stage: logForm.stage,
+        appliedDate: logForm.appliedDate,
         notes: logForm.notes.trim(),
-        resume: profile.structuredResume,
+        resumeRecordId:
+          logForm.resumeRecordId !== 'base' ? logForm.resumeRecordId : undefined,
+        resume: selectedRecord?.resumeData || profile.structuredResume,
       });
       setLogForm({
         company: '',
         title: profile.primaryRole || '',
         source: 'linkedin',
         url: '',
+        location: profile.location || 'Remote',
+        workType: 'Flexible',
+        salary: profile.salaryExpectation || '',
+        stage: 'applied',
+        appliedDate: getTodayDateString(),
+        resumeRecordId: 'base',
         notes: '',
       });
       setShowLogForm(false);
@@ -391,10 +539,10 @@ export function ApplicationsCompilationView({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold tracking-tight">
-              Applied Companies &amp; Edited Resume Compilation
+              Job Tracking &amp; Resume Applied
             </h2>
             <p className={cn('text-xs', mutedText)}>
-              Every company you applied to, your Saved &amp; Hidden jobs synced to your account, and the exact resume version sent for each role.
+              Track every company you applied to, manage application stages, copy or open company job URLs, and inspect the exact resume applied for each role.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -407,7 +555,7 @@ export function ApplicationsCompilationView({
               )}
             >
               <RotateCcw className={cn('h-3.5 w-3.5', loadingResumes && 'animate-spin')} />
-              Sync Compilation
+              Sync Tracking
             </button>
             <button
               type="button"
@@ -418,7 +566,7 @@ export function ApplicationsCompilationView({
               )}
             >
               <Plus className="h-3.5 w-3.5" />
-              Log Company Application
+              Add Job Application
             </button>
           </div>
         </div>
@@ -433,7 +581,7 @@ export function ApplicationsCompilationView({
         >
           {[
             {
-              label: 'Companies Applied',
+              label: 'Applied Jobs',
               value: appliedJobs.length + standaloneSentRecords.length,
               view: 'applied' as CompilationSubView,
             },
@@ -448,7 +596,7 @@ export function ApplicationsCompilationView({
               view: 'hidden' as CompilationSubView,
             },
             {
-              label: 'Resume Versions',
+              label: 'Resume Applied',
               value: resumeRecords.length,
               view: 'resumes' as CompilationSubView,
             },
@@ -481,65 +629,215 @@ export function ApplicationsCompilationView({
           ))}
         </div>
 
-        {/* Log External Application Inline Form */}
+        {/* Add Job Application Form (Common Info + Company/Job URL Auto-Detect) */}
         {showLogForm && (
           <form
             onSubmit={handleSubmitExternal}
-            className={cn('grid gap-2.5 rounded-lg border p-4 sm:grid-cols-12', subSurface)}
+            className={cn('grid gap-3 rounded-lg border p-4 sm:grid-cols-12', subSurface)}
           >
-            <div className="sm:col-span-12 flex items-center justify-between">
+            <div className="sm:col-span-12 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-semibold">
-                Log External Application (adds to Applied Companies + saves your current Resume snapshot)
+                Add Job Application (save common company &amp; role details, copy/paste URL, and link the resume you applied with)
               </span>
             </div>
-            <input
-              type="text"
-              required
-              value={logForm.company}
-              onChange={(e) =>
-                setLogForm({ ...logForm, company: e.target.value })
-              }
-              placeholder="Company name *"
-              className={cn('sm:col-span-3 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-            />
-            <input
-              type="text"
-              required
-              value={logForm.title}
-              onChange={(e) =>
-                setLogForm({ ...logForm, title: e.target.value })
-              }
-              placeholder="Role applied for *"
-              className={cn('sm:col-span-3 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-            />
-            <select
-              value={logForm.source}
-              onChange={(e) =>
-                setLogForm({ ...logForm, source: e.target.value as JobSource })
-              }
-              className={cn('sm:col-span-2 rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
-            >
-              <option value="linkedin">LinkedIn</option>
-              <option value="jobstreet">JobStreet</option>
-              <option value="indeed">Indeed</option>
-            </select>
-            <input
-              type="url"
-              value={logForm.url}
-              onChange={(e) => setLogForm({ ...logForm, url: e.target.value })}
-              placeholder="Job URL (optional)"
-              className={cn('sm:col-span-4 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-            />
-            <input
-              type="text"
-              value={logForm.notes}
-              onChange={(e) =>
-                setLogForm({ ...logForm, notes: e.target.value })
-              }
-              placeholder="Notes (e.g. Sent tailored A4 CV via recruiter email)"
-              className={cn('sm:col-span-9 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-            />
-            <div className="sm:col-span-3 flex gap-2 justify-end">
+
+            <div className="sm:col-span-12 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Company or Job Posting URL (paste to auto-detect platform, company &amp; role)
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="url"
+                  value={logForm.url}
+                  onChange={(e) => applyUrlToLogForm(e.target.value)}
+                  placeholder="https://www.linkedin.com/jobs/view/... or https://company.com/careers"
+                  className={cn('min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handlePasteUrlIntoForm()}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    secondaryBtn
+                  )}
+                >
+                  <ClipboardPaste className="h-3.5 w-3.5" />
+                  Paste URL
+                </button>
+                <CopyUrlButton url={logForm.url} theme={theme} />
+              </div>
+            </div>
+
+            <div className="sm:col-span-4 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Company Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={logForm.company}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, company: e.target.value })
+                }
+                placeholder="e.g. Canva, GCash, Accenture"
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-4 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Job Title / Role Applied *
+              </label>
+              <input
+                type="text"
+                required
+                value={logForm.title}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, title: e.target.value })
+                }
+                placeholder="e.g. Data Analyst"
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Platform
+              </label>
+              <select
+                value={logForm.source}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, source: e.target.value as JobSource })
+                }
+                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+              >
+                <option value="linkedin">LinkedIn</option>
+                <option value="jobstreet">JobStreet</option>
+                <option value="indeed">Indeed</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Stage
+              </label>
+              <select
+                value={logForm.stage}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, stage: e.target.value as ApplicationStage })
+                }
+                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+              >
+                {STAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Location
+              </label>
+              <input
+                type="text"
+                value={logForm.location}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, location: e.target.value })
+                }
+                placeholder="e.g. Taguig City / Remote"
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Work Setup
+              </label>
+              <select
+                value={logForm.workType}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, workType: e.target.value })
+                }
+                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+              >
+                {WORK_SETUP_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Salary / Offer (Optional)
+              </label>
+              <input
+                type="text"
+                value={logForm.salary}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, salary: e.target.value })
+                }
+                placeholder="e.g. PHP 45k - 60k"
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Date Applied
+              </label>
+              <input
+                type="date"
+                value={logForm.appliedDate}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, appliedDate: e.target.value })
+                }
+                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-3 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Resume Applied
+              </label>
+              <select
+                value={logForm.resumeRecordId}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, resumeRecordId: e.target.value })
+                }
+                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+              >
+                <option value="base">
+                  Base Profile CV ({profile.structuredResume.targetHeadline || 'Master'})
+                </option>
+                {resumeRecords.map((rec) => (
+                  <option key={rec.id} value={rec.id}>
+                    {rec.versionName || rec.company || 'Saved Resume'} —{' '}
+                    {rec.jobTitle || rec.resumeData.targetHeadline}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="sm:col-span-9 space-y-1">
+              <label className={cn('block text-[11px] font-medium', mutedText)}>
+                Notes (Recruiter, Email, Portal Ref, Interview Details)
+              </label>
+              <input
+                type="text"
+                value={logForm.notes}
+                onChange={(e) =>
+                  setLogForm({ ...logForm, notes: e.target.value })
+                }
+                placeholder="e.g. Sent tailored A4 CV via recruiter email; follow up Friday"
+                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+              />
+            </div>
+
+            <div className="sm:col-span-3 flex items-end justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setShowLogForm(false)}
@@ -565,11 +863,11 @@ export function ApplicationsCompilationView({
               [
                 {
                   id: 'applied',
-                  label: `Applied Companies (${appliedJobs.length + standaloneSentRecords.length})`,
+                  label: `Applied Jobs (${appliedJobs.length + standaloneSentRecords.length})`,
                 },
-                { id: 'resumes', label: `All Edited Resumes (${resumeRecords.length})` },
-                { id: 'saved', label: `Saved (${savedJobs.length})` },
-                { id: 'hidden', label: `Hidden (${hiddenJobs.length})` },
+                { id: 'resumes', label: `Resume Applied (${resumeRecords.length})` },
+                { id: 'saved', label: `Saved Jobs (${savedJobs.length})` },
+                { id: 'hidden', label: `Hidden Jobs (${hiddenJobs.length})` },
               ] as const
             ).map((tab) => (
               <button
@@ -605,13 +903,40 @@ export function ApplicationsCompilationView({
               </select>
             )}
 
+            {subView === 'resumes' && (
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    { id: 'all', label: `All (${resumeRecords.length})` },
+                    { id: 'sent', label: `✓ Applied (${sentResumeCount})` },
+                    {
+                      id: 'drafts',
+                      label: `Saved (${Math.max(0, resumeRecords.length - sentResumeCount)})`,
+                    },
+                  ] as const
+                ).map((pill) => (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setResumeFilter(pill.id)}
+                    className={cn(
+                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                      resumeFilter === pill.id ? primaryBtn : secondaryBtn
+                    )}
+                  >
+                    {pill.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="relative">
               <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search company, role, notes..."
+                placeholder="Search company, role, URL..."
                 className={cn('w-52 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
               />
             </div>
@@ -619,16 +944,16 @@ export function ApplicationsCompilationView({
         </div>
       </section>
 
-      {/* SUBVIEW 1: APPLIED COMPANIES & SENT RESUMES */}
+      {/* SUBVIEW 1: APPLIED JOBS */}
       {subView === 'applied' && (
         <section className="grid items-start gap-5 lg:grid-cols-12">
           <div className="no-print space-y-2 lg:col-span-5">
             {filteredAppliedItems.length === 0 ? (
               <div className={cn('rounded-lg border border-dashed p-10 text-center space-y-2', cardSurface)}>
                 <CheckCircle2 className={cn('mx-auto h-7 w-7', mutedText)} />
-                <p className="text-sm font-semibold">No applied companies yet</p>
+                <p className="text-sm font-semibold">No tracked applications yet</p>
                 <p className={cn('text-xs', mutedText)}>
-                  Mark jobs as Applied in Find Jobs, save a tailored resume in Resume Studio, or click &ldquo;Log Company Application&rdquo; above.
+                  Mark jobs as Applied in Find Jobs, save a tailored resume in Resume Studio, or click &ldquo;Add Job Application&rdquo; above.
                 </p>
               </div>
             ) : (
@@ -647,7 +972,7 @@ export function ApplicationsCompilationView({
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {item.job ? (
                           <BoardLogo source={item.job.source} theme={theme} size="sm" />
                         ) : (
@@ -684,6 +1009,12 @@ export function ApplicationsCompilationView({
                       <p className={cn('text-xs font-medium', mutedText)}>
                         {item.title}
                       </p>
+                      {item.job && (
+                        <p className={cn('mt-0.5 text-[11px]', mutedText)}>
+                          {item.job.location} • {item.job.workType}
+                          {item.job.salary ? ` • ${item.job.salary}` : ''}
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
@@ -693,29 +1024,32 @@ export function ApplicationsCompilationView({
                           ? getSourceMethodLabel(item.record)
                           : 'Base Profile CV'}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPopoutModalData({
-                            company: item.company,
-                            jobTitle: item.title,
-                            methodLabel: item.record
-                              ? getSourceMethodLabel(item.record)
-                              : 'Base Profile CV',
-                            submittedAt: item.dateIso,
-                            resume:
-                              item.record?.resumeData || profile.structuredResume,
-                          });
-                        }}
-                        className={cn(
-                          'civic-btn-motion inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
-                          secondaryBtn
-                        )}
-                      >
-                        <Maximize2 className="h-3 w-3" />
-                        Show Resume
-                      </button>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <CopyUrlButton url={item.job?.url} theme={theme} compact />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPopoutModalData({
+                              company: item.company,
+                              jobTitle: item.title,
+                              methodLabel: item.record
+                                ? getSourceMethodLabel(item.record)
+                                : 'Base Profile CV',
+                              submittedAt: item.dateIso,
+                              resume:
+                                item.record?.resumeData || profile.structuredResume,
+                            });
+                          }}
+                          className={cn(
+                            'civic-btn-motion inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                            secondaryBtn
+                          )}
+                        >
+                          <Maximize2 className="h-3 w-3" />
+                          Show Resume
+                        </button>
+                      </div>
                     </div>
                     {item.job?.applicationNotes && (
                       <p className={cn('truncate text-[11px]', mutedText)}>
@@ -733,16 +1067,34 @@ export function ApplicationsCompilationView({
               <div className="space-y-4">
                 <div className={cn('no-print rounded-lg border p-5 space-y-4', cardSurface)}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4" />
                         <h3 className="text-base font-bold">
                           {selectedApplied.company}
                         </h3>
                       </div>
-                      <p className={cn('mt-0.5 text-sm font-medium', mutedText)}>
+                      <p className={cn('text-sm font-medium', mutedText)}>
                         {selectedApplied.title}
                       </p>
+                      <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-xs', mutedText)}>
+                        {selectedApplied.job?.location && (
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {selectedApplied.job.location}
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Applied {new Date(selectedApplied.dateIso).toLocaleDateString()}
+                        </span>
+                        {selectedApplied.job?.salary && (
+                          <span className="inline-flex items-center gap-1 font-mono">
+                            <Wallet className="h-3 w-3" />
+                            {selectedApplied.job.salary}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -758,17 +1110,22 @@ export function ApplicationsCompilationView({
                           View Job
                         </button>
                       )}
-                      {selectedApplied.job?.url && (
-                        <a
-                          href={selectedApplied.job.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                        >
-                          Listing
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      )}
+                      {selectedApplied.job?.url &&
+                        selectedApplied.job.url !== '#' && (
+                          <a
+                            href={selectedApplied.job.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                          >
+                            Listing
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      <CopyUrlButton
+                        url={selectedApplied.job?.url}
+                        theme={theme}
+                      />
                     </div>
                   </div>
 
@@ -794,7 +1151,118 @@ export function ApplicationsCompilationView({
                           ))}
                         </select>
                       </div>
-                      <div className="sm:col-span-8">
+
+                      <div className="sm:col-span-4">
+                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                          Resume Applied
+                        </label>
+                        <select
+                          value={selectedApplied.job.tailoredResumeId || ''}
+                          onChange={(e) =>
+                            onUpdateJobApplication(selectedApplied.job!.id, {
+                              tailoredResumeId: e.target.value || null,
+                            })
+                          }
+                          className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none', inputSurface)}
+                        >
+                          <option value="">Base Profile CV</option>
+                          {resumeRecords.map((rec) => (
+                            <option key={rec.id} value={rec.id}>
+                              {rec.versionName || rec.company || 'Snapshot'} —{' '}
+                              {rec.jobTitle || rec.resumeData.targetHeadline}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-4">
+                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                          Work Setup
+                        </label>
+                        <select
+                          value={selectedApplied.job.workType || 'Flexible'}
+                          onChange={(e) =>
+                            onUpdateJobApplication(selectedApplied.job!.id, {
+                              workType: e.target.value,
+                            })
+                          }
+                          className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none', inputSurface)}
+                        >
+                          {WORK_SETUP_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>
+                              {opt}
+                            </option>
+                          ))}
+                          {!WORK_SETUP_OPTIONS.includes(selectedApplied.job.workType) && (
+                            <option value={selectedApplied.job.workType}>
+                              {selectedApplied.job.workType}
+                            </option>
+                          )}
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-6">
+                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                          Location
+                        </label>
+                        <input
+                          type="text"
+                          value={selectedApplied.job.location || ''}
+                          onChange={(e) =>
+                            onUpdateJobApplication(selectedApplied.job!.id, {
+                              location: e.target.value,
+                            })
+                          }
+                          placeholder="City, Country or Remote"
+                          className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-6">
+                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                          Salary / Offer
+                        </label>
+                        <input
+                          type="text"
+                          value={selectedApplied.job.salary || ''}
+                          onChange={(e) =>
+                            onUpdateJobApplication(selectedApplied.job!.id, {
+                              salary: e.target.value || null,
+                            })
+                          }
+                          placeholder="e.g. PHP 45,000 - 60,000/mo"
+                          className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                        />
+                      </div>
+
+                      <div className="sm:col-span-12">
+                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
+                          Company / Job Posting URL
+                        </label>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            type="url"
+                            value={
+                              selectedApplied.job.url === '#'
+                                ? ''
+                                : selectedApplied.job.url
+                            }
+                            onChange={(e) =>
+                              onUpdateJobApplication(selectedApplied.job!.id, {
+                                url: e.target.value.trim() || '#',
+                              })
+                            }
+                            placeholder="https://company.com/careers or job posting URL"
+                            className={cn('min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                          />
+                          <CopyUrlButton
+                            url={selectedApplied.job.url}
+                            theme={theme}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-12">
                         <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
                           Application Notes (saved automatically)
                         </label>
@@ -819,7 +1287,7 @@ export function ApplicationsCompilationView({
                         <div className="space-y-0.5">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-xs font-semibold">
-                              Submitted Resume Snapshot
+                              Resume Applied Snapshot
                             </span>
                             <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', cardSurface)}>
                               {activeMethodLabel}
@@ -882,10 +1350,10 @@ export function ApplicationsCompilationView({
               <div className={cn('no-print rounded-lg border border-dashed p-12 text-center', cardSurface)}>
                 <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
                 <p className="mt-2 text-sm font-semibold">
-                  Select an applied company
+                  Select a tracked application
                 </p>
                 <p className={cn('mt-1 text-xs', mutedText)}>
-                  Inspect the company application stage, notes, and exact resume snapshot sent.
+                  Inspect the company details, copy its URL, update stage &amp; notes, and open the exact resume applied.
                 </p>
               </div>
             )}
@@ -893,7 +1361,7 @@ export function ApplicationsCompilationView({
         </section>
       )}
 
-      {/* SUBVIEW 2: ALL EDITED RESUME VERSIONS */}
+      {/* SUBVIEW 2: RESUME APPLIED (SUBMITTED & EDITED RESUMES) */}
       {subView === 'resumes' && (
         <section className="grid items-start gap-5 lg:grid-cols-12">
           <div className="no-print space-y-2 lg:col-span-5">
@@ -901,10 +1369,10 @@ export function ApplicationsCompilationView({
               <div className={cn('rounded-lg border border-dashed p-10 text-center space-y-2', cardSurface)}>
                 <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
                 <p className="text-sm font-semibold">
-                  No saved resume versions yet
+                  No matching resumes yet
                 </p>
                 <p className={cn('text-xs', mutedText)}>
-                  Tailor a resume with AI or click &ldquo;Save Version&rdquo; in Resume Studio to archive snapshots by company.
+                  Tailor a resume with AI or click &ldquo;Save Version&rdquo; in Resume Studio to track resumes applied by company.
                 </p>
               </div>
             ) : (
@@ -933,7 +1401,7 @@ export function ApplicationsCompilationView({
                                 : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                             )}
                           >
-                            ✓ Sent
+                            ✓ Applied / Sent
                           </span>
                         )}
                       </div>
@@ -1015,7 +1483,7 @@ export function ApplicationsCompilationView({
                       className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
-                      {selectedResume.isSent ? 'Marked Sent' : 'Mark as Sent'}
+                      {selectedResume.isSent ? 'Marked Applied' : 'Mark as Applied'}
                     </button>
                     <button
                       type="button"
@@ -1076,7 +1544,7 @@ export function ApplicationsCompilationView({
               <div className={cn('no-print rounded-lg border border-dashed p-12 text-center', cardSurface)}>
                 <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
                 <p className="mt-2 text-sm font-semibold">
-                  Select a saved resume version
+                  Select a resume applied version
                 </p>
               </div>
             )}
@@ -1114,6 +1582,7 @@ export function ApplicationsCompilationView({
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    <CopyUrlButton url={job.url} theme={theme} />
                     <button
                       type="button"
                       onClick={() => onOpenJobInExplorer(job.id)}

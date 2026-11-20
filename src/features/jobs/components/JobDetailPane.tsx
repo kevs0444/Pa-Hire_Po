@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { JobListing, JobStatus, MonochromeTheme } from '@/types/job';
 import { BoardLogo } from '@/components/ui/BrandLogos';
+import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { MatchScoreRing } from '@/components/ui/MatchScoreRing';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -250,6 +251,12 @@ export function JobDetailPane({
           Open Original
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
+
+        <CopyUrlButton
+          url={job.url}
+          theme={theme}
+          className="py-2"
+        />
 
         <button
           type="button"
