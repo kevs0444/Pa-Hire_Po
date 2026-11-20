@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: jobs
 milestone: v1.0.5
-commit_ref: "ce581df"
+commit_ref: "d37a867"
 files:
   - src/app/api/jobs/search/route.ts
   - src/server/services/job-search-service.ts

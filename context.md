@@ -230,7 +230,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Verified Production Deployment**:
   - **Current Release Version**: `v1.0.5` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: `ce581df` (`v1.0.4`, pre-push local `v1.0.5` updates staged in workspace) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Latest Verified Commit**: `d37a867` (`feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
   - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 22+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:

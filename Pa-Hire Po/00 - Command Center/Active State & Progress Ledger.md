@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: infra
 milestone: v1.0.5
-commit_ref: "ce581df"
+commit_ref: "d37a867"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `ce581df` (`v1.0.4`, local `v1.0.5` updates verified) |
+| **Latest Verified Commit** | `d37a867` (`feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite`) — live on Vercel production |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---

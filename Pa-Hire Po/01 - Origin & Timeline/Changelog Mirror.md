@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: product
 milestone: v1.0.5
-commit_ref: "ce581df"
+commit_ref: "d37a867"
 files:
   - CHANGELOG.md
   - package.json
@@ -23,7 +23,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.5`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.5` — November 20, 2026
+## `v1.0.5` — November 20, 2026 (`d37a867`)
 - **Specific Title + Company Search, Internet Fallback & Strict Correlation:** Added dedicated **Company Name (Optional)** input + `"Role at Company"` parser in Find Jobs (`PleaseHireMeDashboard.tsx`), deeper multi-board scraping (`20–24` listings across `linkedin.ts`, `jobstreet.ts`, `indeed.ts`), site-scoped Internet Web Search fallback (`src/server/scrapers/web-fallback.ts`), and `filterBySearchCorrelation` (`job-search-service.ts`). See [[Feature - Multi-Board Job Scraper Engine]].
 - **1-Click `Copy URL` Everywhere:** Added `CopyUrlButton.tsx` to Job Cards, `JobDetailPane.tsx`, `TopChoicesSpotlight.tsx`, and tracked applications.
 - **`Job Tracking` & `Resume Applied` Suite:** Renamed `Applied & Resumes` to **Job Tracking** (`AppTopNavbar.tsx`, `LandingPageView.tsx`, `ApplicationsCompilationView.tsx`), introduced the filterable **Resume Applied** sub-feature, and upgraded **`+ Add Job Application`** with URL auto-detection, common application fields (Location, Work Setup, Salary, Stage, Date Applied, Resume Applied), and inline editing. See [[Feature - Applications Compilation & Submitted Resume Modal]].

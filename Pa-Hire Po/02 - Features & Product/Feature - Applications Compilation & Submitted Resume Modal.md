@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: applications
 milestone: v1.0.5
-commit_ref: "ce581df"
+commit_ref: "d37a867"
 files:
   - src/app/applications/page.tsx
   - src/features/applications/components/ApplicationsCompilationView.tsx

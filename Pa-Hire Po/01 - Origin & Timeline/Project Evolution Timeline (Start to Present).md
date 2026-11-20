@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: product
 milestone: v1.0.5
-commit_ref: "ce581df"
+commit_ref: "d37a867"
 files:
   - context.md
   - CHANGELOG.md
@@ -105,7 +105,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
-| `v1.0.5` (local pre-push) | 2026-11-20 | Title + Company search, Internet Web Search fallback, strict correlation, Copy URL & `Job Tracking` (`Resume Applied`) | Created `web-fallback.ts`, upgraded `linkedin.ts`/`jobstreet.ts`/`indeed.ts` + `job-search-service.ts`, added `CopyUrlButton.tsx`, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` + URL auto-detect `+ Add Job Application` |
+| `d37a867` (`v1.0.5`) | 2026-11-20 | `feat(release): v1.0.5 title+company job search, internet fallback, copy url, and job tracking suite` | Created `web-fallback.ts`, upgraded `linkedin.ts`/`jobstreet.ts`/`indeed.ts` + `job-search-service.ts`, added `CopyUrlButton.tsx`, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` + URL auto-detect `+ Add Job Application` |
 
 ---
 
