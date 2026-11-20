@@ -242,7 +242,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Verified Production Deployment**:
   - **Current Release Version**: `v1.0.6` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20 → `v1.0.6` Nov 21, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: Updating for `v1.0.6` pre-push verification on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main` (prior live production: `d37a867`).
+  - **Latest Verified Commit**: `d20fc8f` (`feat(release): v1.0.6 dynamic editable resume links, 7 ranked ATS fonts, zero-lag editing, and always-on-top OAuth popout`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
   - **Key File Map (`v1.0.6` Additions & Core Updates)**:
     - `src/types/resume.ts`, `src/lib/default-profile.ts` — `ResumeHeaderLink`, `headerLinks`, `hideHeaderLinks`, `customLinks`, `certificationUrls`, `project.url`, and expanded 7-font `ResumeFontFamily`.
     - `src/features/resume/lib/resume-links.ts`, `src/features/resume/components/ResumeLinksEditor.tsx` — URL normalization/validation, smart paste, `↑`/`↓` reordering, section hide/restore, and `ValidatedUrlInput`.
@@ -254,8 +254,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 22+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
-    - `https://pa-hire-po.vercel.app/` (`200 OK`)
-    - `https://pa-hire-po.vercel.app/login` (`200 OK`)
+    - `https://pa-hire-po.vercel.app/` (`307` redirect to `/login` when unauthenticated)
+    - `https://pa-hire-po.vercel.app/login` (`200 OK` — verified serving `d20fc8f` `v1.0.6` client bundles)
     - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
     - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)

@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: resume-ai
 milestone: v1.0.6
-commit_ref: "pending-v1.0.6"
+commit_ref: "d20fc8f"
 files:
   - src/types/resume.ts
   - src/features/resume/lib/resume-links.ts

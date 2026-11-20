@@ -5,7 +5,7 @@ priority: p0-now
 area: product
 milestone: v1.0.6
 version: "1.0.6"
-commit_ref: "pending-v1.0.6"
+commit_ref: "d20fc8f"
 files:
   - CHANGELOG.md
   - package.json
@@ -24,7 +24,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.6`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.6` — November 21, 2026 (`pending-v1.0.6`)
+## `v1.0.6` — November 21, 2026 (`d20fc8f`)
 - **Dynamic Editable, Validated, Reorderable & Deletable Resume URLs:** Added `ResumeHeaderLink[]`, `hideHeaderLinks`, per-project URLs (`project.url`), and `certificationUrls` across **Resume Studio** (`A4ResumePreview.tsx`, `ResumeLinksEditor.tsx`, `resume-links.ts`), **My Profile** (`LinkedInProfileView.tsx`), **Settings** (`SettingsSidepanel.tsx`), AI tailoring (`/api/resume/tailor`), and PDF `/URI` annotation + `.docx` HTML hyperlink extraction (`/api/resume/parse`, `resume-parser.ts`), supporting independent Display Text + Target URL editing, blur-deferred safe URL validation, `↑`/`↓` link reordering, individual deletion, and **Remove / Restore Links Section**. See [[Feature - Resume Studio AI & ATS Printing]].
 - **7 Ranked ATS Fonts (`Calibri ★ Best for ATS`) & Borderless PDF Export:** Expanded `ATS_FONT_PRESETS` to 7 ATS-safe fonts led by **`Calibri ★ Best for ATS (#1 Default)`** alongside `Helvetica (#2)`, `Arial (#3)`, `Garamond (#4)`, `Georgia (#5)`, `Cambria (#6)`, and `Times New Roman (#7)`, and fixed the `#f3f2ef` canvas bleed frame around `#a4-resume-sheet` under `@media print` (`globals.css`, `PleaseHireMeDashboard.tsx`, `ApplyFlowModal.tsx`).
 - **Zero-Lag INP Editing & Always-on-Top OAuth Popout (`520×680`):** Eliminated Resume Studio typing lag via isolated `draftResume` (`0ms` local feedback, `320ms` debounced parent flush), `.resume-sheet-containment`, debounced local storage (`saveLocalStateDebounced`), and yielding `rescoreJobsAsync`, and upgraded Google/GitHub auth to a centered `520×680` popout window (`oauth-popup.ts`, `/auth/callback?popup=1`, `AuthScreen.tsx`, `SettingsSidepanel.tsx`, Electron `pa_hire_po_oauth`) that stays focused above `/login`. See [[Feature - Auth, Admin Control Center & Legal Compliance]].

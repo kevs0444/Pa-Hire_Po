@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: auth-admin
 milestone: v1.0.6
-commit_ref: "pending-v1.0.6"
+commit_ref: "d20fc8f"
 files:
   - src/app/login/page.tsx
   - src/features/auth/components/AuthScreen.tsx

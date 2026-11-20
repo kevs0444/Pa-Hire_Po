@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: product
 milestone: v1.0.6
-commit_ref: "pending-v1.0.6"
+commit_ref: "d20fc8f"
 files:
   - AGENTS.md
   - context.md
