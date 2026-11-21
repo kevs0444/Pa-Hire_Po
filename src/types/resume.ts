@@ -83,6 +83,7 @@ export interface StructuredResume {
   pageSize?: ResumePageSize;
   density?: ResumeDensity;
   fontFamily?: ResumeFontFamily;
+  fitOnePage?: boolean;
 }
 
 export type TailoredResumeSourceType =

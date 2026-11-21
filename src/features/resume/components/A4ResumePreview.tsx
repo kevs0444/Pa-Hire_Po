@@ -57,6 +57,12 @@ import {
   shiftCertificationUrlsOnDelete,
   swapCertificationUrls,
 } from '@/features/resume/lib/resume-links';
+import {
+  buildResumePrintStyles,
+  computePrintLayoutSummary,
+  resolveFitOnePage,
+  RESUME_PRINT_REQUEST_EVENT,
+} from '@/features/resume/lib/resume-print';
 import type { ParsedResumePayload } from '@/features/resume/lib/resume-parser';
 
 export interface A4ResumePreviewProps {
@@ -298,6 +304,11 @@ interface ResumeSheetDocumentProps {
   showHighlights: boolean;
   isTailored: boolean;
   editMode: boolean;
+  pageBreakGuide?: {
+    topPx: number;
+    label: string;
+    isAutoFit: boolean;
+  } | null;
   className?: string;
   style?: CSSProperties;
   onUpdateResume?: (next: StructuredResume) => void;
@@ -313,6 +324,7 @@ export function ResumeSheetDocument({
   showHighlights,
   isTailored,
   editMode,
+  pageBreakGuide = null,
   className,
   style,
   onUpdateResume,
@@ -399,9 +411,36 @@ export function ResumeSheetDocument({
   return (
     <div
       id={sheetId}
-      className={className}
+      className={cn('relative', className)}
       style={{ ...style, colorScheme: 'only light' }}
     >
+      {pageBreakGuide && !canEdit && (
+        <div
+          aria-hidden="true"
+          className="no-print pointer-events-none absolute inset-x-0 z-10 flex items-center"
+          style={{ top: `${pageBreakGuide.topPx}px` }}
+        >
+          <div
+            className={cn(
+              'w-full border-t border-dashed',
+              pageBreakGuide.isAutoFit
+                ? 'border-[#0a66c2]/55'
+                : 'border-amber-600/75'
+            )}
+          />
+          <span
+            className={cn(
+              'absolute left-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border px-2 py-0.5 font-mono text-[9.5px] font-semibold shadow-xs',
+              pageBreakGuide.isAutoFit
+                ? 'border-blue-200 bg-blue-50/95 text-[#0a66c2]'
+                : 'border-amber-300 bg-amber-50/95 text-amber-900'
+            )}
+          >
+            {pageBreakGuide.label}
+          </span>
+        </div>
+      )}
+      <div data-resume-content="true">
       {/* HEADER / CONTACT INFO */}
       <header className="text-center">
         {canEdit && onUpdateResume ? (
@@ -1783,6 +1822,7 @@ export function ResumeSheetDocument({
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }
@@ -2008,7 +2048,11 @@ export function A4ResumePreview({
   const baseMeasureRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(800);
   const [tailoredHeight, setTailoredHeight] = useState<number>(0);
+  const [tailoredContentHeight, setTailoredContentHeight] = useState<number>(0);
   const [baseHeight, setBaseHeight] = useState<number>(0);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+
+  const effectiveEditMode = editMode && !isPreparingPrint;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -2038,6 +2082,18 @@ export function A4ResumePreview({
       });
       obs.observe(tailoredMeasureRef.current);
       observers.push(obs);
+
+      const contentEl = tailoredMeasureRef.current.querySelector<HTMLElement>(
+        '[data-resume-content="true"]'
+      );
+      if (contentEl) {
+        setTailoredContentHeight(contentEl.offsetHeight);
+        const contentObs = new ResizeObserver(() => {
+          setTailoredContentHeight(contentEl.offsetHeight);
+        });
+        contentObs.observe(contentEl);
+        observers.push(contentObs);
+      }
     }
 
     if (baseMeasureRef.current) {
@@ -2054,7 +2110,7 @@ export function A4ResumePreview({
     return () => {
       observers.forEach((o) => o.disconnect());
     };
-  }, [editMode, showSummary, compareMode]);
+  }, [effectiveEditMode, showSummary, compareMode]);
 
   // Compute scale based on zoom preset or auto-fit container (including 2-column compare)
   const computedScale = useMemo(() => {
@@ -2152,10 +2208,80 @@ export function A4ResumePreview({
     };
   }, [draftResume, baseResume, isTailored]);
 
+  const fitOnePage = resolveFitOnePage(draftResume);
+  const printSummary = useMemo(
+    () =>
+      computePrintLayoutSummary({
+        pageSize,
+        density,
+        contentHeightPx: tailoredContentHeight,
+        fitOnePage,
+      }),
+    [pageSize, density, tailoredContentHeight, fitOnePage]
+  );
+
+  const pageBreakGuide = useMemo(() => {
+    if (effectiveEditMode || pageSize === 'auto' || printSummary.overflowPx <= 0) {
+      return null;
+    }
+    return {
+      topPx: printSummary.pageBoundaryPx,
+      isAutoFit: printSummary.isScaledToFit,
+      label: printSummary.isScaledToFit
+        ? `Page 1 boundary • Auto-Fit PDF active (${printSummary.fitPercent}%)`
+        : `Page 1 boundary • Page 2 starts below (+${printSummary.overflowPx}px)`,
+    };
+  }, [effectiveEditMode, pageSize, printSummary]);
+
+  const flushDraftResumeRef = useRef(flushDraftResume);
+  const editModeRef = useRef(editMode);
+  useEffect(() => {
+    flushDraftResumeRef.current = flushDraftResume;
+    editModeRef.current = editMode;
+  });
+
   const handlePrint = () => {
     flushDraftResume();
+    if (editMode) {
+      setIsPreparingPrint(true);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.print();
+        });
+      });
+      return;
+    }
     window.print();
   };
+
+  const handlePrintRef = useRef(handlePrint);
+  useEffect(() => {
+    handlePrintRef.current = handlePrint;
+  });
+
+  useEffect(() => {
+    const onBeforePrint = () => {
+      flushDraftResumeRef.current();
+      if (editModeRef.current) {
+        setIsPreparingPrint(true);
+      }
+    };
+    const onAfterPrint = () => {
+      setIsPreparingPrint(false);
+    };
+    const onPrintRequest = () => {
+      handlePrintRef.current();
+    };
+
+    window.addEventListener('beforeprint', onBeforePrint);
+    window.addEventListener('afterprint', onAfterPrint);
+    window.addEventListener(RESUME_PRINT_REQUEST_EVENT, onPrintRequest);
+    return () => {
+      window.removeEventListener('beforeprint', onBeforePrint);
+      window.removeEventListener('afterprint', onAfterPrint);
+      window.removeEventListener(RESUME_PRINT_REQUEST_EVENT, onPrintRequest);
+    };
+  }, []);
 
   const sheetClassName = cn(
     'w-full bg-white text-black shadow-xl ring-1 ring-black/10 transition-all print:shadow-none! print:ring-0! print:border-0! print:m-0! print:p-0! print:max-w-none! print:min-h-0! print:bg-white!',
@@ -2168,9 +2294,20 @@ export function A4ResumePreview({
     fontVariantLigatures: 'none',
   };
 
+  const dynamicPrintCss = useMemo(
+    () =>
+      buildResumePrintStyles({
+        pageSize,
+        density,
+        fontFamily: fontPreset.fontFamily,
+        fitScale: printSummary.fitScale,
+      }),
+    [pageSize, density, fontPreset.fontFamily, printSummary.fitScale]
+  );
+
   return (
     <div className="flex flex-col gap-3 print:block! print:gap-0! print:m-0! print:p-0! print:bg-white!">
-      <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } html, body { background: #ffffff !important; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; transform: none !important; margin: 0 !important; background: #ffffff !important; box-shadow: none !important; border: none !important; padding: 0 !important; } }`}</style>
+      <style>{dynamicPrintCss}</style>
 
       {/* Modern Accessible Toolbar (Word & Docs Formatting Style) */}
       <ResumeFormatToolbar
@@ -2178,13 +2315,15 @@ export function A4ResumePreview({
         activeResume={draftResume}
         activeTailorJob={activeTailorJob}
         theme={theme}
-        editMode={editMode}
+        editMode={effectiveEditMode}
         versionCount={resumeRecords.length}
         zoomLevel={zoomLevel}
         tailoring={tailoring}
         geminiApiKey={geminiApiKey}
         personalApiConfigured={personalApiConfigured}
         statusMessage={toolbarStatusMsg}
+        fitOnePage={fitOnePage}
+        printSummary={printSummary}
         onToggleEditMode={() => {
           setEditMode((prev) => {
             const next = !prev;
@@ -2198,6 +2337,18 @@ export function A4ResumePreview({
             );
             return next;
           });
+        }}
+        onToggleFitOnePage={() => {
+          const nextFit = !fitOnePage;
+          flushDraftResume({
+            ...draftResume,
+            fitOnePage: nextFit,
+          });
+          setToolbarStatusMsg(
+            nextFit
+              ? 'Fit to 1 Page enabled — overflowing content scales cleanly onto 1 PDF page.'
+              : 'Fit to 1 Page turned off — PDF export will flow across multiple pages.'
+          );
         }}
         onSetZoomLevel={setZoomLevel}
         onUpdateResume={(next) => {
@@ -2656,7 +2807,8 @@ export function A4ResumePreview({
                   showSummary={showSummary}
                   showHighlights={highlightChanges}
                   isTailored={isTailored}
-                  editMode={editMode}
+                  editMode={effectiveEditMode}
+                  pageBreakGuide={pageBreakGuide}
                   className={sheetClassName}
                   style={sheetStyle}
                   onUpdateResume={handleLocalResumeChange}

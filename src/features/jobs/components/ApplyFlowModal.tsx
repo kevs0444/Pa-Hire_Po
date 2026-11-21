@@ -20,6 +20,7 @@ import { A4ResumePreview } from '@/features/resume/components/A4ResumePreview';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
+import { RESUME_PRINT_REQUEST_EVENT } from '@/features/resume/lib/resume-print';
 
 interface ApplyFlowModalProps {
   job: JobListing | null;
@@ -346,7 +347,11 @@ function ApplyFlowContent({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent(RESUME_PRINT_REQUEST_EVENT)
+                      )
+                    }
                     className={cn(
                       'inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium',
                       secondaryBtn

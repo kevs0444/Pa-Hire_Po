@@ -2598,6 +2598,7 @@ export function PleaseHireMeDashboard({
                         pageSize: nextResume.pageSize || 'a4',
                         density: nextResume.density || 'standard',
                         fontFamily: nextResume.fontFamily || 'calibri',
+                        fitOnePage: nextResume.fitOnePage,
                       },
                     },
                     false

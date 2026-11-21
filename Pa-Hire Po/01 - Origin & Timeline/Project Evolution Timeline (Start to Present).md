@@ -122,6 +122,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `db3b4ea` (`v1.0.7`) | 2026-11-22 | `feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder` | Added `ResumeCertificationColumns` (`1 | 2 | 3`) & `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md` |
+| `pending` (`v1.0.7`) | 2026-11-22 | `fix(resume): match A4 preview 1:1 on PDF export with Fit-to-1-Page scaling and modal parity` | Created `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, `computePrintLayoutSummary`, `buildResumePrintStyles`), removed `9.5pt` print font inflation and added `.resume-sheet-containment` print reset in `globals.css`, added `[data-resume-content="true"]` height observer + Page 1 boundary line + Edit-Mode print guard in `A4ResumePreview.tsx`, added `Fit 1 Page` toggle + live page status pill in `ResumeFormatToolbar.tsx`, and unified `ApplyFlowModal.tsx` & `SubmittedResumeModal.tsx` |
 
 ---
 

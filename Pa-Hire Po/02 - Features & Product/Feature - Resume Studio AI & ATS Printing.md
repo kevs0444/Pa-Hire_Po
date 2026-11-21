@@ -8,6 +8,7 @@ commit_ref: "db3b4ea"
 files:
   - src/types/resume.ts
   - src/features/resume/lib/resume-links.ts
+  - src/features/resume/lib/resume-print.ts
   - src/features/resume/components/ResumeLinksEditor.tsx
   - src/features/resume/components/A4ResumePreview.tsx
   - src/features/resume/components/ResumeFormatToolbar.tsx
@@ -16,6 +17,7 @@ files:
   - src/features/resume/lib/resume-tailor.ts
   - src/features/resume/lib/resume-parser.ts
   - src/features/jobs/components/ApplyFlowModal.tsx
+  - src/features/applications/components/SubmittedResumeModal.tsx
   - src/app/api/resume/tailor/route.ts
   - src/app/api/resume/parse/route.ts
   - src/app/globals.css
@@ -42,10 +44,11 @@ Enables job seekers to tailor their factual resume to any target posting using G
   - Strict prompt grounding prevents inventing companies, dates, degrees, or unused tools.
 - **Side-by-Side Comparison & AI Change Highlighting:**
   - Toggle **Side-by-Side Compare** (`Base Profile CV` vs `AI Tailored CV`) and **Highlight AI Changes** (`✓ AI Tailored` / `↑ Reordered` tags + color indicators, automatically stripped when printing PDF).
-- **Dynamic Paper Sizing, Density & Borderless PDF Export:**
-  - Paper sizes: **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic Auto-Fit**, synchronized with `@media print { @page { size: ...; margin: 8mm; } }`.
+- **Dynamic Paper Sizing, 1:1 Density Print Physics, `Fit 1 Page` & Borderless PDF Export (`resume-print.ts`, `globals.css`):**
+  - Paper sizes: **A4 (`210 × 297 mm`, default)**, **US Letter (`8.5 × 11 in`)**, **US Legal (`8.5 × 14 in`)**, and **Dynamic Auto-Fit**, synchronized 1:1 with `@media print { @page { size: ...; margin: 8mm; } }` and density-matched print font sizing (`Compact 10.2px`, `Standard 11px`, `Comfortable 11.5px`) with zero `9.5pt` inflation.
+  - **`Fit 1 Page` Toggle (`fitOnePage?: boolean`, default ON for A4/Letter/Legal):** Measures true inner `[data-resume-content="true"]` height via `ResizeObserver`, scales overflowing content smoothly (`zoom` clamped `>= 0.72` + `@supports not (zoom: 0.9)` fallback) to fit on 1 clean PDF page, displays a live `✓ 1 Page` / `✓ 1 Page (Fit XX%)` / `⚠ N Pages` badge and dashed **Page 1 boundary** guide line on screen, auto-renders a clean read-only sheet when printing from Edit Mode, and shares the same print engine across **Resume Studio**, **ApplyFlowModal**, and **SubmittedResumeModal**.
   - Density presets: `Compact`, `Standard`, `Comfortable`.
-  - **Borderless White `@media print` Reset (`globals.css`, `PleaseHireMeDashboard.tsx`, `A4ResumePreview.tsx`, `ApplyFlowModal.tsx`):** Forces transparent/white backgrounds (`background: #ffffff`) with zero margin/shadow/ring around `html, body` and `#a4-resume-sheet` under `@media print`, preventing any `#f3f2ef` canvas gray frame from appearing when saving PDFs.
+  - **Borderless White `@media print` Reset (`globals.css`, `PleaseHireMeDashboard.tsx`, `A4ResumePreview.tsx`, `ApplyFlowModal.tsx`):** Forces transparent/white backgrounds (`background: #ffffff`) with zero margin/shadow/ring and `height: auto !important` resets on `html, body`, `.resume-sheet-containment`, and `#a4-resume-sheet` under `@media print`, preventing any `#f3f2ef` canvas gray frame or trailing blank second page when saving PDFs.
 - **Top 7 AI-ATS & Researcher Fonts (`★ Best for ATS`):**
   - **Calibri ★ Best for ATS (#1 Default):** Highest OCR & token accuracy in Workday, Greenhouse, Lever & Taleo.
   - **Helvetica (#2 Tech & Engineering ATS):** Crisp geometric parsing in PDFBox, Textkernel & engineering hiring portals.

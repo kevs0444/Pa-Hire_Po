@@ -22,8 +22,14 @@ export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
     date: 'November 22, 2026',
     isoDate: '2026-11-22T00:00:00.000Z',
     headline:
-      'Dynamic Certifications row and column controls (1–3 ATS-safe columns) in Resume Studio AI plus organized Agent Rules in the Second Brain',
+      '1:1 A4 preview-to-PDF export with Fit 1 Page auto-scaling, dynamic Certifications row/column controls, and organized Agent Rules',
     items: [
+      {
+        tag: 'Fixed',
+        title: '1-Page A4 Preview Splitting Into 2-Page PDF Export',
+        description:
+          'Removed print font-size inflation so Compact, Standard, and Comfortable densities match 1:1 on PDF export, added Fit 1 Page (ON by default for A4, Letter, and Legal) with a live page status badge and Page 1 boundary line, and safeguarded printing from Edit Mode, Apply Flow, and Show Resume.',
+      },
       {
         tag: 'New',
         title: 'Add Rows or Columns in Resume Studio Certifications',

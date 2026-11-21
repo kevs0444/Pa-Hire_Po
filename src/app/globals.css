@@ -413,14 +413,28 @@ progress.loading-spinner:indeterminate {
     box-shadow: none !important;
     outline: none !important;
     min-height: 0 !important;
+    height: auto !important;
     max-width: none !important;
     width: 100% !important;
+    overflow: visible !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
   .no-print {
     display: none !important;
+  }
+
+  .resume-sheet-containment {
+    content-visibility: visible !important;
+    contain: none !important;
+    contain-intrinsic-size: none !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
   }
 
   dialog[open] {
@@ -468,7 +482,10 @@ progress.loading-spinner:indeterminate {
     --tw-ring-shadow: 0 0 #0000 !important;
     border: none !important;
     outline: none !important;
-    font-size: 9.5pt !important;
-    line-height: 1.32 !important;
+  }
+
+  #a4-resume-sheet h2 {
+    break-after: avoid;
+    page-break-after: avoid;
   }
 }

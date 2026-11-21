@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import {
+  AlertTriangle,
   AlignJustify,
   AlignLeft,
   Bold,
@@ -12,6 +13,7 @@ import {
   History,
   Italic,
   KeyRound,
+  Minimize2,
   Printer,
   RotateCcw,
   Save,
@@ -33,6 +35,7 @@ import {
   DENSITY_PRESETS,
   PAGE_SIZE_PRESETS,
 } from './A4ResumePreview';
+import type { PrintLayoutSummary } from '@/features/resume/lib/resume-print';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +53,10 @@ export interface ResumeFormatToolbarProps {
   geminiApiKey: string;
   personalApiConfigured?: boolean;
   statusMessage?: string | null;
+  fitOnePage?: boolean;
+  printSummary?: PrintLayoutSummary;
   onToggleEditMode: () => void;
+  onToggleFitOnePage?: () => void;
   onSetZoomLevel: (zoom: ResumeZoomLevel) => void;
   onUpdateResume: (next: StructuredResume) => void;
   onOpenVersionsDrawer: () => void;
@@ -76,7 +82,10 @@ export function ResumeFormatToolbar({
   geminiApiKey,
   personalApiConfigured = false,
   statusMessage = null,
+  fitOnePage = true,
+  printSummary,
   onToggleEditMode,
+  onToggleFitOnePage,
   onSetZoomLevel,
   onUpdateResume,
   onOpenVersionsDrawer,
@@ -584,6 +593,64 @@ export function ResumeFormatToolbar({
                   </option>
                 ))}
               </select>
+
+              {onToggleFitOnePage && (
+                <button
+                  type="button"
+                  disabled={pageSize === 'auto'}
+                  aria-pressed={Boolean(fitOnePage && pageSize !== 'auto')}
+                  onClick={onToggleFitOnePage}
+                  title={
+                    pageSize === 'auto'
+                      ? 'Dynamic Auto Fit uses fluid height; switch to A4, Letter, or Legal to enable 1-Page Fit'
+                      : fitOnePage
+                        ? 'Fit to 1 Page is ON — scales overflowing content cleanly onto 1 PDF page'
+                        : 'Fit to 1 Page is OFF — allows multi-page PDF export'
+                  }
+                  className={cn(
+                    'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45',
+                    fitOnePage && pageSize !== 'auto'
+                      ? cn('border-transparent', tokens.primaryBtn)
+                      : tokens.secondaryBtn
+                  )}
+                >
+                  <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Fit 1 Page</span>
+                </button>
+              )}
+
+              {printSummary && pageSize !== 'auto' && (
+                <span
+                  title={
+                    printSummary.outputPages > 1
+                      ? `PDF will print ${printSummary.outputPages} pages (+${printSummary.overflowPx}px over Page 1). Enable Fit 1 Page or switch Density to Compact.`
+                      : printSummary.isScaledToFit
+                        ? `Auto-scaled to ${printSummary.fitPercent}% on PDF export so all content fits cleanly on 1 page.`
+                        : 'Content fits naturally on 1 physical page (1:1 screen-to-PDF match).'
+                  }
+                  className={cn(
+                    'inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 font-mono text-[11px] font-semibold tabular-nums',
+                    printSummary.outputPages > 1
+                      ? isDark
+                        ? 'border-amber-700/70 bg-amber-950/60 text-amber-200'
+                        : 'border-amber-300 bg-amber-50 text-amber-900'
+                      : printSummary.isScaledToFit
+                        ? tokens.badgeAccent
+                        : tokens.badgeSuccess
+                  )}
+                >
+                  {printSummary.outputPages > 1 ? (
+                    <>
+                      <AlertTriangle className="h-3 w-3 shrink-0" aria-hidden="true" />
+                      <span>{printSummary.outputPages} Pages</span>
+                    </>
+                  ) : printSummary.isScaledToFit ? (
+                    <span>✓ 1 Page (Fit {printSummary.fitPercent}%)</span>
+                  ) : (
+                    <span>✓ 1 Page</span>
+                  )}
+                </span>
+              )}
             </div>
           </div>
 

@@ -4,6 +4,11 @@ See what is new in your job search and resume workspace, from initial launch (`v
 
 ## v1.0.7 — November 22, 2026
 
+### 1:1 A4 Preview-to-PDF Export & `Fit 1 Page` Auto-Scaling (`Resume Studio` & Modals)
+- **Fixed 1-Page Preview Splitting Into 2-Page PDF:** Removed the inflated `9.5pt` (`12.67px`) `@media print` font override and inline wrapper height lock in `globals.css`, replacing them with density-matched print typography (`resume-print.ts`) so **Compact (`10.2px`)**, **Standard (`11px`)**, and **Comfortable (`11.5px`)** render **1:1** on PDF export.
+- **`Fit 1 Page` Toggle (ON by Default for A4 / US Letter / US Legal) & Live Page Badge:** Added a **`Fit 1 Page`** button and live `✓ 1 Page` / `✓ 1 Page (Fit XX%)` / `⚠ N Pages` indicator to the Resume Studio toolbar (`ResumeFormatToolbar.tsx`), paired with a dashed Page 1 boundary guide line on screen whenever content exceeds 1 physical page.
+- **Edit-Mode Print Safeguard & Modal Parity:** Clicking **Print / Save PDF** (or pressing `Ctrl+P`) while **Edit Resume** is active automatically renders the clean read-only sheet for PDF export and restores Edit Mode afterward; unified the exact same 1:1 & 1-page print engine across **ApplyFlowModal** and **Job Tracking → Show Resume** (`SubmittedResumeModal.tsx`).
+
 ### Dynamic Certifications Rows & Columns in Resume Studio (`AI`)
 - **Add Rows or Columns (`+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`):** Control whether your **Certifications** section displays in **1, 2, or 3 ATS-safe columns** (`1–3 Cols`) directly inside Resume Studio edit mode, with a live `Cols × Rows` layout indicator (`font-mono tabular-nums`) that renders identically on screen and in PDF export.
 - **Full Row Insertion & Non-Destructive Column Switching:** Click **`+ Add Row`** to append a complete row matching your active column count, **`+ Add Column`** / **`- Col`** to expand or narrow columns without deleting existing entries, or **`Add Certification`** to insert a single certification item.

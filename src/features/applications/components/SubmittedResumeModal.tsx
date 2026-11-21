@@ -1,7 +1,7 @@
 'use client';
 
-import { useId } from 'react';
-import { FileText, Printer, X } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, FileText, Minimize2, Printer, X } from 'lucide-react';
 import type { MonochromeTheme, StructuredResume } from '@/types/job';
 import {
   ATS_FONT_PRESETS,
@@ -9,6 +9,11 @@ import {
   PAGE_SIZE_PRESETS,
   ResumeSheetDocument,
 } from '@/features/resume/components/A4ResumePreview';
+import {
+  buildResumePrintStyles,
+  computePrintLayoutSummary,
+  resolveFitOnePage,
+} from '@/features/resume/lib/resume-print';
 import { useNativeDialog } from '@/hooks/useNativeDialog';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
@@ -41,6 +46,12 @@ export function SubmittedResumeModal({
   const dialogRef = useNativeDialog(isOpen, onClose);
   const titleId = useId();
   const tokens = getThemeTokens(theme);
+  const sheetBodyRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+  const [fitOverride, setFitOverride] = useState<{
+    resumeRef: StructuredResume | null;
+    value: boolean;
+  } | null>(null);
 
   const fontKey = resume?.fontFamily || 'calibri';
   const sizeKey = resume?.pageSize || 'a4';
@@ -48,6 +59,50 @@ export function SubmittedResumeModal({
   const fontPreset = ATS_FONT_PRESETS[fontKey] || ATS_FONT_PRESETS.calibri;
   const sizePreset = PAGE_SIZE_PRESETS[sizeKey] || PAGE_SIZE_PRESETS.a4;
   const densityPreset = DENSITY_PRESETS[densityKey] || DENSITY_PRESETS.standard;
+
+  const defaultFitOnePage = resume ? resolveFitOnePage(resume) : true;
+  const fitOnePage =
+    fitOverride && fitOverride.resumeRef === resume
+      ? fitOverride.value
+      : defaultFitOnePage;
+
+  useEffect(() => {
+    if (!isOpen || !resume || typeof ResizeObserver === 'undefined') return;
+    const container = sheetBodyRef.current;
+    if (!container) return;
+    const contentEl = container.querySelector<HTMLElement>(
+      '[data-resume-content="true"]'
+    );
+    if (!contentEl) return;
+
+    const obs = new ResizeObserver(() => {
+      setContentHeight(contentEl.offsetHeight);
+    });
+    obs.observe(contentEl);
+    return () => obs.disconnect();
+  }, [isOpen, resume, sizeKey, densityKey, fontKey]);
+
+  const printSummary = useMemo(
+    () =>
+      computePrintLayoutSummary({
+        pageSize: sizeKey,
+        density: densityKey,
+        contentHeightPx: contentHeight,
+        fitOnePage,
+      }),
+    [sizeKey, densityKey, contentHeight, fitOnePage]
+  );
+
+  const dynamicPrintCss = useMemo(
+    () =>
+      buildResumePrintStyles({
+        pageSize: sizeKey,
+        density: densityKey,
+        fontFamily: fontPreset.fontFamily,
+        fitScale: printSummary.fitScale,
+      }),
+    [sizeKey, densityKey, fontPreset.fontFamily, printSummary.fitScale]
+  );
 
   return (
     <dialog
@@ -61,7 +116,7 @@ export function SubmittedResumeModal({
     >
       {resume && (
         <div className="flex max-h-[92vh] flex-col overflow-hidden print:max-h-none print:overflow-visible">
-          <style>{`@media print { @page { size: ${sizePreset.printPageSize}; margin: 8mm; } #a4-resume-sheet { font-family: ${fontPreset.fontFamily} !important; font-variant-ligatures: none !important; } }`}</style>
+          <style>{dynamicPrintCss}</style>
 
           {/* Modal Header */}
           <div
@@ -83,6 +138,31 @@ export function SubmittedResumeModal({
                 >
                   {methodLabel}
                 </span>
+                {sizeKey !== 'auto' && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums',
+                      printSummary.outputPages > 1
+                        ? tokens.isDark
+                          ? 'border-amber-700/70 bg-amber-950/60 text-amber-200'
+                          : 'border-amber-300 bg-amber-50 text-amber-900'
+                        : printSummary.isScaledToFit
+                          ? tokens.badgeAccent
+                          : tokens.badgeSuccess
+                    )}
+                  >
+                    {printSummary.outputPages > 1 ? (
+                      <>
+                        <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                        <span>{printSummary.outputPages} Pages</span>
+                      </>
+                    ) : printSummary.isScaledToFit ? (
+                      <span>✓ 1 Page (Fit {printSummary.fitPercent}%)</span>
+                    ) : (
+                      <span>✓ 1 Page</span>
+                    )}
+                  </span>
+                )}
               </div>
               <p className={cn('text-xs', tokens.mutedText)}>
                 Resume submitted for this application
@@ -94,6 +174,28 @@ export function SubmittedResumeModal({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {sizeKey !== 'auto' && (
+                <button
+                  type="button"
+                  aria-pressed={fitOnePage}
+                  onClick={() =>
+                    setFitOverride({
+                      resumeRef: resume,
+                      value: !fitOnePage,
+                    })
+                  }
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    fitOnePage
+                      ? cn('border-transparent', tokens.primaryBtn)
+                      : tokens.secondaryBtn
+                  )}
+                >
+                  <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  Fit 1 Page
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -137,6 +239,7 @@ export function SubmittedResumeModal({
 
           {/* Resume Sheet Body */}
           <div
+            ref={sheetBodyRef}
             className={cn(
               'flex-1 overflow-y-auto p-4 sm:p-6 print:overflow-visible print:p-0',
               tokens.subSurface
