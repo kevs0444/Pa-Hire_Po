@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.6
-commit_ref: "d20fc8f"
+milestone: v1.0.7
+commit_ref: "pending"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-21
+updated: 2026-11-22
 tags:
   - pahirepo
   - timeline
@@ -114,6 +114,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `d20fc8f` (`v1.0.6`) | 2026-11-21 | `feat(release): v1.0.6 dynamic editable resume links, 7 ranked ATS fonts, zero-lag editing, and always-on-top OAuth popout` | Created `resume-links.ts`, `ResumeLinksEditor.tsx`, and `oauth-popup.ts`; added reorderable/deletable Display Text + Target URL links across Header, Projects, Certifications, Settings, Profile, AI tailoring, and PDF/DOCX link extraction; expanded to 7 ranked ATS fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed borderless white `@media print` sheets; eliminated typing lag with `draftResume` + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and shipped centered `520×680` always-on-top OAuth popout for web & Electron |
+
+---
+
+## Phase 11 — Dynamic Certifications Row & Column Grid + Obsidian `AGENTS.md` Folder (`v1.0.7`, Nov 22, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `pending` (`v1.0.7`) | 2026-11-22 | `feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder` | Added `ResumeCertificationColumns` (`1 | 2 | 3`) & `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md` |
 
 ---
 

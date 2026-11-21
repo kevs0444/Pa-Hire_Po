@@ -49,6 +49,8 @@ export interface ResumeEducationItem {
   honors: string;
 }
 
+export type ResumeCertificationColumns = 1 | 2 | 3;
+
 export interface StructuredResume {
   fullName: string;
   targetHeadline: string;
@@ -70,6 +72,7 @@ export interface StructuredResume {
   skillCategories: ResumeSkillCategory[];
   certifications: string[];
   certificationUrls?: Record<number, string>;
+  certificationColumns?: ResumeCertificationColumns;
   education: ResumeEducationItem[];
   tailoredForJobTitle?: string | null;
   tailoredForCompany?: string | null;

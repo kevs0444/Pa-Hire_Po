@@ -18,6 +18,27 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.7',
+    date: 'November 22, 2026',
+    isoDate: '2026-11-22T00:00:00.000Z',
+    headline:
+      'Dynamic Certifications row and column controls (1–3 ATS-safe columns) in Resume Studio AI plus organized Agent Rules in the Second Brain',
+    items: [
+      {
+        tag: 'New',
+        title: 'Add Rows or Columns in Resume Studio Certifications',
+        description:
+          'Switch Certifications between 1, 2, or 3 ATS-safe columns (+ Add Column / - Col), append a full row (+ Add Row), or add single entries (+ Add Certification) with a live Cols x Rows readout that prints identically to PDF.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Reorderable Certifications with synced credential URLs',
+        description:
+          'Move any certification earlier or later while keeping its optional credential URL intact, with responsive minmax(0, 1fr) track bounds that prevent horizontal overflow on A4 sheets.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.6',
     date: 'November 21, 2026',
     isoDate: '2026-11-21T00:00:00.000Z',

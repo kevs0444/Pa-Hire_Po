@@ -12,13 +12,17 @@ import {
   ChevronDown,
   ChevronUp,
   Columns2,
+  Columns3,
   Eye,
+  Minus,
   Plus,
+  Rows3,
   Trash2,
 } from 'lucide-react';
 import type {
   JobListing,
   MonochromeTheme,
+  ResumeCertificationColumns,
   ResumeDensity,
   ResumeFontFamily,
   ResumePageSize,
@@ -44,12 +48,14 @@ import {
 } from './ResumeUploadDialog';
 import {
   applyHeaderLinksToResume,
+  clampCertificationColumns,
   getEffectiveHeaderLinks,
   inferLinkKind,
   normalizeHttpUrl,
   resolveEmailHref,
   resolveResumeHeaderLink,
   shiftCertificationUrlsOnDelete,
+  swapCertificationUrls,
 } from '@/features/resume/lib/resume-links';
 import type { ParsedResumePayload } from '@/features/resume/lib/resume-parser';
 
@@ -230,6 +236,15 @@ export const DENSITY_PRESETS: Record<
     padClass: 'px-8 py-7',
   },
 };
+
+const CERTIFICATION_GRID_CLASS: Record<ResumeCertificationColumns, string> = {
+  1: 'grid-cols-1 gap-y-1',
+  2: 'grid-cols-2 gap-x-6 gap-y-1',
+  3: 'grid-cols-3 gap-x-4 gap-y-1',
+};
+
+const DEFAULT_NEW_CERTIFICATION =
+  'New Certification Name (Issuing Organization)';
 
 function renderFormattedLine(text: string, highlightKeywords = false) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g);
@@ -1349,113 +1364,271 @@ export function ResumeSheetDocument({
       )}
 
       {/* CERTIFICATIONS SECTION */}
-      {(resume.certifications.length > 0 || canEdit) && (
-        <section className="mt-3">
-          <div className="flex items-center justify-between border-b-[1.5px] border-black pb-0.5">
-            <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
-              Certifications
-            </h2>
-            {canEdit && onUpdateResume && (
-              <button
-                type="button"
-                onClick={() => {
-                  onUpdateResume({
-                    ...resume,
-                    certifications: [...resume.certifications, 'New Certification Name (Issuing Organization)'],
-                  });
-                }}
-                className={sectionAddBtnClass}
-              >
-                <Plus className="h-3 w-3" />
-                Add Certification
-              </button>
-            )}
-          </div>
+      {(resume.certifications.length > 0 || canEdit) && (() => {
+        const certColumns = clampCertificationColumns(resume.certificationColumns);
+        const certRowCount =
+          resume.certifications.length > 0
+            ? Math.ceil(resume.certifications.length / certColumns)
+            : 0;
+        const canAddColumn = certColumns < 3;
+        const canRemoveColumn = certColumns > 1;
 
-          <ul className="mt-1.5 grid list-disc grid-cols-1 gap-x-6 gap-y-1 pl-4 text-neutral-900 sm:grid-cols-2">
-            {resume.certifications.map((cert, idx) => {
-              const certUrl = resume.certificationUrls?.[idx] || '';
-              const certHref = normalizeHttpUrl(certUrl, 'portfolio');
-              return (
-                <li key={idx} className={textAlignClass}>
-                  {canEdit && onUpdateResume ? (
-                    <div className="space-y-1 text-[10px]">
-                      <div className="flex items-center gap-1">
-                        <input
-                          type="text"
-                          value={cert}
-                          onFocus={(e) =>
-                            registerFocus(e.currentTarget, (latest, val) => {
-                              const next = [...latest.certifications];
-                              next[idx] = val;
-                              return { ...latest, certifications: next };
-                            })
-                          }
-                          onChange={(e) => {
-                            const next = [...resume.certifications];
-                            next[idx] = e.target.value;
-                            onUpdateResume({ ...resume, certifications: next });
-                          }}
-                          className={cn(sheetInputClass, 'flex-1')}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = resume.certifications.filter(
-                              (_, cIdx) => cIdx !== idx
-                            );
-                            const nextUrls = shiftCertificationUrlsOnDelete(
-                              resume.certificationUrls,
-                              idx
-                            );
+        return (
+          <section className="mt-3">
+            <div className="flex flex-wrap items-center justify-between gap-1.5 border-b-[1.5px] border-black pb-0.5">
+              <h2 className="text-[11px] font-bold tracking-wider text-black uppercase">
+                Certifications
+              </h2>
+              {canEdit && onUpdateResume && (
+                <div className="no-print flex flex-wrap items-center justify-end gap-1">
+                  <span
+                    aria-live="polite"
+                    className="rounded border border-neutral-200 bg-neutral-100 px-1.5 py-0.5 font-mono text-[9px] tabular-nums text-neutral-600"
+                  >
+                    {certColumns} {certColumns === 1 ? 'Col' : 'Cols'} × {certRowCount}{' '}
+                    {certRowCount === 1 ? 'Row' : 'Rows'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newEntries = Array.from(
+                        { length: certColumns },
+                        () => DEFAULT_NEW_CERTIFICATION
+                      );
+                      onUpdateResume({
+                        ...resume,
+                        certificationColumns: certColumns,
+                        certifications: [...resume.certifications, ...newEntries],
+                      });
+                    }}
+                    className={sectionAddBtnClass}
+                    title={`Add a full row (${certColumns} ${
+                      certColumns === 1 ? 'entry' : 'entries'
+                    })`}
+                  >
+                    <Rows3 className="h-3 w-3" />
+                    + Add Row
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canAddColumn}
+                    onClick={() => {
+                      if (!canAddColumn) return;
+                      const nextCols = clampCertificationColumns(certColumns + 1);
+                      const needed = Math.max(
+                        0,
+                        nextCols - resume.certifications.length
+                      );
+                      const fillers = Array.from(
+                        { length: needed },
+                        () => DEFAULT_NEW_CERTIFICATION
+                      );
+                      onUpdateResume({
+                        ...resume,
+                        certificationColumns: nextCols,
+                        certifications:
+                          fillers.length > 0
+                            ? [...resume.certifications, ...fillers]
+                            : resume.certifications,
+                      });
+                    }}
+                    className={cn(
+                      sectionAddBtnClass,
+                      'disabled:cursor-not-allowed disabled:opacity-40'
+                    )}
+                    title={
+                      canAddColumn
+                        ? 'Add a column (up to 3 columns)'
+                        : 'Max 3 columns for A4 ATS readability'
+                    }
+                  >
+                    <Columns3 className="h-3 w-3" />
+                    + Add Column
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canRemoveColumn}
+                    onClick={() => {
+                      if (!canRemoveColumn) return;
+                      onUpdateResume({
+                        ...resume,
+                        certificationColumns: clampCertificationColumns(
+                          certColumns - 1
+                        ),
+                      });
+                    }}
+                    className={cn(
+                      sectionAddBtnClass,
+                      'disabled:cursor-not-allowed disabled:opacity-40'
+                    )}
+                    aria-label="Remove certification column"
+                    title="Reduce columns without deleting certifications"
+                  >
+                    <Minus className="h-3 w-3" />
+                    - Col
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdateResume({
+                        ...resume,
+                        certificationColumns: certColumns,
+                        certifications: [
+                          ...resume.certifications,
+                          DEFAULT_NEW_CERTIFICATION,
+                        ],
+                      });
+                    }}
+                    className={sectionAddBtnClass}
+                    title="Add a single certification item"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Add Certification
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <ul
+              className={cn(
+                'mt-1.5 grid list-disc pl-4 text-neutral-900',
+                CERTIFICATION_GRID_CLASS[certColumns]
+              )}
+            >
+              {resume.certifications.map((cert, idx) => {
+                const certUrl = resume.certificationUrls?.[idx] || '';
+                const certHref = normalizeHttpUrl(certUrl, 'portfolio');
+                return (
+                  <li key={idx} className={cn('min-w-0', textAlignClass)}>
+                    {canEdit && onUpdateResume ? (
+                      <div className="space-y-1 text-[10px]">
+                        <div className="flex min-w-0 items-center gap-1">
+                          <input
+                            type="text"
+                            value={cert}
+                            onFocus={(e) =>
+                              registerFocus(e.currentTarget, (latest, val) => {
+                                const next = [...latest.certifications];
+                                next[idx] = val;
+                                return { ...latest, certifications: next };
+                              })
+                            }
+                            onChange={(e) => {
+                              const next = [...resume.certifications];
+                              next[idx] = e.target.value;
+                              onUpdateResume({ ...resume, certifications: next });
+                            }}
+                            className={cn(sheetInputClass, 'min-w-0 flex-1')}
+                          />
+                          <button
+                            type="button"
+                            disabled={idx === 0}
+                            onClick={() => {
+                              if (idx === 0) return;
+                              const next = [...resume.certifications];
+                              const temp = next[idx - 1];
+                              next[idx - 1] = next[idx];
+                              next[idx] = temp;
+                              onUpdateResume({
+                                ...resume,
+                                certifications: next,
+                                certificationUrls: swapCertificationUrls(
+                                  resume.certificationUrls,
+                                  idx - 1,
+                                  idx
+                                ),
+                              });
+                            }}
+                            className="no-print rounded p-0.5 text-neutral-600 hover:bg-neutral-200 disabled:opacity-30"
+                            title="Move earlier"
+                            aria-label="Move certification earlier"
+                          >
+                            <ChevronUp className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            disabled={idx === resume.certifications.length - 1}
+                            onClick={() => {
+                              if (idx === resume.certifications.length - 1) return;
+                              const next = [...resume.certifications];
+                              const temp = next[idx + 1];
+                              next[idx + 1] = next[idx];
+                              next[idx] = temp;
+                              onUpdateResume({
+                                ...resume,
+                                certifications: next,
+                                certificationUrls: swapCertificationUrls(
+                                  resume.certificationUrls,
+                                  idx,
+                                  idx + 1
+                                ),
+                              });
+                            }}
+                            className="no-print rounded p-0.5 text-neutral-600 hover:bg-neutral-200 disabled:opacity-30"
+                            title="Move later"
+                            aria-label="Move certification later"
+                          >
+                            <ChevronDown className="h-3 w-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = resume.certifications.filter(
+                                (_, cIdx) => cIdx !== idx
+                              );
+                              const nextUrls = shiftCertificationUrlsOnDelete(
+                                resume.certificationUrls,
+                                idx
+                              );
+                              onUpdateResume({
+                                ...resume,
+                                certifications: next,
+                                certificationUrls: nextUrls,
+                              });
+                            }}
+                            className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
+                            title="Delete certification"
+                            aria-label="Delete certification"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                        <ValidatedUrlInput
+                          label={`Credential URL for ${cert || `Certification #${idx + 1}`}`}
+                          value={certUrl}
+                          placeholder="Credential URL (optional — https://...)"
+                          variant="sheet"
+                          theme="light"
+                          onChange={(nextUrl) => {
+                            const nextUrls = { ...(resume.certificationUrls || {}) };
+                            if (nextUrl.trim()) nextUrls[idx] = nextUrl;
+                            else delete nextUrls[idx];
                             onUpdateResume({
                               ...resume,
-                              certifications: next,
                               certificationUrls: nextUrls,
                             });
                           }}
-                          className="no-print rounded p-0.5 text-neutral-600 hover:bg-red-50 hover:text-red-700"
-                          title="Delete certification"
-                          aria-label="Delete certification"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
+                        />
                       </div>
-                      <ValidatedUrlInput
-                        label={`Credential URL for ${cert || `Certification #${idx + 1}`}`}
-                        value={certUrl}
-                        placeholder="Credential URL (optional — https://...)"
-                        variant="sheet"
-                        theme="light"
-                        onChange={(nextUrl) => {
-                          const nextUrls = { ...(resume.certificationUrls || {}) };
-                          if (nextUrl.trim()) nextUrls[idx] = nextUrl;
-                          else delete nextUrls[idx];
-                          onUpdateResume({
-                            ...resume,
-                            certificationUrls: nextUrls,
-                          });
-                        }}
-                      />
-                    </div>
-                  ) : certHref ? (
-                    <a
-                      href={certHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline decoration-neutral-400 underline-offset-2"
-                    >
-                      {cert}
-                    </a>
-                  ) : (
-                    <span>{cert}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+                    ) : certHref ? (
+                      <a
+                        href={certHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline decoration-neutral-400 underline-offset-2"
+                      >
+                        {cert}
+                      </a>
+                    ) : (
+                      <span>{cert}</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        );
+      })()}
 
       {/* EDUCATION SECTION */}
       {(resume.education.length > 0 || canEdit) && (

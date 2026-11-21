@@ -3,15 +3,15 @@ type: moc
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.6
-commit_ref: "d20fc8f"
+milestone: v1.0.7
+commit_ref: "pending"
 files:
   - AGENTS.md
   - context.md
   - CHANGELOG.md
   - package.json
   - README.md
-updated: 2026-11-21
+updated: 2026-11-22
 tags:
   - pahirepo
   - moc
@@ -24,7 +24,7 @@ tags:
 
 - **Production Web App:** https://pa-hire-po.vercel.app
 - **Repository:** `https://github.com/kevs0444/Pa-Hire_Po.git` (`main`)
-- **Current Version:** `v1.0.6` (`package.json` • day-based versioning `v1.0.0`–`v1.0.6`)
+- **Current Version:** `v1.0.7` (`package.json` • day-based versioning `v1.0.0`–`v1.0.7`)
 - **Supabase Store Lock:** `Pa-Hire Po` (`muftcprpqnzuzfosvftz`)
 - **Mandatory AI First-Read & Pre/Post-Push Sync Rule:** Every AI session MUST read this MOC, [[Active State & Progress Ledger]], [[Changelog Mirror]], and root [`context.md`](file:///d:/Dev/Pa-Hire%20Po/context.md) before designing or editing code, and **mandatory** update the Second Brain, `context.md`, and day-based changelog both before pushing and after verifying a production push (see `AGENTS.md` Section 8 & [[Frontmatter Schema & Vault Conventions]]).
 
@@ -45,6 +45,7 @@ tags:
 - [[Project Evolution Timeline (Start to Present)]] — Complete 20-commit evolution from `PleaseHireMe` (`41ce8d2`) to `Pa-Hire Po` (`a1059ca`)
 - [[Specs & Plans Archive Index]] — Links to `docs/superpowers/` design specs and implementation plans
 - [[Changelog Mirror]] — Customer-facing updates mirrored from `CHANGELOG.md`
+- [[2026-11-22|Session Log — 2026-11-22 (Dynamic Certification Rows & Columns in Resume Studio AI & Obsidian AGENTS.md Folder)]]
 - [[2026-11-21|Session Log — 2026-11-21 (Dynamic Resume Links, 7 Ranked ATS Fonts, Borderless Print, Zero-Lag INP & Always-on-Top OAuth Popout)]]
 - [[2026-11-20|Session Log — 2026-11-20 (Multi-Platform Extraction, Title+Company Search, Internet Fallback, Copy URL & Job Tracking)]]
 - [[2026-11-18|Session Log — 2026-11-18 (PDF/Word Resume Import, Smart Profile Sync, Justify & Optional Company)]]
@@ -108,3 +109,14 @@ tags:
   - [[Roadmap P2 - AI Interview Prep & Cover Letter Suite]]
   - [[Roadmap P2 - Monetization, SaaS Tiers & Growth]]
   - [[Roadmap P2 - Mobile PWA Push & Automated E2E Testing]]
+
+---
+
+## 07 — Agent Rules & Guidelines (`AGENTS.md`)
+
+> Root [`AGENTS.md`](file:///d:/Dev/Pa-Hire%20Po/AGENTS.md) remains at the repository root so coding agents and Next.js auto-load it; this folder mirrors and indexes every rule inside the Second Brain.
+
+- [[00 - AGENTS Rules Index]] — Master navigation index and section map for root `AGENTS.md`
+- [[Agent Rules - UI Design System & Anti-AI-Slop Mandate]] — Civic Career Utility palettes, typography pairing, Anti-AI-Slop bans, and 4 Required Build Rules
+- [[Agent Rules - Resume Studio, Profile Media & Supabase Lock]] — Resume Studio (`AI`), 7 ATS fonts, links, row/column Certifications grid, profile media, and Vercel Supabase Store lock
+- [[Agent Rules - Persistent Memory & Pre-Post-Push Gate]] — Mandatory first-read MOC rule, Dual-Sync protocol, and Pre/Post-Push verification gates

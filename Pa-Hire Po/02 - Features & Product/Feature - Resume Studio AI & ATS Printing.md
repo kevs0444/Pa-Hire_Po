@@ -3,8 +3,8 @@ type: feature
 status: verified
 priority: p0-now
 area: resume-ai
-milestone: v1.0.6
-commit_ref: "d20fc8f"
+milestone: v1.0.7
+commit_ref: "pending"
 files:
   - src/types/resume.ts
   - src/features/resume/lib/resume-links.ts
@@ -19,7 +19,7 @@ files:
   - src/app/api/resume/tailor/route.ts
   - src/app/api/resume/parse/route.ts
   - src/app/globals.css
-updated: 2026-11-21
+updated: 2026-11-22
 tags:
   - pahirepo
   - feature
@@ -56,7 +56,7 @@ Enables job seekers to tailor their factual resume to any target posting using G
   - **Times New Roman (#7 Classic Academic & Gov ATS):** Traditional academic, legal, and government CV standard supported everywhere.
   - Enforces `font-variant-ligatures: none` on preview and print so PDF parsers never corrupt `fi`/`fl` glyphs, plus live `aria-live` ATS guidance in `ResumeFormatToolbar.tsx`.
 - **In-Sheet Full-Section Direct Editing & Dynamic Editable/Reorderable/Deletable Links:**
-  - Every resume section is editable in place when entering Edit Mode (`color-scheme: only light` + explicit light paper input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location), **Dynamic Header Links (`ResumeLinksEditor.tsx`, `resume-links.ts`, `ResumeHeaderLink[]`, `hideHeaderLinks`)** with independent Display Text + Target URL (`https://...`) fields for `LinkedIn`, `GitHub`, `Portfolio`, and `+ Add Link`, `↑`/`↓` link reordering, blur-deferred URL validation (`✓ Valid Link` / `✓ Auto-linked` + `Test` link), per-link delete, and **Remove / Restore Links Section**, plus Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder), Projects (name, clickable Project URL, subtitle, period, bullets), Technical Skills, Certifications (title + clickable `certificationUrls` with `shiftCertificationUrlsOnDelete`), and Education.
+  - Every resume section is editable in place when entering Edit Mode (`color-scheme: only light` + explicit light paper input contrast on `#a4-resume-sheet`): Contact details (Full Name, Headline, Email, Phones, Location), **Dynamic Header Links (`ResumeLinksEditor.tsx`, `resume-links.ts`, `ResumeHeaderLink[]`, `hideHeaderLinks`)** with independent Display Text + Target URL (`https://...`) fields for `LinkedIn`, `GitHub`, `Portfolio`, and `+ Add Link`, `↑`/`↓` link reordering, blur-deferred URL validation (`✓ Valid Link` / `✓ Auto-linked` + `Test` link), per-link delete, and **Remove / Restore Links Section**, plus Tailored Summary, Experience (role, company, location, period, bullets + add/delete/reorder), Projects (name, clickable Project URL, subtitle, period, bullets), Technical Skills, **Certifications (title + clickable `certificationUrls` with `shiftCertificationUrlsOnDelete` & `swapCertificationUrls`, dynamic 1–3 ATS-safe columns via `certificationColumns`, `+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`, live `Cols × Rows` indicator, and `↑`/`↓` item reordering)**, and Education.
   - **Zero-Lag INP Editing Performance:** Uses local `draftOverride` / `draftResume` state inside `A4ResumePreview.tsx` (`0ms` typing response, `320ms` debounced parent sync, immediate `flushDraftResume()` on action/unmount), stable `ResizeObserver`, `@media screen` `.resume-sheet-containment`, debounced `saveLocalStateDebounced`, `rescore = false` default on profile text/link updates, and yielding `rescoreJobsAsync` (`50ms` time slicing).
   - Clean `no-print` action buttons ensure in-sheet edit controls never appear during print or PDF export.
 - **MS Word / Google Docs Style Text Formatting Toolbar (`ResumeFormatToolbar`):**

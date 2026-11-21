@@ -1,6 +1,18 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.6`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.7`).
+
+## v1.0.7 — November 22, 2026
+
+### Dynamic Certifications Rows & Columns in Resume Studio (`AI`)
+- **Add Rows or Columns (`+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`):** Control whether your **Certifications** section displays in **1, 2, or 3 ATS-safe columns** (`1–3 Cols`) directly inside Resume Studio edit mode, with a live `Cols × Rows` layout indicator (`font-mono tabular-nums`) that renders identically on screen and in PDF export.
+- **Full Row Insertion & Non-Destructive Column Switching:** Click **`+ Add Row`** to append a complete row matching your active column count, **`+ Add Column`** / **`- Col`** to expand or narrow columns without deleting existing entries, or **`Add Certification`** to insert a single certification item.
+- **Reorderable Certifications with Synced Credential URLs:** Reorder any certification entry (`↑` / `↓`) while keeping its paired credential URL synchronized (`swapCertificationUrls`), with `min-w-0` grid track guards so 3-column layouts never overflow A4 paper width.
+
+### Agent Rules & Second Brain Organization
+- **Dedicated `AGENTS.md` Obsidian Vault Folder (`07 - Agent Rules & Guidelines/`):** Organized all UI, Resume Studio, Supabase Store Lock, and Pre/Post-Push memory rules into a dedicated Obsidian folder linked from `00 - Home MOC.md`, while preserving root `AGENTS.md` for automatic agent loading.
+
+---
 
 ## v1.0.6 — November 21, 2026
 

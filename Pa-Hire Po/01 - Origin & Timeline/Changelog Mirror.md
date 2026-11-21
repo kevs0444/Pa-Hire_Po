@@ -3,16 +3,16 @@ type: timeline
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.6
-version: "1.0.6"
-commit_ref: "d20fc8f"
+milestone: v1.0.7
+version: "1.0.7"
+commit_ref: "pending"
 files:
   - CHANGELOG.md
   - package.json
   - src/features/changelog/data/changelog-data.ts
   - src/features/changelog/components/ChangelogModal.tsx
   - src/features/notifications/components/NotificationBell.tsx
-updated: 2026-11-21
+updated: 2026-11-22
 tags:
   - pahirepo
   - changelog
@@ -20,7 +20,13 @@ tags:
 
 # Changelog Mirror
 
-Mirrors day-based customer releases (`v1.0.0` → `v1.0.6`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+Mirrors day-based customer releases (`v1.0.0` → `v1.0.7`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+
+---
+
+## `v1.0.7` — November 22, 2026 (`pending`)
+- **Dynamic Certifications Row & Column Controls in Resume Studio (`AI`):** Added `certificationColumns?: 1 | 2 | 3` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`src/features/resume/lib/resume-links.ts`), and `+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`, live `Cols × Rows` readout, and `↑`/`↓` item reordering with synced credential URLs in `A4ResumePreview.tsx` (`min-w-0` grid track guards, identical on screen & PDF export). See [[Feature - Resume Studio AI & ATS Printing]].
+- **Dedicated `AGENTS.md` Obsidian Vault Folder (`07 - Agent Rules & Guidelines/`):** Mirrored root `AGENTS.md` into 4 structured Obsidian notes (`00 - AGENTS Rules Index`, UI Design System, Resume Studio/Profile/Supabase Lock, Persistent Memory & Push Gate) linked from [[00 - Home MOC]].
 
 ---
 

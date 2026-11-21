@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.6
-commit_ref: "d20fc8f"
+milestone: v1.0.7
+commit_ref: "pending"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-21
+updated: 2026-11-22
 tags:
   - pahirepo
   - ledger
@@ -22,7 +22,7 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.6` — day-based releases `v1.0.0` → `v1.0.6`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.7` — day-based releases `v1.0.0` → `v1.0.7`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
@@ -81,6 +81,7 @@ tags:
 - [x] `v1.0.4` PDF & Word (`.docx`) Resume Import, Smart Profile Sync, Hyphen-Free Justify & Optional Company: Added `unpdf` + `mammoth` extraction in `POST /api/resume/parse`, `resume-parser.ts` (`parseResumeTextToStructured`, `buildSmartProfilePatchFromResume`), native `<dialog>` `ResumeUploadDialog.tsx` in Resume Studio & My Profile, hyphen-free `[hyphens:none] [text-justify:inter-word] [text-wrap:pretty]` Justify mode, optional Company on Save Version, and direct `user_profiles` sync in `POST /api/resumes/history`
 - [x] `v1.0.5` Dynamic 3-Platform Job Extraction, Title+Company Search, Internet Web Fallback, Strict Search Correlation, Copy URL & Job Tracking (`Resume Applied`): Added `src/server/scrapers/web-fallback.ts`, deeper `linkedin.ts`/`jobstreet.ts`/`indeed.ts`, `parseRoleAndCompanyQuery` + `filterBySearchCorrelation` in `job-search-service.ts`, non-destructive Company input in Find Jobs, reusable `CopyUrlButton.tsx` across Find Jobs & Job Tracking, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` sub-feature & rich `+ Add Job Application` URL auto-detect logger
 - [x] `v1.0.6` Dynamic Editable/Reorderable/Deletable Resume Links, 7 Ranked ATS Fonts (`Calibri ★ Best for ATS`), Borderless Print Export, Zero-Lag INP Editing & Always-on-Top OAuth Popout: Added `ResumeHeaderLink[]` + `hideHeaderLinks` (`src/types/resume.ts`, `resume-links.ts`, `ResumeLinksEditor.tsx`), per-project & per-certification URLs synced across Resume Studio, My Profile, Settings, AI tailoring, and PDF `/URI` + `.docx` hyperlink import; expanded `ATS_FONT_PRESETS` to 7 ranked fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed `#f3f2ef` canvas border on `@media print`; isolated `draftResume` (`0ms` typing latency + `320ms` debounce) + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and added centered `520×680` always-on-top OAuth popout (`oauth-popup.ts`, `/auth/callback?popup=1`, Electron `pa_hire_po_oauth`)
+- [x] `v1.0.7` Dynamic Certifications Row & Column Controls in Resume Studio AI + Dedicated `AGENTS.md` Obsidian Folder: Added `ResumeCertificationColumns` (`1 | 2 | 3`) and `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md`
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

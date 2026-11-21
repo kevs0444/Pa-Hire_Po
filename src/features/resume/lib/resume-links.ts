@@ -1,4 +1,8 @@
-import type { ResumeHeaderLink, StructuredResume } from '@/types/resume';
+import type {
+  ResumeCertificationColumns,
+  ResumeHeaderLink,
+  StructuredResume,
+} from '@/types/resume';
 
 export type ResumeLinkKind = 'linkedin' | 'github' | 'portfolio' | 'custom';
 
@@ -229,6 +233,43 @@ export function shiftCertificationUrlsOnDelete(
     if (k < removedIdx) next[k] = val;
     else if (k > removedIdx) next[k - 1] = val;
   }
+  return next;
+}
+
+/**
+ * Normalizes the certifications grid column count to the supported 1-3 ATS-safe range.
+ */
+export function clampCertificationColumns(
+  cols?: number | null
+): ResumeCertificationColumns {
+  if (cols === 1) return 1;
+  if (cols === 3) return 3;
+  return 2;
+}
+
+/**
+ * Swaps two 0-based certification URL entries when reordering certifications.
+ */
+export function swapCertificationUrls(
+  urls: Record<number, string> | undefined,
+  indexA: number,
+  indexB: number
+): Record<number, string> {
+  const next: Record<number, string> = {};
+  if (urls) {
+    for (const [keyStr, val] of Object.entries(urls)) {
+      const k = Number(keyStr);
+      if (Number.isInteger(k) && val) {
+        next[k] = val;
+      }
+    }
+  }
+  const valA = next[indexA];
+  const valB = next[indexB];
+  if (valB) next[indexA] = valB;
+  else delete next[indexA];
+  if (valA) next[indexB] = valA;
+  else delete next[indexB];
   return next;
 }
 
