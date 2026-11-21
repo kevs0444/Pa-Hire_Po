@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: product
 milestone: v1.0.7
-commit_ref: "pending"
+commit_ref: "db3b4ea"
 files:
   - AGENTS.md
   - src/app/globals.css

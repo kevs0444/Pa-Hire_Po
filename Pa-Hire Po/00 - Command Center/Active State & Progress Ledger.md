@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: infra
 milestone: v1.0.7
-commit_ref: "pending"
+commit_ref: "db3b4ea"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `d20fc8f` (`feat(release): v1.0.6 dynamic editable resume links, 7 ranked ATS fonts, zero-lag editing, and always-on-top OAuth popout`) — live on Vercel production (`/` -> `307`, `/login` -> `200`, `/privacy` -> `200`, `/terms` -> `200`, `/api/supabase/setup` -> `200`, `/api/admin/platform-status` -> `401`) |
+| **Latest Verified Commit** | `db3b4ea` (`feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder`) — live on Vercel production (`/` -> `307`, `/login` -> `200`, `/privacy` -> `200`, `/terms` -> `200`, `/api/supabase/setup` -> `200`, `/api/admin/platform-status` -> `401`) |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---

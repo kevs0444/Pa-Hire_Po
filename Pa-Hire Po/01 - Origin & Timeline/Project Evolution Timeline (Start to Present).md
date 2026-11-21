@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: product
 milestone: v1.0.7
-commit_ref: "pending"
+commit_ref: "db3b4ea"
 files:
   - context.md
   - CHANGELOG.md
@@ -121,7 +121,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
-| `pending` (`v1.0.7`) | 2026-11-22 | `feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder` | Added `ResumeCertificationColumns` (`1 | 2 | 3`) & `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md` |
+| `db3b4ea` (`v1.0.7`) | 2026-11-22 | `feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder` | Added `ResumeCertificationColumns` (`1 | 2 | 3`) & `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md` |
 
 ---
 

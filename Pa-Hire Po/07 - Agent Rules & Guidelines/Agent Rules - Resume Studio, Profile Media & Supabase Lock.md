@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: resume-ai
 milestone: v1.0.7
-commit_ref: "pending"
+commit_ref: "db3b4ea"
 files:
   - AGENTS.md
   - src/features/resume/components/A4ResumePreview.tsx

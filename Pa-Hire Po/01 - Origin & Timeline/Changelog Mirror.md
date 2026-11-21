@@ -5,7 +5,7 @@ priority: p0-now
 area: product
 milestone: v1.0.7
 version: "1.0.7"
-commit_ref: "pending"
+commit_ref: "db3b4ea"
 files:
   - CHANGELOG.md
   - package.json
@@ -24,7 +24,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.7`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.7` — November 22, 2026 (`pending`)
+## `v1.0.7` — November 22, 2026 (`db3b4ea`)
 - **Dynamic Certifications Row & Column Controls in Resume Studio (`AI`):** Added `certificationColumns?: 1 | 2 | 3` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`src/features/resume/lib/resume-links.ts`), and `+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`, live `Cols × Rows` readout, and `↑`/`↓` item reordering with synced credential URLs in `A4ResumePreview.tsx` (`min-w-0` grid track guards, identical on screen & PDF export). See [[Feature - Resume Studio AI & ATS Printing]].
 - **Dedicated `AGENTS.md` Obsidian Vault Folder (`07 - Agent Rules & Guidelines/`):** Mirrored root `AGENTS.md` into 4 structured Obsidian notes (`00 - AGENTS Rules Index`, UI Design System, Resume Studio/Profile/Supabase Lock, Persistent Memory & Push Gate) linked from [[00 - Home MOC]].
 
