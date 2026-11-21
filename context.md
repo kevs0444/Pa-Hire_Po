@@ -243,7 +243,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Verified Production Deployment**:
   - **Current Release Version**: `v1.0.7` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20 → `v1.0.6` Nov 21 → `v1.0.7` Nov 22, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: `db3b4ea` (`feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Latest Verified Commit**: `74f6835` (`fix(resume): match A4 preview 1:1 on PDF export with Fit-to-1-Page scaling and modal parity`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
   - **Key File Map (`v1.0.7` & `v1.0.6` Additions & Core Updates)**:
     - `src/types/resume.ts`, `src/lib/default-profile.ts` — `ResumeCertificationColumns` (`1 | 2 | 3`), `certificationColumns`, `fitOnePage`, `ResumeHeaderLink`, `headerLinks`, `hideHeaderLinks`, `customLinks`, `certificationUrls`, `project.url`, and expanded 7-font `ResumeFontFamily`.
     - `src/features/resume/lib/resume-links.ts`, `src/features/resume/lib/resume-print.ts`, `src/features/resume/components/ResumeLinksEditor.tsx` — `clampCertificationColumns`, `swapCertificationUrls`, `computePrintLayoutSummary`, `buildResumePrintStyles`, `resolveFitOnePage`, URL normalization/validation, smart paste, `↑`/`↓` reordering, section hide/restore, and `ValidatedUrlInput`.
@@ -257,7 +257,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
     - `https://pa-hire-po.vercel.app/` (`307` redirect to `/login` when unauthenticated)
-    - `https://pa-hire-po.vercel.app/login` (`200 OK` — verified serving `v1.0.7` / `db3b4ea` deployment)
+    - `https://pa-hire-po.vercel.app/login` (`200 OK` — verified serving `v1.0.7` / `74f6835` deployment)
     - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
     - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)

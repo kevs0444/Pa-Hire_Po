@@ -5,7 +5,7 @@ priority: p0-now
 area: product
 milestone: v1.0.7
 version: "1.0.7"
-commit_ref: "db3b4ea"
+commit_ref: "74f6835"
 files:
   - CHANGELOG.md
   - package.json
@@ -24,7 +24,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.7`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.7` — November 22, 2026 (`db3b4ea` + 1:1 A4 PDF Fix)
+## `v1.0.7` — November 22, 2026 (`74f6835`, `db3b4ea`)
 - **1:1 A4 Preview-to-PDF Export & `Fit 1 Page` (`resume-print.ts`, `globals.css`, `ResumeFormatToolbar.tsx`, `SubmittedResumeModal.tsx`):** Removed the inflated `9.5pt` (`12.67px`) print override and inline wrapper height lock so `Compact`, `Standard`, and `Comfortable` densities print 1:1 with the preview; added **`Fit 1 Page`** (ON by default for A4, US Letter, and US Legal) with a live `✓ 1 Page` / `✓ 1 Page (Fit XX%)` / `⚠ N Pages` badge, dashed Page 1 boundary guide, automatic clean read-only rendering when printing from Edit Mode, and full modal parity across `ApplyFlowModal` and `SubmittedResumeModal`.
 - **Dynamic Certifications Row & Column Controls in Resume Studio (`AI`):** Added `certificationColumns?: 1 | 2 | 3` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`src/features/resume/lib/resume-links.ts`), and `+ Add Row`, `+ Add Column`, `- Col`, `Add Certification`, live `Cols × Rows` readout, and `↑`/`↓` item reordering with synced credential URLs in `A4ResumePreview.tsx` (`min-w-0` grid track guards, identical on screen & PDF export). See [[Feature - Resume Studio AI & ATS Printing]].
 - **Dedicated `AGENTS.md` Obsidian Vault Folder (`07 - Agent Rules & Guidelines/`):** Mirrored root `AGENTS.md` into 4 structured Obsidian notes (`00 - AGENTS Rules Index`, UI Design System, Resume Studio/Profile/Supabase Lock, Persistent Memory & Push Gate) linked from [[00 - Home MOC]].
