@@ -5,7 +5,7 @@ priority: p0-now
 area: product
 milestone: v1.0.9
 version: "1.0.9"
-commit_ref: "local-unpushed"
+commit_ref: "15d6161"
 files:
   - CHANGELOG.md
   - package.json
@@ -24,7 +24,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.9`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.9` — November 25, 2026 (Local Staged Build)
+## `v1.0.9` — November 25, 2026 (`15d6161`)
 - **Tabbed Executive Analytics Dashboard (`JobAnalyticsView.tsx`, `AutoApplyBlueprintPanel.tsx`, `globals.css`):** Redesigned `/analytics` into a minimalist 3-tab cockpit (**Overview**, **Skill Gaps**, **Apply Queue**) featuring accessible `role="tablist"` keyboard navigation + `hidden="until-found"`/`beforematch`, unified 4-KPI ribbon, CSS `subgrid` board cards, flat hairline **Role Demand** & **Application Funnel**, segmented **Work Setup Split**, prioritized **Missing Skills**, and collapsible `<details>` **Saved Screening Answers**.
 - **Unified `Expand` / `Collapse` Cards & `Resume Applied` Inline Editor (`ApplicationsCompilationView.tsx`, `ResumeVersionsDrawer.tsx`):** Replaced unclamped notes on **Resume Applied** cards and standardized all cards across **Saved**, **Applied**, **Resume Applied**, **Hidden**, and **Resume Versions Drawer** with 2-line previews, **`Expand` / `Collapse`** toggles, and inline **`Edit Details`** (`Version Name`, `Company`, `Job Title`, `Applied / Sent`, `Notes`).
 - **Cloud-Synced Priority Pinning (`profile.ts`, `free-tier-limits.ts`, `PleaseHireMeDashboard.tsx`):** Added **`Pin`** toggle buttons (`aria-pressed`, `aria-live` announcements, `Pinned` badge, Civic left accent border, overflow menu action) and **`Pinned (N)`** filter pill across **Saved**, **Applied**, and **Resume Applied**, synced in `user_profiles.profile_data.pinnedActivityIds` (cap `25`).

@@ -250,7 +250,7 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
 
 - **Verified Production Deployment**:
   - **Current Release Version**: `v1.0.9` (day-based versioning: `v1.0.0` Nov 14 → `v1.0.1` Nov 15 → `v1.0.2` Nov 16 → `v1.0.3` Nov 17 → `v1.0.4` Nov 18 → `v1.0.5` Nov 20 → `v1.0.6` Nov 21 → `v1.0.7` Nov 22 → `v1.0.8` Nov 24 → `v1.0.9` Nov 25, synced in `package.json`, `CHANGELOG.md`, `changelog-data.ts`, and `ChangelogModal.tsx` with `NotificationBell` read tracking).
-  - **Latest Verified Commit**: `a069c9c` (`feat(release): v1.0.8 JobStreet-inspired mobile-first Civic UI, filter pills, and editable Activity workspace`; `v1.0.9` local changes staged for release push) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main`.
+  - **Latest Verified Commit**: `15d6161` (`feat(release): v1.0.9 tabbed executive Analytics dashboard, expandable Activity cards, and cloud-synced Pinning`) on `https://github.com/kevs0444/Pa-Hire_Po.git` branch `main` (Vercel deployment `pa-hire-3aa4mwhg1-kevs0444s-projects.vercel.app` Ready in 38s).
   - **Key File Map (`v1.0.9` & `v1.0.8` Additions & Core Updates)**:
     - `src/types/profile.ts`, `src/lib/supabase/free-tier-limits.ts`, `src/components/PleaseHireMeDashboard.tsx` — Cloud-synced `pinnedActivityIds` (cap `25` per user inside `user_profiles.profile_data` JSONB), `handleTogglePinActivity`, auto-prune on snapshot delete, plus `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200).
     - `src/features/applications/components/ApplicationsCompilationView.tsx`, `src/features/resume/components/ResumeVersionsDrawer.tsx` — Unified `Expand` / `Collapse` chevron buttons + 2-line clamped previews across `Saved`, `Applied`, `Resume Applied`, `Hidden`, and `ResumeVersionsDrawer`; inline **Resume Applied** editing (`Version Name`, `Company`, `Job Title`, `Applied / Sent`, `Notes`); and **Activity Pinning** (`Pin` toggle with `aria-pressed` & live announcer, `Pinned` badge, Civic left accent border, overflow menu action, and `Pinned (N)` filter pill).
@@ -265,8 +265,8 @@ Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design
   - **Obsidian Second Brain (Mandatory First-Read & Post-Push Sync)**: Full deep context, 24+ commit evolution timeline, System Architecture `.canvas`, Obsidian `.base` dashboards, ADRs, `Changelog Mirror.md`, and prioritized P0 vs P2 roadmap live in [`Pa-Hire Po/00 - Command Center/00 - Home MOC.md`](Pa-Hire%20Po/00%20-%20Command%20Center/00%20-%20Home%20MOC.md).
   - **Vercel Production Status**: Active and live at `https://pa-hire-po.vercel.app`.
   - **Verified Routes**:
-    - `https://pa-hire-po.vercel.app/` (`200 OK` via redirect to `/login` when unauthenticated — confirms live `a069c9c` deployment)
-    - `https://pa-hire-po.vercel.app/login` (`200 OK` — verified serving `v1.0.8` / `a069c9c` deployment)
+    - `https://pa-hire-po.vercel.app/` (`200 OK` via redirect to `/login` when unauthenticated — confirms live `15d6161` deployment)
+    - `https://pa-hire-po.vercel.app/login` (`200 OK` — verified serving `v1.0.9` / `15d6161` deployment)
     - `https://pa-hire-po.vercel.app/privacy` (`200 OK`)
     - `https://pa-hire-po.vercel.app/terms` (`200 OK`)
     - `https://pa-hire-po.vercel.app/api/supabase/setup` (`200 OK`)

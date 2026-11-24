@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: product
 milestone: v1.0.9
-commit_ref: "local-unpushed"
+commit_ref: "15d6161"
 files:
   - AGENTS.md
   - context.md

@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: product
 milestone: v1.0.9
-commit_ref: "local-unpushed"
+commit_ref: "15d6161"
 files:
   - context.md
   - CHANGELOG.md
@@ -138,7 +138,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
-| `local` (`v1.0.9`) | 2026-11-25 | Tabbed executive Analytics dashboard (`Overview`, `Skill Gaps`, `Apply Queue`), unified Expandable Activity & Versions cards + `Resume Applied` inline editing, and cloud-synced Priority Pinning | Redesigned `JobAnalyticsView.tsx` + `AutoApplyBlueprintPanel.tsx` + `globals.css` (`role="tablist"`, `hidden="until-found"`/`beforematch`, unified KPI ribbon, CSS `subgrid` boards, flat Role Demand, segmented Work Setup bar, Missing vs. Matched skills, native `<details>` Screening Answers); fixed unclamped notes on `Resume Applied` & standardized `Expand` / `Collapse` buttons + inline `Resume Applied` editing across `ApplicationsCompilationView.tsx` and `ResumeVersionsDrawer.tsx`; added `pinnedActivityIds` (cap `25`), `handleTogglePinActivity`, **`Pin`** (`aria-pressed`, `aria-live`), **`Pinned`** badge + Civic border accent, and **`Pinned (N)`** filter pill |
+| `15d6161` (`v1.0.9`) | 2026-11-25 | `feat(release): v1.0.9 tabbed executive Analytics dashboard, expandable Activity cards, and cloud-synced Pinning` | Redesigned `JobAnalyticsView.tsx` + `AutoApplyBlueprintPanel.tsx` + `globals.css` (`role="tablist"`, `hidden="until-found"`/`beforematch`, unified KPI ribbon, CSS `subgrid` boards, flat Role Demand, segmented Work Setup bar, Missing vs. Matched skills, native `<details>` Screening Answers); fixed unclamped notes on `Resume Applied` & standardized `Expand` / `Collapse` buttons + inline `Resume Applied` editing across `ApplicationsCompilationView.tsx` and `ResumeVersionsDrawer.tsx`; added `pinnedActivityIds` (cap `25`), `handleTogglePinActivity`, **`Pin`** (`aria-pressed`, `aria-live`), **`Pinned`** badge + Civic border accent, and **`Pinned (N)`** filter pill; live on Vercel (`pa-hire-3aa4mwhg1` Ready in `38s`) |
 
 ---
 

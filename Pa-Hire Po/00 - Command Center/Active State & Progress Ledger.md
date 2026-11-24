@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: infra
 milestone: v1.0.9
-commit_ref: "local-unpushed"
+commit_ref: "15d6161"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `a069c9c` (`feat(release): v1.0.8 JobStreet-inspired mobile-first Civic UI, filter pills, and editable Activity workspace`) — live on Vercel production (`pa-hire-p890m428z-kevs0444s-projects.vercel.app` Ready in 34s; `/` -> `200`, `/login` -> `200`) |
+| **Latest Verified Commit** | `15d6161` (`feat(release): v1.0.9 tabbed executive Analytics dashboard, expandable Activity cards, and cloud-synced Pinning`) — live on Vercel production (`pa-hire-3aa4mwhg1-kevs0444s-projects.vercel.app` Ready in 38s; `/` -> `200`, `/login` -> `200`) |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
@@ -83,7 +83,7 @@ tags:
 - [x] `v1.0.6` Dynamic Editable/Reorderable/Deletable Resume Links, 7 Ranked ATS Fonts (`Calibri ★ Best for ATS`), Borderless Print Export, Zero-Lag INP Editing & Always-on-Top OAuth Popout: Added `ResumeHeaderLink[]` + `hideHeaderLinks` (`src/types/resume.ts`, `resume-links.ts`, `ResumeLinksEditor.tsx`), per-project & per-certification URLs synced across Resume Studio, My Profile, Settings, AI tailoring, and PDF `/URI` + `.docx` hyperlink import; expanded `ATS_FONT_PRESETS` to 7 ranked fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed `#f3f2ef` canvas border on `@media print`; isolated `draftResume` (`0ms` typing latency + `320ms` debounce) + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and added centered `520×680` always-on-top OAuth popout (`oauth-popup.ts`, `/auth/callback?popup=1`, Electron `pa_hire_po_oauth`)
 - [x] `v1.0.7` Dynamic Certifications Row & Column Controls + 1:1 A4 Print & `Fit 1 Page` PDF Fix + Dedicated `AGENTS.md` Obsidian Folder: Added `ResumeCertificationColumns` (`1 | 2 | 3`) and `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`); eliminated `9.5pt` print font inflation via shared `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, true `[data-resume-content="true"]` height measurement, Page 1 boundary line, Edit-Mode print safeguard, and `ApplyFlowModal` / `SubmittedResumeModal` parity); and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md`
 - [x] `v1.0.8` JobStreet-Inspired Minimal UI, Mobile Bottom Navigation & 6 Pill Filter Popovers (`a069c9c`)
-- [x] `v1.0.9` Tabbed Executive Analytics Dashboard (`Overview` | `Skill Gaps` | `Apply Queue`), Unified Expandable Cards + `Resume Applied` Inline Editor & Cloud-Synced Priority Pinning (`Pin` + `Pinned (N)` filter pill, up to `25` pins in `pinnedActivityIds`) — staged locally for `main` release push
+- [x] `v1.0.9` Tabbed Executive Analytics Dashboard (`Overview` | `Skill Gaps` | `Apply Queue`), Unified Expandable Cards + `Resume Applied` Inline Editor & Cloud-Synced Priority Pinning (`Pin` + `Pinned (N)` filter pill, up to `25` pins in `pinnedActivityIds`) (`15d6161`)
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes
