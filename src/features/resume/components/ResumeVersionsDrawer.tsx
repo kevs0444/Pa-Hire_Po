@@ -3,6 +3,8 @@
 import { useId, useMemo, useState } from 'react';
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Edit2,
   FileText,
@@ -76,6 +78,7 @@ export function ResumeVersionsDrawer({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [savingRenameId, setSavingRenameId] = useState<string | null>(null);
+  const [expandedRecordIds, setExpandedRecordIds] = useState<Record<string, boolean>>({});
 
   // Delete dialog state
   const [recordToDelete, setRecordToDelete] = useState<TailoredResumeRecord | null>(null);
@@ -447,6 +450,7 @@ export function ResumeVersionsDrawer({
                   rec.resumeData?.versionName ||
                   `${rec.company || 'General'} — ${rec.jobTitle || 'Resume'}`;
                 const isEditing = editingId === rec.id;
+                const isExpanded = Boolean(expandedRecordIds[rec.id]);
                 const dateLabel = rec.createdAt
                   ? new Date(rec.createdAt).toLocaleDateString(undefined, {
                       month: 'short',
@@ -554,9 +558,18 @@ export function ResumeVersionsDrawer({
                         </div>
 
                         {rec.notes && (
-                          <p className={cn('mt-1 truncate text-[11px] italic', tokens.mutedText)}>
-                            &ldquo;{rec.notes}&rdquo;
-                          </p>
+                          <div
+                            className={cn(
+                              'mt-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] leading-relaxed',
+                              tokens.subSurface,
+                              isExpanded
+                                ? 'max-h-48 overflow-y-auto whitespace-pre-line pr-1'
+                                : 'line-clamp-2',
+                              tokens.mutedText
+                            )}
+                          >
+                            {rec.notes}
+                          </div>
                         )}
                       </div>
 
@@ -575,10 +588,35 @@ export function ResumeVersionsDrawer({
                       </div>
                     </div>
 
+                    {isExpanded && (rec.resumeData?.targetHeadline || rec.resumeData?.tailoredSummary) && (
+                      <div
+                        className={cn(
+                          'mt-2.5 space-y-1 rounded-lg border p-2.5 text-[11px]',
+                          tokens.subSurface
+                        )}
+                      >
+                        {rec.resumeData?.targetHeadline && (
+                          <p className={cn('font-semibold', tokens.strongText)}>
+                            {rec.resumeData.targetHeadline}
+                          </p>
+                        )}
+                        {rec.resumeData?.tailoredSummary && (
+                          <p
+                            className={cn(
+                              'max-h-32 overflow-y-auto whitespace-pre-line leading-relaxed pr-1',
+                              tokens.mutedText
+                            )}
+                          >
+                            {rec.resumeData.tailoredSummary}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Actions footer */}
                     <div
                       className={cn(
-                        'mt-2.5 flex items-center justify-between border-t pt-2',
+                        'mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t pt-2',
                         tokens.borderSubtle
                       )}
                     >
@@ -591,13 +629,41 @@ export function ResumeVersionsDrawer({
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
+                          aria-expanded={isExpanded}
+                          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for ${displayName}`}
+                          onClick={() =>
+                            setExpandedRecordIds((prev) => ({
+                              ...prev,
+                              [rec.id]: !prev[rec.id],
+                            }))
+                          }
+                          className={cn(
+                            'civic-touch-target inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
+                            tokens.secondaryBtn
+                          )}
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Collapse</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Expand</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => {
                             onSelectVersion(rec.resumeData, rec);
                             dialogRef.current?.close();
                             onClose();
                           }}
                           className={cn(
-                            'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
+                            'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors',
                             tokens.secondaryBtn
                           )}
                         >

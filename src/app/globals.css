@@ -454,6 +454,39 @@ progress.loading-spinner:indeterminate {
   }
 }
 
+/* Job Market & Board Analytics scoped dashboard primitives */
+.analytics-bento-container {
+  container: analytics-panel / inline-size;
+}
+
+.analytics-tab[role="tab"] {
+  position: relative;
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.analytics-tab[role="tab"][aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  border-block-end: 3px solid currentColor;
+}
+
+@media (min-width: 768px) {
+  .analytics-board-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: auto auto 1fr auto;
+  }
+
+  .analytics-board-card {
+    grid-row: span 4;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-rows: subgrid;
+  }
+}
+
 @media screen {
   .resume-sheet-containment {
     content-visibility: auto;

@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.8
-commit_ref: "a069c9c"
+milestone: v1.0.9
+commit_ref: "local-unpushed"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-24
+updated: 2026-11-25
 tags:
   - pahirepo
   - ledger
@@ -22,7 +22,7 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.8` — day-based releases `v1.0.0` → `v1.0.8`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.9` — day-based releases `v1.0.0` → `v1.0.9`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
@@ -82,7 +82,8 @@ tags:
 - [x] `v1.0.5` Dynamic 3-Platform Job Extraction, Title+Company Search, Internet Web Fallback, Strict Search Correlation, Copy URL & Job Tracking (`Resume Applied`): Added `src/server/scrapers/web-fallback.ts`, deeper `linkedin.ts`/`jobstreet.ts`/`indeed.ts`, `parseRoleAndCompanyQuery` + `filterBySearchCorrelation` in `job-search-service.ts`, non-destructive Company input in Find Jobs, reusable `CopyUrlButton.tsx` across Find Jobs & Job Tracking, and renamed `Applied & Resumes` → `Job Tracking` with `Resume Applied` sub-feature & rich `+ Add Job Application` URL auto-detect logger
 - [x] `v1.0.6` Dynamic Editable/Reorderable/Deletable Resume Links, 7 Ranked ATS Fonts (`Calibri ★ Best for ATS`), Borderless Print Export, Zero-Lag INP Editing & Always-on-Top OAuth Popout: Added `ResumeHeaderLink[]` + `hideHeaderLinks` (`src/types/resume.ts`, `resume-links.ts`, `ResumeLinksEditor.tsx`), per-project & per-certification URLs synced across Resume Studio, My Profile, Settings, AI tailoring, and PDF `/URI` + `.docx` hyperlink import; expanded `ATS_FONT_PRESETS` to 7 ranked fonts led by `Calibri ★ Best for ATS (#1 Default)`; fixed `#f3f2ef` canvas border on `@media print`; isolated `draftResume` (`0ms` typing latency + `320ms` debounce) + `.resume-sheet-containment` + yielding `rescoreJobsAsync`; and added centered `520×680` always-on-top OAuth popout (`oauth-popup.ts`, `/auth/callback?popup=1`, Electron `pa_hire_po_oauth`)
 - [x] `v1.0.7` Dynamic Certifications Row & Column Controls + 1:1 A4 Print & `Fit 1 Page` PDF Fix + Dedicated `AGENTS.md` Obsidian Folder: Added `ResumeCertificationColumns` (`1 | 2 | 3`) and `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`); eliminated `9.5pt` print font inflation via shared `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, true `[data-resume-content="true"]` height measurement, Page 1 boundary line, Edit-Mode print safeguard, and `ApplyFlowModal` / `SubmittedResumeModal` parity); and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md`
-- [x] `v1.0.8` JobStreet-Inspired Minimal UI, Mobile Bottom Navigation, 6 Pill Filter Popovers & `Activity` Workspace: Streamlined `AppTopNavbar.tsx` to 4 underline tabs (`Job Search`, `Resume Studio AI`, `Activity`, `Analytics`) + fixed `md:hidden` Mobile Bottom Tab Bar (`safe-area-inset-bottom`) + `UserAvatarMenu.tsx` (`popover="auto"`); rebuilt `JobSearchBanner.tsx` with 6 native `popover="auto"` filter pills (`Pay`, `Type`, `Remote`, `Classification`, `Listing time`, `Boards & More`) + `job-filters.ts` + collapsible `Recent searches` strip + `16px` mobile inputs; added `@container` `DiscoveryJobCard.tsx`, mobile `Recommended | Saved jobs` 1-tap switcher (`JobDiscoveryFeed.tsx`), focused mobile Explorer detail switch (`mobileDetailOpen`), and auto-saved applied jobs (`isJobSaved` + `unsavedAppliedJobIds`); redesigned `ApplicationsCompilationView.tsx` into a single-column **Activity** workspace (`Saved`, `Applied`, `Resume Applied`, `Hidden`) with `⋮` overflow menus, clamped expandable Notes (`line-clamp-2` + `Show more`/`Show less`), and full-detail inline editing (`Title`, `Company`, `Platform`, `Stage`, `Date Applied`, `Location`, `Work Setup`, `Salary`, `Resume`, `URL`, multi-line `Notes`); synced `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200) in Supabase JSONB (`free-tier-limits.ts`)
+- [x] `v1.0.8` JobStreet-Inspired Minimal UI, Mobile Bottom Navigation & 6 Pill Filter Popovers (`a069c9c`)
+- [x] `v1.0.9` Tabbed Executive Analytics Dashboard (`Overview` | `Skill Gaps` | `Apply Queue`), Unified Expandable Cards + `Resume Applied` Inline Editor & Cloud-Synced Priority Pinning (`Pin` + `Pinned (N)` filter pill, up to `25` pins in `pinnedActivityIds`) — staged locally for `main` release push
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

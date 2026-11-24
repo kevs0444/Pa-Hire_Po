@@ -3,16 +3,16 @@ type: timeline
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.8
-version: "1.0.8"
-commit_ref: "a069c9c"
+milestone: v1.0.9
+version: "1.0.9"
+commit_ref: "local-unpushed"
 files:
   - CHANGELOG.md
   - package.json
   - src/features/changelog/data/changelog-data.ts
   - src/features/changelog/components/ChangelogModal.tsx
   - src/features/notifications/components/NotificationBell.tsx
-updated: 2026-11-24
+updated: 2026-11-25
 tags:
   - pahirepo
   - changelog
@@ -20,14 +20,22 @@ tags:
 
 # Changelog Mirror
 
-Mirrors day-based customer releases (`v1.0.0` → `v1.0.8`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+Mirrors day-based customer releases (`v1.0.0` → `v1.0.9`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+
+---
+
+## `v1.0.9` — November 25, 2026 (Local Staged Build)
+- **Tabbed Executive Analytics Dashboard (`JobAnalyticsView.tsx`, `AutoApplyBlueprintPanel.tsx`, `globals.css`):** Redesigned `/analytics` into a minimalist 3-tab cockpit (**Overview**, **Skill Gaps**, **Apply Queue**) featuring accessible `role="tablist"` keyboard navigation + `hidden="until-found"`/`beforematch`, unified 4-KPI ribbon, CSS `subgrid` board cards, flat hairline **Role Demand** & **Application Funnel**, segmented **Work Setup Split**, prioritized **Missing Skills**, and collapsible `<details>` **Saved Screening Answers**.
+- **Unified `Expand` / `Collapse` Cards & `Resume Applied` Inline Editor (`ApplicationsCompilationView.tsx`, `ResumeVersionsDrawer.tsx`):** Replaced unclamped notes on **Resume Applied** cards and standardized all cards across **Saved**, **Applied**, **Resume Applied**, **Hidden**, and **Resume Versions Drawer** with 2-line previews, **`Expand` / `Collapse`** toggles, and inline **`Edit Details`** (`Version Name`, `Company`, `Job Title`, `Applied / Sent`, `Notes`).
+- **Cloud-Synced Priority Pinning (`profile.ts`, `free-tier-limits.ts`, `PleaseHireMeDashboard.tsx`):** Added **`Pin`** toggle buttons (`aria-pressed`, `aria-live` announcements, `Pinned` badge, Civic left accent border, overflow menu action) and **`Pinned (N)`** filter pill across **Saved**, **Applied**, and **Resume Applied**, synced in `user_profiles.profile_data.pinnedActivityIds` (cap `25`).
 
 ---
 
 ## `v1.0.8` — November 24, 2026 (`a069c9c`)
 - **Clean 4-Tab Header, Fixed Mobile Bottom Bar & Account Avatar Menu (`AppTopNavbar.tsx`, `UserAvatarMenu.tsx`, `layout.tsx`, `globals.css`):** Streamlined desktop navigation to **Job Search**, **Resume Studio AI**, **Activity**, and **Analytics**, added a 1-row mobile top bar + thumb-friendly fixed mobile bottom tab bar (`viewport-fit=cover`, `env(safe-area-inset-*)`, `44×44px` coarse-pointer targets, `scroll-padding-top`/`bottom`), and moved **My Profile**, **Saved searches**, **Saved jobs**, **Activity (Applied)**, **Settings**, **How It Works**, **Admin Control Center** (admin-only), inline **Light / Dark** toggle, and **Sign out** into a viewport-aware native `popover="auto"` menu.
 - **Full-Width Civic Search Banner with 6 Pill Popovers & `Recent searches` (`JobSearchBanner.tsx`, `job-filters.ts`, `job-date-utils.ts`):** Added 6 native `popover="auto"` filter pills (**Pay** with `Annually`/`Monthly`/`Hourly` tabs, **Type**, **Remote**, **Classification**, **Listing time** radio selector `Any time`–`Last 30 days`, and **Boards & More**), `16px` mobile inputs to prevent Safari auto-zoom, and a collapsible **Recent searches** card strip (`bg-[#062d57]` Light / `bg-[#141417]` Dark).
-- **Recommended Feed, Mobile Switcher, Auto-Saved Applied Jobs & `Activity` Workspace (`JobDiscoveryFeed.tsx`, `DiscoveryJobCard.tsx`, `ApplicationsCompilationView.tsx`, `JobDetailPane.tsx`):** Turned Home (`/`) into a container-aware 2-column feed (`@container`) with a mobile `Recommended | Saved jobs` 1-tap switcher, focused mobile Explorer detail view (`← Back to results`), automatic saving of applied jobs into **Saved jobs** (`isJobSaved` + `unsavedAppliedJobIds`), and a single-column **Activity** workspace (`Saved`, `Applied`, `Resume Applied`, `Hidden`) featuring `⋮` overflow menus, `line-clamp-2` + **Show more / Show less** Notes, and full-detail inline editing (`Title`, `Company`, `Platform`, `Stage`, `Date Applied`, `Location`, `Work Setup`, `Salary`, `Resume`, `URL`, multi-line `Notes`).
+- **Recommended Feed, Mobile Switcher, Auto-Saved Applied Jobs & Unified Expandable `Activity` Cards (`JobDiscoveryFeed.tsx`, `DiscoveryJobCard.tsx`, `ApplicationsCompilationView.tsx`, `ResumeVersionsDrawer.tsx`, `JobDetailPane.tsx`):** Turned Home (`/`) into a container-aware 2-column feed (`@container`) with a mobile `Recommended | Saved jobs` 1-tap switcher, focused mobile Explorer detail view (`← Back to results`), automatic saving of applied jobs into **Saved jobs** (`isJobSaved` + `unsavedAppliedJobIds`), unified every card across **Activity** (`Saved`, `Applied`, `Resume Applied`, `Hidden`) and **Resume Versions Drawer** with a 2-line preview + consistent **`Expand` / `Collapse`** chevron button, and added inline **`Edit Details`** on both job entries and **Resume Applied** snapshots (`Version Name`, `Company`, `Job Title`, `Applied / Sent`, multi-line `Notes`).
+- **Tabbed Executive Analytics Dashboard (`JobAnalyticsView.tsx`, `AutoApplyBlueprintPanel.tsx`, `globals.css`):** Redesigned `/analytics` into a 3-tab executive cockpit (**Overview**, **Skill Gaps**, **Apply Queue**) with a unified 4-KPI ribbon, `subgrid`-aligned board cards, unwrapped **Role Demand** rows, flat **Application Funnel** + horizontal segmented **Work Setup Split** bar, Missing vs. Matched **Skill Gaps**, `hidden="until-found"` + `beforematch` Ctrl+F reveal, and collapsible native `<details>` **Saved Screening Answers** (local updates on top of `a069c9c`).
 - **Supabase JSONB Persistence (`profile.ts`, `free-tier-limits.ts`):** Syncs `savedSearches` (cap 20), `recentSearches` (cap 8), `viewedJobIds` (cap 150), and `unsavedAppliedJobIds` (cap 200) inside RLS-protected `user_profiles.profile_data` JSONB.
 
 ---

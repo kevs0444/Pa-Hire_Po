@@ -4,7 +4,10 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import {
   ArrowUpDown,
   Bookmark,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ClipboardPaste,
   Edit3,
   ExternalLink,
@@ -13,10 +16,12 @@ import {
   FileText,
   Maximize2,
   MoreVertical,
+  Pin,
   Plus,
   RotateCcw,
   Search,
   Trash2,
+  X,
 } from 'lucide-react';
 import type {
   ApplicationStage,
@@ -47,9 +52,11 @@ interface ApplicationsCompilationViewProps {
   loadingResumes: boolean;
   initialSubView?: CompilationSubView;
   unsavedAppliedJobIds?: string[];
+  pinnedActivityIds?: string[];
   nowMs?: number | null;
   onRefreshResumes: () => Promise<void>;
   onToggleSaveJob?: (jobId: string) => void;
+  onTogglePinActivity?: (pinKey: string) => void;
   onOpenApplyModal?: (job: JobListing) => void;
   onUpdateJobApplication: (
     jobId: string,
@@ -335,9 +342,11 @@ export function ApplicationsCompilationView({
   loadingResumes,
   initialSubView = 'applied',
   unsavedAppliedJobIds = [],
+  pinnedActivityIds = [],
   nowMs = null,
   onRefreshResumes,
   onToggleSaveJob,
+  onTogglePinActivity,
   onOpenApplyModal,
   onUpdateJobApplication,
   onLogExternalApplication,
@@ -364,11 +373,66 @@ export function ApplicationsCompilationView({
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<'all' | ApplicationStage>('all');
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [pinAnnouncement, setPinAnnouncement] = useState('');
   const [appliedPage, setAppliedPage] = useState(1);
   const [expandedEditKey, setExpandedEditKey] = useState<string | null>(null);
-  const [expandedNotesKeys, setExpandedNotesKeys] = useState<
+  const [expandedCardKeys, setExpandedCardKeys] = useState<
     Record<string, boolean>
   >({});
+  const [editingResumeId, setEditingResumeId] = useState<string | null>(null);
+  const [savingResumeId, setSavingResumeId] = useState<string | null>(null);
+  const [resumeDraft, setResumeDraft] = useState<{
+    versionName: string;
+    company: string;
+    jobTitle: string;
+    notes: string;
+    isSent: boolean;
+  } | null>(null);
+
+  const toggleCardExpanded = (cardKey: string) =>
+    setExpandedCardKeys((prev) => ({
+      ...prev,
+      [cardKey]: !prev[cardKey],
+    }));
+
+  const startEditingResume = (rec: TailoredResumeRecord) => {
+    if (editingResumeId === rec.id) {
+      setEditingResumeId(null);
+      setResumeDraft(null);
+      return;
+    }
+    setEditingResumeId(rec.id);
+    setResumeDraft({
+      versionName:
+        rec.versionName ||
+        rec.resumeData?.versionName ||
+        rec.company ||
+        'General Snapshot',
+      company: rec.company || '',
+      jobTitle: rec.jobTitle || rec.resumeData?.targetHeadline || '',
+      notes: rec.notes || '',
+      isSent: Boolean(rec.isSent),
+    });
+  };
+
+  const handleSaveResumeDraft = async (recId: string) => {
+    if (!resumeDraft) return;
+    setSavingResumeId(recId);
+    try {
+      await onUpdateResumeRecord(recId, {
+        versionName: resumeDraft.versionName.trim() || null,
+        company: resumeDraft.company.trim(),
+        jobTitle: resumeDraft.jobTitle.trim(),
+        notes: resumeDraft.notes,
+        isSent: resumeDraft.isSent,
+      });
+      setEditingResumeId(null);
+      setResumeDraft(null);
+    } finally {
+      setSavingResumeId(null);
+    }
+  };
   const [popoutModalData, setPopoutModalData] = useState<{
     company: string;
     jobTitle: string;
@@ -404,6 +468,19 @@ export function ApplicationsCompilationView({
     () => new Set(unsavedAppliedJobIds),
     [unsavedAppliedJobIds]
   );
+
+  const pinnedOrderMap = useMemo(
+    () => new Map(pinnedActivityIds.map((key, idx) => [key, idx])),
+    [pinnedActivityIds]
+  );
+
+  const handlePinToggle = (pinKey: string, label: string) => {
+    const currentlyPinned = pinnedOrderMap.has(pinKey);
+    onTogglePinActivity?.(pinKey);
+    setPinAnnouncement(
+      currentlyPinned ? `Unpinned ${label}` : `Pinned ${label} to top`
+    );
+  };
 
   const applyUrlToLogForm = (nextUrl: string) => {
     const inferred = inferJobInfoFromUrl(nextUrl);
@@ -560,22 +637,35 @@ export function ApplicationsCompilationView({
         dateIso: rec.sentAt || rec.createdAt,
       }));
 
-    return [...jobEntries, ...standaloneEntries].sort((a, b) => {
+    const merged = [...jobEntries, ...standaloneEntries];
+    const filtered = pinnedOnly
+      ? merged.filter((item) => pinnedOrderMap.has(item.key))
+      : merged;
+
+    return filtered.sort((a, b) => {
+      const aRank = pinnedOrderMap.get(a.key) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = pinnedOrderMap.get(b.key) ?? Number.MAX_SAFE_INTEGER;
+      if (aRank !== bRank) return aRank - bRank;
       const diff = new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime();
       return sortOrder === 'newest' ? diff : -diff;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedJobs, query, resumeRecords, sortOrder, stageFilter, standaloneSentRecords]);
+  }, [appliedJobs, pinnedOnly, pinnedOrderMap, query, resumeRecords, sortOrder, stageFilter, standaloneSentRecords]);
 
   const filteredSavedJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const list = !q
-      ? savedJobs
-      : savedJobs.filter((j) =>
-          `${j.company} ${j.title} ${j.location}`.toLowerCase().includes(q)
-        );
-    return sortOrder === 'newest' ? list : [...list].reverse();
-  }, [query, savedJobs, sortOrder]);
+    const list = savedJobs.filter((j) => {
+      if (pinnedOnly && !pinnedOrderMap.has(`job:${j.id}`)) return false;
+      if (!q) return true;
+      return `${j.company} ${j.title} ${j.location}`.toLowerCase().includes(q);
+    });
+    const ordered = sortOrder === 'newest' ? list : [...list].reverse();
+    return [...ordered].sort((a, b) => {
+      const aRank = pinnedOrderMap.get(`job:${a.id}`) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = pinnedOrderMap.get(`job:${b.id}`) ?? Number.MAX_SAFE_INTEGER;
+      return aRank - bRank;
+    });
+  }, [pinnedOnly, pinnedOrderMap, query, savedJobs, sortOrder]);
 
   const filteredHiddenJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -588,6 +678,7 @@ export function ApplicationsCompilationView({
   const filteredResumeRecords = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = resumeRecords.filter((r) => {
+      if (pinnedOnly && !pinnedOrderMap.has(`rec:${r.id}`)) return false;
       if (resumeFilter === 'sent' && !r.isSent) return false;
       if (resumeFilter === 'drafts' && r.isSent) return false;
       if (!q) return true;
@@ -595,8 +686,29 @@ export function ApplicationsCompilationView({
         .toLowerCase()
         .includes(q);
     });
-    return sortOrder === 'newest' ? list : [...list].reverse();
-  }, [query, resumeFilter, resumeRecords, sortOrder]);
+    const ordered = sortOrder === 'newest' ? list : [...list].reverse();
+    return [...ordered].sort((a, b) => {
+      const aRank = pinnedOrderMap.get(`rec:${a.id}`) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = pinnedOrderMap.get(`rec:${b.id}`) ?? Number.MAX_SAFE_INTEGER;
+      return aRank - bRank;
+    });
+  }, [pinnedOnly, pinnedOrderMap, query, resumeFilter, resumeRecords, sortOrder]);
+
+  const pinnedCountInSubView = useMemo(() => {
+    if (subView === 'saved') {
+      return savedJobs.filter((j) => pinnedOrderMap.has(`job:${j.id}`)).length;
+    }
+    if (subView === 'applied') {
+      return (
+        appliedJobs.filter((j) => pinnedOrderMap.has(`job:${j.id}`)).length +
+        standaloneSentRecords.filter((r) => pinnedOrderMap.has(`rec:${r.id}`)).length
+      );
+    }
+    if (subView === 'resumes') {
+      return resumeRecords.filter((r) => pinnedOrderMap.has(`rec:${r.id}`)).length;
+    }
+    return 0;
+  }, [appliedJobs, pinnedOrderMap, resumeRecords, savedJobs, standaloneSentRecords, subView]);
 
   const totalAppliedCount = appliedJobs.length + standaloneSentRecords.length;
   const interviewingOrOfferCount = useMemo(
@@ -673,11 +785,77 @@ export function ApplicationsCompilationView({
       : 'text-slate-700 hover:bg-slate-50 hover:text-slate-950'
   );
 
-  const renderNotesBlock = (job: JobListing, cardKey: string) => {
-    const notes = (job.applicationNotes || '').trim();
+  const renderPinnedBadge = () => (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-semibold',
+        tokens.badgeAccent
+      )}
+    >
+      <Pin className="h-3 w-3 fill-current" aria-hidden="true" />
+      <span>Pinned</span>
+    </span>
+  );
+
+  const renderPinButton = (
+    pinKey: string,
+    isPinned: boolean,
+    title: string
+  ) => (
+    <button
+      type="button"
+      aria-pressed={isPinned}
+      onClick={() => handlePinToggle(pinKey, title)}
+      className={cn(
+        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+        isPinned ? tokens.badgeAccent : secondaryBtn
+      )}
+    >
+      <Pin
+        className={cn('h-3.5 w-3.5', isPinned && 'fill-current')}
+        aria-hidden="true"
+      />
+      <span>Pin</span>
+      <span className="sr-only"> {title}</span>
+    </button>
+  );
+
+  const renderExpandButton = (
+    cardKey: string,
+    isExpanded: boolean,
+    labelTarget: string
+  ) => (
+    <button
+      type="button"
+      aria-expanded={isExpanded}
+      aria-label={`${isExpanded ? 'Collapse' : 'Expand'} details for ${labelTarget}`}
+      onClick={() => toggleCardExpanded(cardKey)}
+      className={cn(
+        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+        secondaryBtn
+      )}
+    >
+      {isExpanded ? (
+        <>
+          <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Collapse</span>
+        </>
+      ) : (
+        <>
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>Expand</span>
+        </>
+      )}
+    </button>
+  );
+
+  const renderCompactNotesBox = (
+    rawNotes: string | null | undefined,
+    isExpanded: boolean,
+    label = 'Notes:'
+  ) => {
+    const notes = (rawNotes || '').trim();
     if (!notes) return null;
-    const isExpanded = Boolean(expandedNotesKeys[cardKey]);
-    const isLong = notes.length > 140 || notes.includes('\n');
 
     return (
       <div
@@ -694,27 +872,9 @@ export function ApplicationsCompilationView({
               : 'line-clamp-2'
           )}
         >
-          <strong className={strongText}>Notes:</strong>{' '}
+          <strong className={strongText}>{label}</strong>{' '}
           <span className={mutedText}>{notes}</span>
         </div>
-        {isLong && (
-          <button
-            type="button"
-            aria-expanded={isExpanded}
-            onClick={() =>
-              setExpandedNotesKeys((prev) => ({
-                ...prev,
-                [cardKey]: !prev[cardKey],
-              }))
-            }
-            className={cn(
-              'mt-1 text-[11px] font-semibold underline-offset-2 hover:underline',
-              isDark ? 'text-zinc-200' : 'text-[#0a66c2]'
-            )}
-          >
-            {isExpanded ? 'Show less' : 'Show more'}
-          </button>
-        )}
       </div>
     );
   };
@@ -977,6 +1137,9 @@ export function ApplicationsCompilationView({
 
   return (
     <div className="mx-auto max-w-[920px] space-y-5 pb-10">
+      <div role="status" aria-live="polite" className="sr-only">
+        {pinAnnouncement}
+      </div>
       {/* ACTIVITY HEADER + CLEAN JOBSTREET UNDERLINE TABS (Pics 1 & 2) */}
       <div className="no-print space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1186,6 +1349,30 @@ export function ApplicationsCompilationView({
                   Saved Drafts ({resumeRecords.length - sentResumeCount})
                 </option>
               </select>
+            )}
+
+            {subView !== 'hidden' && (
+              <button
+                type="button"
+                aria-pressed={pinnedOnly}
+                onClick={() => {
+                  setPinnedOnly((v) => !v);
+                  setAppliedPage(1);
+                }}
+                className={cn(
+                  'civic-touch-target inline-flex h-[38px] items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors',
+                  pinnedOnly ? primaryBtn : secondaryBtn
+                )}
+              >
+                <Pin
+                  className={cn('h-3.5 w-3.5', pinnedOnly && 'fill-current')}
+                  aria-hidden="true"
+                />
+                <span>Pinned</span>
+                <span className="font-mono text-[11px] tabular-nums opacity-80">
+                  ({pinnedCountInSubView})
+                </span>
+              </button>
             )}
 
             <button
@@ -1500,16 +1687,35 @@ export function ApplicationsCompilationView({
               )}
             >
               <Bookmark className={cn('mx-auto h-7 w-7', mutedText)} />
-              <p className="text-sm font-semibold">No saved jobs yet</p>
-              <p className={cn('text-xs', mutedText)}>
-                Bookmark any listing or apply to a job and it will appear here automatically.
+              <p className="text-sm font-semibold">
+                {pinnedOnly ? 'No pinned saved jobs yet' : 'No saved jobs yet'}
               </p>
+              <p className={cn('text-xs', mutedText)}>
+                {pinnedOnly
+                  ? 'Click Pin on any saved job card to keep top roles at the top of this list.'
+                  : 'Bookmark any listing or apply to a job and it will appear here automatically.'}
+              </p>
+              {pinnedOnly && (
+                <button
+                  type="button"
+                  onClick={() => setPinnedOnly(false)}
+                  className={cn(
+                    'civic-touch-target inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium',
+                    secondaryBtn
+                  )}
+                >
+                  Show all saved jobs
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
               {filteredSavedJobs.map((job) => {
                 const savedKey = `saved:${job.id}`;
+                const pinKey = `job:${job.id}`;
+                const isPinned = pinnedOrderMap.has(pinKey);
                 const isEditingSaved = expandedEditKey === savedKey;
+                const isSavedExpanded = Boolean(expandedCardKeys[savedKey]);
                 const linkedRecord = findLinkedResume(job);
                 const resumeForJob =
                   linkedRecord?.resumeData || profile.structuredResume;
@@ -1522,21 +1728,28 @@ export function ApplicationsCompilationView({
                     key={job.id}
                     className={cn(
                       'rounded-xl border p-4 transition-colors sm:p-5',
-                      cardSurface
+                      cardSurface,
+                      isPinned &&
+                        (isDark
+                          ? 'border-l-[3px] border-l-zinc-200'
+                          : 'border-l-[3px] border-l-[#0a66c2]')
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => onOpenJobInExplorer(job.id)}
-                          className={cn(
-                            'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
-                            strongText
-                          )}
-                        >
-                          {job.title}
-                        </button>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onOpenJobInExplorer(job.id)}
+                            className={cn(
+                              'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
+                              strongText
+                            )}
+                          >
+                            {job.title}
+                          </button>
+                          {isPinned && renderPinnedBadge()}
+                        </div>
                         <p className={cn('text-sm font-medium', mutedText)}>
                           {job.company}
                         </p>
@@ -1547,6 +1760,16 @@ export function ApplicationsCompilationView({
                         tokens={tokens}
                       >
                         <>
+                          {onTogglePinActivity && (
+                            <button
+                              type="button"
+                              onClick={() => handlePinToggle(pinKey, job.title)}
+                              className={overflowItemClass}
+                            >
+                              <Pin className="h-3.5 w-3.5" />
+                              <span>{isPinned ? 'Unpin from top' : 'Pin to top'}</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() =>
@@ -1614,7 +1837,10 @@ export function ApplicationsCompilationView({
 
                     <div className={cn('mt-2.5 space-y-0.5 text-xs', mutedText)}>
                       <p>Posted {formatJobDateLabel(job, nowMs ?? undefined)}</p>
-                      <p>{job.location}</p>
+                      <p>
+                        {job.location}
+                        {job.workType ? ` (${job.workType})` : ''}
+                      </p>
                       {job.salary && (
                         <p className={cn('font-mono font-medium', strongText)}>
                           {job.salary}
@@ -1625,17 +1851,40 @@ export function ApplicationsCompilationView({
                     {snippet && !isEditingSaved && (
                       <p
                         className={cn(
-                          'mt-2.5 line-clamp-2 text-xs leading-relaxed',
+                          'mt-2.5 text-xs leading-relaxed',
+                          isSavedExpanded
+                            ? 'max-h-60 overflow-y-auto whitespace-pre-line pr-1'
+                            : 'line-clamp-2',
                           mutedText
                         )}
                       >
-                        {snippet}
+                        {isSavedExpanded ? job.description : snippet}
                       </p>
                     )}
 
-                    {!isEditingSaved && renderNotesBlock(job, savedKey)}
+                    {isSavedExpanded && !isEditingSaved && (
+                      <div className={cn('mt-2.5 flex flex-wrap items-center gap-1.5 text-[11px]', mutedText)}>
+                        <span className={cn('rounded border px-2 py-0.5 font-medium', subSurface)}>
+                          {getSourceBoardName(job.source)}
+                        </span>
+                        <span className={cn('rounded border px-2 py-0.5 font-mono', subSurface)}>
+                          {job.matchScore}% match
+                        </span>
+                        {job.matchedSkills.slice(0, 4).map((skill) => (
+                          <span
+                            key={`${savedKey}-${skill}`}
+                            className={cn('rounded border px-2 py-0.5', subSurface)}
+                          >
+                            ✓ {skill}
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                    {!isEditingSaved &&
+                      renderCompactNotesBox(job.applicationNotes, isSavedExpanded)}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
                       {job.status === 'applied' ? (
                         <>
                           <span
@@ -1689,6 +1938,10 @@ export function ApplicationsCompilationView({
                         </button>
                       )}
 
+                      {onTogglePinActivity && renderPinButton(pinKey, isPinned, job.title)}
+
+                      {renderExpandButton(savedKey, isSavedExpanded, job.title)}
+
                       <button
                         type="button"
                         onClick={() =>
@@ -1740,16 +1993,34 @@ export function ApplicationsCompilationView({
               )}
             >
               <CheckCircle2 className={cn('mx-auto h-7 w-7', mutedText)} />
-              <p className="text-sm font-semibold">No applied jobs tracked yet</p>
-              <p className={cn('text-xs', mutedText)}>
-                Apply via Resume Studio, mark a job Applied, or click &ldquo;Add Job Application&rdquo; above.
+              <p className="text-sm font-semibold">
+                {pinnedOnly ? 'No pinned applied jobs yet' : 'No applied jobs tracked yet'}
               </p>
+              <p className={cn('text-xs', mutedText)}>
+                {pinnedOnly
+                  ? 'Click Pin on any applied job to keep top applications at the top of this list.'
+                  : 'Apply via Resume Studio, mark a job Applied, or click “Add Job Application” above.'}
+              </p>
+              {pinnedOnly && (
+                <button
+                  type="button"
+                  onClick={() => setPinnedOnly(false)}
+                  className={cn(
+                    'civic-touch-target inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium',
+                    secondaryBtn
+                  )}
+                >
+                  Show all applied jobs
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
               {paginatedAppliedItems.map((item) => {
                 const job = item.job;
+                const isPinned = pinnedOrderMap.has(item.key);
                 const isEditing = expandedEditKey === item.key;
+                const isAppliedExpanded = Boolean(expandedCardKeys[item.key]);
                 const previewResume =
                   item.record?.resumeData ||
                   (job ? profile.structuredResume : null);
@@ -1762,38 +2033,46 @@ export function ApplicationsCompilationView({
                 const savedFlag = job
                   ? isJobSaved(job, unsavedAppliedSet)
                   : false;
+                const notesText = job?.applicationNotes || item.record?.notes || '';
 
                 return (
                   <article
                     key={item.key}
                     className={cn(
                       'rounded-xl border p-4 transition-colors sm:p-5',
-                      cardSurface
+                      cardSurface,
+                      isPinned &&
+                        (isDark
+                          ? 'border-l-[3px] border-l-zinc-200'
+                          : 'border-l-[3px] border-l-[#0a66c2]')
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 space-y-1">
-                        {job ? (
-                          <button
-                            type="button"
-                            onClick={() => onOpenJobInExplorer(job.id)}
-                            className={cn(
-                              'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
-                              strongText
-                            )}
-                          >
-                            {item.title}
-                          </button>
-                        ) : (
-                          <h3
-                            className={cn(
-                              'font-display text-base font-bold leading-snug',
-                              strongText
-                            )}
-                          >
-                            {item.title}
-                          </h3>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {job ? (
+                            <button
+                              type="button"
+                              onClick={() => onOpenJobInExplorer(job.id)}
+                              className={cn(
+                                'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
+                                strongText
+                              )}
+                            >
+                              {item.title}
+                            </button>
+                          ) : (
+                            <h3
+                              className={cn(
+                                'font-display text-base font-bold leading-snug',
+                                strongText
+                              )}
+                            >
+                              {item.title}
+                            </h3>
+                          )}
+                          {isPinned && renderPinnedBadge()}
+                        </div>
                         <p className={cn('text-sm font-medium', mutedText)}>
                           {item.company}
                         </p>
@@ -1804,6 +2083,16 @@ export function ApplicationsCompilationView({
                         tokens={tokens}
                       >
                         <>
+                          {onTogglePinActivity && (
+                            <button
+                              type="button"
+                              onClick={() => handlePinToggle(item.key, item.title)}
+                              className={overflowItemClass}
+                            >
+                              <Pin className="h-3.5 w-3.5" />
+                              <span>{isPinned ? 'Unpin from top' : 'Pin to top'}</span>
+                            </button>
+                          )}
                           {job && (
                             <>
                               <button
@@ -1937,7 +2226,55 @@ export function ApplicationsCompilationView({
                       )}
                     </div>
 
-                    {job && !isEditing && renderNotesBlock(job, item.key)}
+                    {!isEditing && renderCompactNotesBox(notesText, isAppliedExpanded)}
+
+                    {isAppliedExpanded && !isEditing && (
+                      <div
+                        className={cn(
+                          'mt-2.5 space-y-2 rounded-lg border p-3 text-xs',
+                          subSurface
+                        )}
+                      >
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span>
+                            <strong className={strongText}>Resume:</strong>{' '}
+                            <span className={mutedText}>
+                              {item.record?.versionName || methodLabel}
+                            </span>
+                          </span>
+                          {job?.matchScore !== undefined && (
+                            <span className={cn('font-mono', mutedText)}>
+                              {job.matchScore}% match
+                            </span>
+                          )}
+                          {job?.url && job.url !== '#' && (
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                'inline-flex items-center gap-1 underline-offset-2 hover:underline',
+                                isDark ? 'text-zinc-200' : 'text-[#0a66c2]'
+                              )}
+                            >
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                              <span className="max-w-[260px] truncate">{job.url}</span>
+                            </a>
+                          )}
+                        </div>
+                        {job?.description && (
+                          <div
+                            className={cn(
+                              'max-h-48 overflow-y-auto whitespace-pre-line border-t pt-2 leading-relaxed pr-1',
+                              borderSubtle,
+                              mutedText
+                            )}
+                          >
+                            {job.description}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Action Buttons */}
                     <div className="mt-3.5 flex flex-wrap items-center gap-2">
@@ -1963,6 +2300,11 @@ export function ApplicationsCompilationView({
                           <span>Show Resume</span>
                         </button>
                       )}
+
+                      {onTogglePinActivity &&
+                        renderPinButton(item.key, isPinned, item.title)}
+
+                      {renderExpandButton(item.key, isAppliedExpanded, item.title)}
 
                       {job && (
                         <button
@@ -2034,130 +2376,344 @@ export function ApplicationsCompilationView({
               )}
             >
               <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
-              <p className="text-sm font-semibold">No matching resumes yet</p>
-              <p className={cn('text-xs', mutedText)}>
-                Tailor a resume with AI or click &ldquo;Save Version&rdquo; in Resume Studio to track resumes applied by company.
+              <p className="text-sm font-semibold">
+                {pinnedOnly ? 'No pinned resume snapshots yet' : 'No matching resumes yet'}
               </p>
+              <p className={cn('text-xs', mutedText)}>
+                {pinnedOnly
+                  ? 'Click Pin on any resume snapshot to keep priority versions at the top.'
+                  : 'Tailor a resume with AI or click “Save Version” in Resume Studio to track resumes applied by company.'}
+              </p>
+              {pinnedOnly && (
+                <button
+                  type="button"
+                  onClick={() => setPinnedOnly(false)}
+                  className={cn(
+                    'civic-touch-target inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-medium',
+                    secondaryBtn
+                  )}
+                >
+                  Show all resumes
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredResumeRecords.map((rec) => (
-                <article
-                  key={rec.id}
-                  className={cn(
-                    'space-y-2.5 rounded-xl border p-4 sm:p-5',
-                    cardSurface
-                  )}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span
-                          className={cn(
-                            'rounded border px-2 py-0.5 text-[11px] font-medium',
-                            subSurface
-                          )}
-                        >
-                          {getSourceMethodLabel(rec)}
-                        </span>
-                        {rec.isSent && (
+              {filteredResumeRecords.map((rec) => {
+                const resumeKey = `resume:${rec.id}`;
+                const pinKey = `rec:${rec.id}`;
+                const isPinned = pinnedOrderMap.has(pinKey);
+                const isResumeExpanded = Boolean(expandedCardKeys[resumeKey]);
+                const isEditingResume = editingResumeId === rec.id && resumeDraft !== null;
+                const displayTitle =
+                  rec.versionName ||
+                  rec.resumeData?.versionName ||
+                  rec.company ||
+                  'General Snapshot';
+
+                return (
+                  <article
+                    key={rec.id}
+                    className={cn(
+                      'space-y-2.5 rounded-xl border p-4 sm:p-5',
+                      cardSurface,
+                      isPinned &&
+                        (isDark
+                          ? 'border-l-[3px] border-l-zinc-200'
+                          : 'border-l-[3px] border-l-[#0a66c2]')
+                    )}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span
                             className={cn(
-                              'rounded border px-2 py-0.5 text-[11px] font-semibold',
-                              tokens.badgeSuccess
+                              'rounded border px-2 py-0.5 text-[11px] font-medium',
+                              subSurface
                             )}
                           >
-                            ✓ Applied / Sent
+                            {getSourceMethodLabel(rec)}
                           </span>
-                        )}
+                          {rec.isSent && (
+                            <span
+                              className={cn(
+                                'rounded border px-2 py-0.5 text-[11px] font-semibold',
+                                tokens.badgeSuccess
+                              )}
+                            >
+                              ✓ Applied / Sent
+                            </span>
+                          )}
+                          {isPinned && renderPinnedBadge()}
+                        </div>
+                        <h3 className={cn('font-display text-base font-bold', strongText)}>
+                          {displayTitle}
+                        </h3>
+                        <p className={cn('text-xs font-medium', mutedText)}>
+                          {rec.company ? `${rec.company} • ` : ''}
+                          {rec.jobTitle || rec.resumeData.targetHeadline}
+                        </p>
                       </div>
-                      <h3 className={cn('font-display text-base font-bold', strongText)}>
-                        {rec.versionName ||
-                          rec.resumeData?.versionName ||
-                          rec.company ||
-                          'General Snapshot'}
-                      </h3>
-                      <p className={cn('text-xs font-medium', mutedText)}>
-                        {rec.company ? `${rec.company} • ` : ''}
-                        {rec.jobTitle || rec.resumeData.targetHeadline}
-                      </p>
+
+                      <span className={cn('font-mono text-xs', mutedText)}>
+                        {formatAppliedDate(rec.sentAt || rec.createdAt)}
+                      </span>
                     </div>
 
-                    <span className={cn('font-mono text-xs', mutedText)}>
-                      {formatAppliedDate(rec.sentAt || rec.createdAt)}
-                    </span>
-                  </div>
+                    {!isEditingResume &&
+                      renderCompactNotesBox(rec.notes, isResumeExpanded)}
 
-                  {rec.notes && (
-                    <p className={cn('text-xs leading-relaxed', mutedText)}>
-                      {rec.notes}
-                    </p>
-                  )}
+                    {isResumeExpanded && !isEditingResume && (
+                      <div
+                        className={cn(
+                          'space-y-2 rounded-lg border p-3 text-xs',
+                          subSurface
+                        )}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className={cn('font-mono text-[11px]', mutedText)}>
+                            {rec.resumeData?.pageSize?.toUpperCase() || 'A4'} •{' '}
+                            {rec.resumeData?.fontFamily || 'Calibri'} •{' '}
+                            {rec.resumeData?.textAlign === 'justify' ? 'Justified' : 'Left'}
+                          </span>
+                          {rec.resumeData?.targetHeadline && (
+                            <span className={cn('text-[11px] font-medium', strongText)}>
+                              {rec.resumeData.targetHeadline}
+                            </span>
+                          )}
+                        </div>
+                        {rec.resumeData?.tailoredSummary && (
+                          <p
+                            className={cn(
+                              'max-h-40 overflow-y-auto whitespace-pre-line border-t pt-2 leading-relaxed pr-1',
+                              borderSubtle,
+                              mutedText
+                            )}
+                          >
+                            {rec.resumeData.tailoredSummary}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPopoutModalData({
-                          company: rec.company || 'General Snapshot',
-                          jobTitle:
-                            rec.jobTitle || rec.resumeData.targetHeadline,
-                          methodLabel: getSourceMethodLabel(rec),
-                          submittedAt: rec.sentAt || rec.createdAt,
-                          resume: rec.resumeData,
-                        })
-                      }
-                      className={cn(
-                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs',
-                        primaryBtn
-                      )}
-                    >
-                      <Maximize2 className="h-3.5 w-3.5" />
-                      <span>Show Resume</span>
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPopoutModalData({
+                            company: rec.company || 'General Snapshot',
+                            jobTitle:
+                              rec.jobTitle || rec.resumeData.targetHeadline,
+                            methodLabel: getSourceMethodLabel(rec),
+                            submittedAt: rec.sentAt || rec.createdAt,
+                            resume: rec.resumeData,
+                          })
+                        }
+                        className={cn(
+                          'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs',
+                          primaryBtn
+                        )}
+                      >
+                        <Maximize2 className="h-3.5 w-3.5" />
+                        <span>Show Resume</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => onOpenInResumeStudio(rec.resumeData, null)}
-                      className={cn(
-                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                        secondaryBtn
-                      )}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      <span>Load in Studio</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => onOpenInResumeStudio(rec.resumeData, null)}
+                        className={cn(
+                          'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                          secondaryBtn
+                        )}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        <span>Load in Studio</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void onUpdateResumeRecord(rec.id, {
-                          isSent: !rec.isSent,
-                        })
-                      }
-                      className={cn(
-                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                        secondaryBtn
-                      )}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      <span>{rec.isSent ? 'Marked Applied' : 'Mark Applied'}</span>
-                    </button>
+                      {onTogglePinActivity &&
+                        renderPinButton(pinKey, isPinned, displayTitle)}
 
-                    <button
-                      type="button"
-                      onClick={() => void onDeleteResumeRecord(rec.id)}
-                      className={cn(
-                        'civic-touch-target ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium',
-                        secondaryBtn
-                      )}
-                      aria-label={`Delete ${rec.versionName || rec.company || 'resume'}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </article>
-              ))}
+                      {renderExpandButton(resumeKey, isResumeExpanded, displayTitle)}
+
+                      <button
+                        type="button"
+                        onClick={() => startEditingResume(rec)}
+                        className={cn(
+                          'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                          isEditingResume ? primaryBtn : secondaryBtn
+                        )}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        <span>{isEditingResume ? 'Editing' : 'Edit Details'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void onUpdateResumeRecord(rec.id, {
+                            isSent: !rec.isSent,
+                          })
+                        }
+                        className={cn(
+                          'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                          secondaryBtn
+                        )}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span>{rec.isSent ? 'Marked Applied' : 'Mark Applied'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => void onDeleteResumeRecord(rec.id)}
+                        className={cn(
+                          'civic-touch-target ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium',
+                          secondaryBtn
+                        )}
+                        aria-label={`Delete ${displayTitle}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    {isEditingResume && resumeDraft && (
+                      <div
+                        className={cn(
+                          'mt-3 grid gap-3 rounded-lg border p-3.5 sm:grid-cols-12',
+                          subSurface
+                        )}
+                      >
+                        <div className="sm:col-span-6 space-y-1">
+                          <label className={cn('block text-[11px] font-medium', mutedText)}>
+                            Version Name
+                          </label>
+                          <input
+                            type="text"
+                            value={resumeDraft.versionName}
+                            onChange={(e) =>
+                              setResumeDraft((prev) =>
+                                prev ? { ...prev, versionName: e.target.value } : prev
+                              )
+                            }
+                            placeholder="e.g. Medicare Plus — Data Analyst"
+                            className={cn(
+                              'min-h-[38px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+                              inputSurface
+                            )}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3 space-y-1">
+                          <label className={cn('block text-[11px] font-medium', mutedText)}>
+                            Company
+                          </label>
+                          <input
+                            type="text"
+                            value={resumeDraft.company}
+                            onChange={(e) =>
+                              setResumeDraft((prev) =>
+                                prev ? { ...prev, company: e.target.value } : prev
+                              )
+                            }
+                            placeholder="e.g. Medicare Plus"
+                            className={cn(
+                              'min-h-[38px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+                              inputSurface
+                            )}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-3 space-y-1">
+                          <label className={cn('block text-[11px] font-medium', mutedText)}>
+                            Job Title
+                          </label>
+                          <input
+                            type="text"
+                            value={resumeDraft.jobTitle}
+                            onChange={(e) =>
+                              setResumeDraft((prev) =>
+                                prev ? { ...prev, jobTitle: e.target.value } : prev
+                              )
+                            }
+                            placeholder="e.g. Data Analyst"
+                            className={cn(
+                              'min-h-[38px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+                              inputSurface
+                            )}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-12 space-y-1">
+                          <label className={cn('block text-[11px] font-medium', mutedText)}>
+                            Notes
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={resumeDraft.notes}
+                            onChange={(e) =>
+                              setResumeDraft((prev) =>
+                                prev ? { ...prev, notes: e.target.value } : prev
+                              )
+                            }
+                            placeholder="Add job description summary, portal reference, or tailoring notes..."
+                            className={cn(
+                              'w-full resize-y rounded-lg border px-3 py-2 text-base leading-relaxed focus:outline-none sm:text-xs',
+                              inputSurface
+                            )}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-12 flex flex-wrap items-center justify-between gap-2 pt-1">
+                          <label className="civic-touch-target inline-flex cursor-pointer items-center gap-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={resumeDraft.isSent}
+                              onChange={(e) =>
+                                setResumeDraft((prev) =>
+                                  prev ? { ...prev, isSent: e.target.checked } : prev
+                                )
+                              }
+                              className="h-4 w-4"
+                            />
+                            <span className="font-medium">Applied / Sent</span>
+                          </label>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingResumeId(null);
+                                setResumeDraft(null);
+                              }}
+                              className={cn(
+                                'civic-touch-target inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                                secondaryBtn
+                              )}
+                            >
+                              <X className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Cancel</span>
+                            </button>
+                            <button
+                              type="button"
+                              disabled={savingResumeId === rec.id}
+                              onClick={() => void handleSaveResumeDraft(rec.id)}
+                              className={cn(
+                                'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium disabled:opacity-50',
+                                primaryBtn
+                              )}
+                            >
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>
+                                {savingResumeId === rec.id ? 'Saving...' : 'Save Changes'}
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
@@ -2165,7 +2721,7 @@ export function ApplicationsCompilationView({
 
       {/* SUBVIEW 4: HIDDEN JOBS */}
       {subView === 'hidden' && (
-        <section className={cn('no-print space-y-3 rounded-xl border p-5', cardSurface)}>
+        <section className="no-print space-y-3">
           <div>
             <h3 className="text-sm font-semibold">
               Hidden Jobs ({filteredHiddenJobs.length})
@@ -2175,43 +2731,86 @@ export function ApplicationsCompilationView({
             </p>
           </div>
           {filteredHiddenJobs.length === 0 ? (
-            <p className={cn('text-xs', mutedText)}>No hidden jobs.</p>
+            <div className={cn('rounded-xl border border-dashed p-8 text-center', cardSurface)}>
+              <p className={cn('text-xs', mutedText)}>No hidden jobs.</p>
+            </div>
           ) : (
-            <div className={cn('divide-y', borderSubtle)}>
-              {filteredHiddenJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <BoardLogo source={job.source} theme={theme} size="sm" />
-                      <span className={cn('text-xs', mutedText)}>
-                        {job.hiddenAt
-                          ? `Hidden ${formatAppliedDate(job.hiddenAt)}`
-                          : 'Hidden'}
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold">{job.title}</p>
-                    <p className={cn('text-xs', mutedText)}>
-                      {job.company} • {job.location}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onUpdateJobApplication(job.id, { status: 'suggested' })
-                    }
+            <div className="space-y-3">
+              {filteredHiddenJobs.map((job) => {
+                const hiddenKey = `hidden:${job.id}`;
+                const isHiddenExpanded = Boolean(expandedCardKeys[hiddenKey]);
+                const hiddenSnippet = job.description
+                  ? job.description.replace(/\s+/g, ' ').trim()
+                  : '';
+
+                return (
+                  <article
+                    key={job.id}
                     className={cn(
-                      'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
-                      secondaryBtn
+                      'space-y-2.5 rounded-xl border p-4 sm:p-5',
+                      cardSurface
                     )}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    Restore to Active
-                  </button>
-                </div>
-              ))}
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <BoardLogo source={job.source} theme={theme} size="sm" />
+                          <span className={cn('text-xs', mutedText)}>
+                            {job.hiddenAt
+                              ? `Hidden ${formatAppliedDate(job.hiddenAt)}`
+                              : 'Hidden'}
+                          </span>
+                        </div>
+                        <p className={cn('font-display text-base font-bold leading-snug', strongText)}>
+                          {job.title}
+                        </p>
+                        <p className={cn('text-xs font-medium', mutedText)}>
+                          {job.company} • {job.location}
+                          {job.workType ? ` (${job.workType})` : ''}
+                        </p>
+                        {job.salary && (
+                          <p className={cn('font-mono text-xs font-medium', strongText)}>
+                            {job.salary}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {renderExpandButton(hiddenKey, isHiddenExpanded, job.title)}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateJobApplication(job.id, { status: 'suggested' })
+                          }
+                          className={cn(
+                            'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                            secondaryBtn
+                          )}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>Restore to Active</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {hiddenSnippet && (
+                      <p
+                        className={cn(
+                          'text-xs leading-relaxed',
+                          isHiddenExpanded
+                            ? 'max-h-48 overflow-y-auto whitespace-pre-line pr-1'
+                            : 'line-clamp-2',
+                          mutedText
+                        )}
+                      >
+                        {isHiddenExpanded ? job.description : hiddenSnippet}
+                      </p>
+                    )}
+
+                    {renderCompactNotesBox(job.applicationNotes, isHiddenExpanded)}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

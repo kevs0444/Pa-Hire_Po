@@ -15,6 +15,7 @@ export const FREE_TIER_LIMITS = {
   maxRecentSearchesPerUser: 8,
   maxViewedJobIdsPerUser: 150,
   maxUnsavedAppliedIdsPerUser: 200,
+  maxPinnedActivityIdsPerUser: 25,
   maxResumeUploadBytes: Math.floor(4.5 * 1024 * 1024),
   keepAliveCron: '0 8 */4 * *',
 } as const;
@@ -103,6 +104,9 @@ export function pruneStateForFreeTier(state: AppStoreState): AppStoreState {
         unsavedAppliedJobIds: Array.isArray(user.unsavedAppliedJobIds)
           ? user.unsavedAppliedJobIds.slice(0, FREE_TIER_LIMITS.maxUnsavedAppliedIdsPerUser)
           : user.unsavedAppliedJobIds,
+        pinnedActivityIds: Array.isArray(user.pinnedActivityIds)
+          ? user.pinnedActivityIds.slice(0, FREE_TIER_LIMITS.maxPinnedActivityIdsPerUser)
+          : user.pinnedActivityIds,
       }))
     : state.users;
 

@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.9',
+    date: 'November 25, 2026',
+    isoDate: '2026-11-25T00:00:00.000Z',
+    headline:
+      'Tabbed executive Analytics dashboard (Overview, Skill Gaps, Apply Queue), unified Expandable Activity cards with Resume editing, and cloud-synced Priority Pinning',
+    items: [
+      {
+        tag: 'New',
+        title: 'Priority Pinning & Pinned (N) Filter Across Activity',
+        description:
+          'Pin top jobs and standout resume snapshots across Saved, Applied, and Resume Applied so priority roles float to the top, synced to Supabase JSONB (up to 25 pins) with a 1-click Pinned (N) filter pill.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Unified Expand / Collapse Cards & Inline Resume Applied Editor',
+        description:
+          'Clamped all notes and descriptions to compact 2-line previews across Activity and Resume Versions Drawer with uniform Expand / Collapse toggles and inline Edit Details for Version Name, Company, Job Title, and Notes.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Minimalist Tabbed Executive Analytics Dashboard',
+        description:
+          'Redesigned Analytics into Overview, Skill Gaps, and Apply Queue tabs with a unified 4-KPI ribbon, aligned Job Board cards, hairline Role Demand & Application Funnel, segmented Work Setup bar, and prioritized Missing Skills.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.8',
     date: 'November 24, 2026',
     isoDate: '2026-11-24T00:00:00.000Z',
@@ -38,9 +65,15 @@ export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
       },
       {
         tag: 'New',
-        title: 'Single-Column Activity Workspace & Auto-Saved Applied Jobs',
+        title: 'Single-Column Activity Workspace with Expandable Cards & Resume Editing',
         description:
-          'Redesigned Activity (Saved, Applied, Resume Applied, Hidden) with clean single-column cards, auto-saved applied jobs, clamped expandable Notes, and full inline editing for Title, Company, Platform, Stage, Date Applied, Location, Salary, URL, and Notes.',
+          'Unified every card across Saved, Applied, Resume Applied, Hidden, and Resume Versions Drawer with a compact 2-line preview, Expand / Collapse button, and inline Edit Details for job applications and saved resume snapshots.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Tabbed Executive Analytics Dashboard (Overview, Skill Gaps, Apply Queue)',
+        description:
+          'Redesigned Analytics into a calm 3-tab executive dashboard with a unified 4-KPI ribbon, aligned Job Board cards, flat hairline Role Demand & Application Funnel, segmented Work Setup bar, and prioritized Missing Skills.',
       },
     ],
   },

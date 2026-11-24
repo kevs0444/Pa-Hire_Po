@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.8
-commit_ref: "a069c9c"
+milestone: v1.0.9
+commit_ref: "local-unpushed"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-24
+updated: 2026-11-25
 tags:
   - pahirepo
   - timeline
@@ -131,6 +131,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `a069c9c` (`v1.0.8`) | 2026-11-24 | `feat(release): v1.0.8 JobStreet-inspired mobile-first Civic UI, filter pills, and editable Activity workspace` | Streamlined `AppTopNavbar.tsx` (4 tabs + fixed mobile bottom nav) & `UserAvatarMenu.tsx` (`popover="auto"`); added `viewport-fit=cover`, safe-area `scroll-padding`, and `44px` coarse-pointer targets (`layout.tsx`, `globals.css`); rebuilt `JobSearchBanner.tsx` with 6 `popover="auto"` filter pills (`Pay`, `Type`, `Remote`, `Classification`, `Listing time`, `Boards & More`), `job-filters.ts`, and collapsible `Recent searches`; launched `@container` `DiscoveryJobCard.tsx`, mobile `Recommended | Saved jobs` switcher (`JobDiscoveryFeed.tsx`), focused mobile Explorer switch (`mobileDetailOpen`), and auto-saved applied jobs (`isJobSaved` + `unsavedAppliedJobIds`); redesigned `ApplicationsCompilationView.tsx` into single-column `Activity` (`Saved`, `Applied`, `Resume Applied`, `Hidden`) with `⋮` menus, clamped expandable Notes, and full-detail inline editing; synced `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200) via Supabase JSONB; live on Vercel (`pa-hire-p890m428z` Ready) |
+
+---
+
+## Phase 13 — Tabbed Executive Analytics, Unified Expandable Cards & Priority Pinning (`v1.0.9`, Nov 25, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `local` (`v1.0.9`) | 2026-11-25 | Tabbed executive Analytics dashboard (`Overview`, `Skill Gaps`, `Apply Queue`), unified Expandable Activity & Versions cards + `Resume Applied` inline editing, and cloud-synced Priority Pinning | Redesigned `JobAnalyticsView.tsx` + `AutoApplyBlueprintPanel.tsx` + `globals.css` (`role="tablist"`, `hidden="until-found"`/`beforematch`, unified KPI ribbon, CSS `subgrid` boards, flat Role Demand, segmented Work Setup bar, Missing vs. Matched skills, native `<details>` Screening Answers); fixed unclamped notes on `Resume Applied` & standardized `Expand` / `Collapse` buttons + inline `Resume Applied` editing across `ApplicationsCompilationView.tsx` and `ResumeVersionsDrawer.tsx`; added `pinnedActivityIds` (cap `25`), `handleTogglePinActivity`, **`Pin`** (`aria-pressed`, `aria-live`), **`Pinned`** badge + Civic border accent, and **`Pinned (N)`** filter pill |
 
 ---
 

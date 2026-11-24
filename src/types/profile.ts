@@ -67,6 +67,7 @@ export interface UserProfile {
   recentSearches?: RecentJobSearch[];
   viewedJobIds?: string[];
   unsavedAppliedJobIds?: string[];
+  pinnedActivityIds?: string[];
 }
 
 export interface DynamicRoleSuggestion {

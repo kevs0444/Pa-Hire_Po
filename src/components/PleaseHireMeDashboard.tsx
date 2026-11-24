@@ -1574,6 +1574,25 @@ export function PleaseHireMeDashboard({
     handleUpdateJobStatus(jobId, target.status === 'saved' ? 'suggested' : 'saved');
   };
 
+  const handleTogglePinActivity = (pinKey: string) => {
+    const prev = storeRef.current;
+    const currentUser = getActiveUser(prev);
+    const currentPins = currentUser.pinnedActivityIds || [];
+    const isPinned = currentPins.includes(pinKey);
+    const nextPins = isPinned
+      ? currentPins.filter((k) => k !== pinKey)
+      : [pinKey, ...currentPins.filter((k) => k !== pinKey)].slice(0, 25);
+
+    const nextUsers = prev.users.map((u) =>
+      u.id === currentUser.id ? { ...u, pinnedActivityIds: nextPins } : u
+    );
+    const nextState: AppStoreState = { ...prev, users: nextUsers };
+    storeRef.current = nextState;
+    setStore(nextState);
+    saveLocalStateDebounced(nextState, authUserIdRef.current);
+    void syncStateToServer(nextState, 'profile-only');
+  };
+
   const handleUpdateResumeRecord = async (
     id: string,
     patch: {
@@ -1609,6 +1628,26 @@ export function PleaseHireMeDashboard({
     });
     if (res.ok) {
       setResumeRecords((prev) => prev.filter((r) => r.id !== id));
+      const prevStore = storeRef.current;
+      const currentUser = getActiveUser(prevStore);
+      const pinKey = `rec:${id}`;
+      if ((currentUser.pinnedActivityIds || []).includes(pinKey)) {
+        const nextUsers = prevStore.users.map((u) =>
+          u.id === currentUser.id
+            ? {
+                ...u,
+                pinnedActivityIds: (u.pinnedActivityIds || []).filter(
+                  (k) => k !== pinKey
+                ),
+              }
+            : u
+        );
+        const nextState: AppStoreState = { ...prevStore, users: nextUsers };
+        storeRef.current = nextState;
+        setStore(nextState);
+        saveLocalStateDebounced(nextState, authUserIdRef.current);
+        void syncStateToServer(nextState, 'profile-only');
+      }
       pushNotification({
         kind: 'resume',
         title: 'Resume version deleted',
@@ -2358,9 +2397,11 @@ export function PleaseHireMeDashboard({
             resumeRecords={resumeRecords}
             loadingResumes={loadingResumes}
             unsavedAppliedJobIds={activeProfile.unsavedAppliedJobIds || []}
+            pinnedActivityIds={activeProfile.pinnedActivityIds || []}
             nowMs={clientNow}
             onRefreshResumes={loadResumeHistory}
             onToggleSaveJob={handleToggleSaveJob}
+            onTogglePinActivity={handleTogglePinActivity}
             onOpenApplyModal={(job) => setApplyModalJob(job)}
             onUpdateJobApplication={handleUpdateJobApplication}
             onLogExternalApplication={handleLogExternalApplication}
