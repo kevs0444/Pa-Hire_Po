@@ -5,7 +5,7 @@ priority: p0-now
 area: product
 milestone: v1.0.8
 version: "1.0.8"
-commit_ref: "local-unpushed"
+commit_ref: "a069c9c"
 files:
   - CHANGELOG.md
   - package.json
@@ -24,7 +24,7 @@ Mirrors day-based customer releases (`v1.0.0` → `v1.0.8`) from [`CHANGELOG.md`
 
 ---
 
-## `v1.0.8` — November 24, 2026 (Local Verified Build)
+## `v1.0.8` — November 24, 2026 (`a069c9c`)
 - **Clean 4-Tab Header, Fixed Mobile Bottom Bar & Account Avatar Menu (`AppTopNavbar.tsx`, `UserAvatarMenu.tsx`, `layout.tsx`, `globals.css`):** Streamlined desktop navigation to **Job Search**, **Resume Studio AI**, **Activity**, and **Analytics**, added a 1-row mobile top bar + thumb-friendly fixed mobile bottom tab bar (`viewport-fit=cover`, `env(safe-area-inset-*)`, `44×44px` coarse-pointer targets, `scroll-padding-top`/`bottom`), and moved **My Profile**, **Saved searches**, **Saved jobs**, **Activity (Applied)**, **Settings**, **How It Works**, **Admin Control Center** (admin-only), inline **Light / Dark** toggle, and **Sign out** into a viewport-aware native `popover="auto"` menu.
 - **Full-Width Civic Search Banner with 6 Pill Popovers & `Recent searches` (`JobSearchBanner.tsx`, `job-filters.ts`, `job-date-utils.ts`):** Added 6 native `popover="auto"` filter pills (**Pay** with `Annually`/`Monthly`/`Hourly` tabs, **Type**, **Remote**, **Classification**, **Listing time** radio selector `Any time`–`Last 30 days`, and **Boards & More**), `16px` mobile inputs to prevent Safari auto-zoom, and a collapsible **Recent searches** card strip (`bg-[#062d57]` Light / `bg-[#141417]` Dark).
 - **Recommended Feed, Mobile Switcher, Auto-Saved Applied Jobs & `Activity` Workspace (`JobDiscoveryFeed.tsx`, `DiscoveryJobCard.tsx`, `ApplicationsCompilationView.tsx`, `JobDetailPane.tsx`):** Turned Home (`/`) into a container-aware 2-column feed (`@container`) with a mobile `Recommended | Saved jobs` 1-tap switcher, focused mobile Explorer detail view (`← Back to results`), automatic saving of applied jobs into **Saved jobs** (`isJobSaved` + `unsavedAppliedJobIds`), and a single-column **Activity** workspace (`Saved`, `Applied`, `Resume Applied`, `Hidden`) featuring `⋮` overflow menus, `line-clamp-2` + **Show more / Show less** Notes, and full-detail inline editing (`Title`, `Company`, `Platform`, `Stage`, `Date Applied`, `Location`, `Work Setup`, `Salary`, `Resume`, `URL`, multi-line `Notes`).

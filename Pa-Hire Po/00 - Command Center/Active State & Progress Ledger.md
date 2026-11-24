@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: infra
 milestone: v1.0.8
-commit_ref: "local-unpushed"
+commit_ref: "a069c9c"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `74f6835` (`fix(resume): match A4 preview 1:1 on PDF export with Fit-to-1-Page scaling and modal parity`) — live on Vercel production (`/` -> `307`, `/login` -> `200`, `/privacy` -> `200`, `/terms` -> `200`, `/api/supabase/setup` -> `200`, `/api/admin/platform-status` -> `401`) |
+| **Latest Verified Commit** | `a069c9c` (`feat(release): v1.0.8 JobStreet-inspired mobile-first Civic UI, filter pills, and editable Activity workspace`) — live on Vercel production (`pa-hire-p890m428z-kevs0444s-projects.vercel.app` Ready in 34s; `/` -> `200`, `/login` -> `200`) |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---

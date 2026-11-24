@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: product
 milestone: v1.0.8
-commit_ref: "local-unpushed"
+commit_ref: "a069c9c"
 files:
   - context.md
   - CHANGELOG.md
@@ -130,7 +130,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
-| `local` (`v1.0.8`) | 2026-11-24 | JobStreet-inspired minimal UI, mobile bottom bar & `@container` cards, 6 pill filter popovers, `Recent searches`, single-column `Activity` workspace with full-detail inline editing, and auto-saved applied jobs | Streamlined `AppTopNavbar.tsx` (4 tabs + fixed mobile bottom nav) & `UserAvatarMenu.tsx` (`popover="auto"`); added `viewport-fit=cover`, safe-area `scroll-padding`, and `44px` coarse-pointer targets (`layout.tsx`, `globals.css`); rebuilt `JobSearchBanner.tsx` with 6 `popover="auto"` filter pills (`Pay`, `Type`, `Remote`, `Classification`, `Listing time`, `Boards & More`), `job-filters.ts`, and collapsible `Recent searches`; launched `@container` `DiscoveryJobCard.tsx`, mobile `Recommended | Saved jobs` switcher (`JobDiscoveryFeed.tsx`), focused mobile Explorer switch (`mobileDetailOpen`), and auto-saved applied jobs (`isJobSaved` + `unsavedAppliedJobIds`); redesigned `ApplicationsCompilationView.tsx` into single-column `Activity` (`Saved`, `Applied`, `Resume Applied`, `Hidden`) with `⋮` menus, clamped expandable Notes, and full-detail inline editing; synced `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200) via Supabase JSONB |
+| `a069c9c` (`v1.0.8`) | 2026-11-24 | `feat(release): v1.0.8 JobStreet-inspired mobile-first Civic UI, filter pills, and editable Activity workspace` | Streamlined `AppTopNavbar.tsx` (4 tabs + fixed mobile bottom nav) & `UserAvatarMenu.tsx` (`popover="auto"`); added `viewport-fit=cover`, safe-area `scroll-padding`, and `44px` coarse-pointer targets (`layout.tsx`, `globals.css`); rebuilt `JobSearchBanner.tsx` with 6 `popover="auto"` filter pills (`Pay`, `Type`, `Remote`, `Classification`, `Listing time`, `Boards & More`), `job-filters.ts`, and collapsible `Recent searches`; launched `@container` `DiscoveryJobCard.tsx`, mobile `Recommended | Saved jobs` switcher (`JobDiscoveryFeed.tsx`), focused mobile Explorer switch (`mobileDetailOpen`), and auto-saved applied jobs (`isJobSaved` + `unsavedAppliedJobIds`); redesigned `ApplicationsCompilationView.tsx` into single-column `Activity` (`Saved`, `Applied`, `Resume Applied`, `Hidden`) with `⋮` menus, clamped expandable Notes, and full-detail inline editing; synced `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200) via Supabase JSONB; live on Vercel (`pa-hire-p890m428z` Ready) |
 
 ---
 
