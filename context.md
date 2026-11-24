@@ -1,22 +1,29 @@
 # Pa-Hire Po — Complete Feature & Context Breakdown
 
-**Last Updated:** November 22, 2026 (`v1.0.7` — Dynamic Certifications Row & Column Controls in Resume Studio AI + Dedicated Obsidian `07 - Agent Rules & Guidelines/` Folder for `AGENTS.md`)
+**Last Updated:** November 24, 2026 (`v1.0.8` — JobStreet-Inspired Minimal UI, Mobile Bottom Navigation & `@container` Responsiveness, 6 Pill Filter Popovers, Collapsible `Recent searches`, Single-Column `Activity` Workspace with Full-Detail Editing & Clamped Notes, and Auto-Saved Applied Jobs)
 
 Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design rules, and system architecture, organized into **Main Features**, **Sub-Features**, and **Anti-AI-Slop UI Guardrails**:
 
 ---
 
-## 0. Civic Career Utility Workspace + Light/Dark Theme (`Home` / `/`)
+## 0. Civic Career Utility Discovery Workspace + Minimal Header, Mobile Bar & Avatar Menu (`Home` / `/`)
 
-**Core files:** `src/app/page.tsx`, `src/app/jobs/page.tsx`, `src/components/LandingPageView.tsx`, `src/lib/theme.ts`, `public/pa-hire-po-logo.jpg`, `electron/open-desktop.cjs`, `open-desktop.bat`
+**Core files:** `src/app/page.tsx`, `src/app/jobs/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css`, `src/components/layout/AppTopNavbar.tsx`, `src/components/layout/UserAvatarMenu.tsx`, `src/features/jobs/components/JobSearchBanner.tsx`, `src/features/jobs/lib/job-filters.ts`, `src/features/jobs/components/JobDiscoveryFeed.tsx`, `src/features/jobs/components/DiscoveryJobCard.tsx`, `src/features/jobs/components/SavedSearchesDialog.tsx`, `src/lib/theme.ts`, `public/pa-hire-po-logo.jpg`
 
-- **Sub-Feature 0.1 — Official Branding (`Pa-Hire Po` Logo & Metadata):**
-  - Displays the official `Pa-Hire Po` emblem (`/pa-hire-po-logo.jpg` + `/favicon.ico`) in the browser tab favicon, sticky navbar header, workspace overview card, and Electron desktop window icon.
-- **Sub-Feature 0.2 — Light Civic (Default) & Dark Slate Theme Switcher (`Light` | `Dark`):**
-  - **Light Civic (Default):** Warm `#F3F2EF` paper canvas, `#FFFFFF` cards, `#0F172A` primary ink, and `#0A66C2` LinkedIn civic blue actions (`border-l-[3px] border-l-[#0a66c2]` active row indicator).
-  - **Dark Slate:** High-contrast `#0B0F17` canvas with `#111827` cards and `#2563EB` blue accents (synced with root `color-scheme: light dark` and `light-dark()` CSS tokens). Legacy `'orange'` stored preferences normalize safely to `'light'`.
-- **Sub-Feature 0.3 — Interactive Workspace Overview & 1-Click Desktop Launchers:**
-  - Root `/` opens on the **Home** Overview with live job counters, direct **JobStreet / LinkedIn / Indeed** board jump links, clean workspace action shortcuts (`Open Job Explorer`, `Resume Studio [AI]`), and copy-ready Electron CLI commands (`npm run desktop:open`, `npm run desktop:live`, `open-desktop.bat`).
+- **Sub-Feature 0.1 — Clean 4-Tab Header, Mobile Bottom Tab Bar (`AppTopNavbar.tsx`) & Account Avatar Menu (`UserAvatarMenu.tsx`):**
+  - **Minimal 4-Tab Navigation:** Displays the `Pa-Hire Po` emblem and 4 clean underline tabs (`aria-current="page"`): **Job Search**, **Resume Studio AI**, **Activity**, and **Analytics**, paired with `NotificationBell` and the right-aligned Avatar trigger.
+  - **Mobile-First 1-Row Header + Fixed Bottom Bar:** On `< 768px`, keeps the sticky top bar single-row (`~56px` + `safe-area-inset-top`) and renders a fixed 4-tab bottom navigation bar (`Jobs`, `Resume AI`, `Activity`, `Analytics`) with `44px+` touch targets, `env(safe-area-inset-bottom)` clearance, and `scroll-padding-top`/`scroll-padding-bottom` on `html`.
+  - **Viewport-Aware Account Popover (`popover="auto"`):** Houses clickable Profile Header (**My Profile**), **Saved searches** (opens `SavedSearchesDialog`), **Saved jobs** (deep-links to `Activity → Saved`), **Activity (Applied)**, **Settings**, **How It Works**, **Admin Control Center** (admin-only), inline **Appearance** (`Light` | `Dark`) switcher, and **Sign out**.
+- **Sub-Feature 0.2 — Light Civic (Default) & Dark Soft Grayscale Theme Switcher (`Light` | `Dark`):**
+  - **Light Civic (Default):** Warm `#F3F2EF` paper canvas, `#FFFFFF` cards, `#0F172A` primary ink, deep Civic Blue `#083D77` search banner (`#062D57` Recent searches band) with `#0A66C2` Search CTA, and `#0A66C2` active card borders (`border-l-[3px] border-l-[#0a66c2]`).
+  - **Dark Soft Grayscale:** High-contrast `#121214` canvas with `#18181B` cards and elevated search banner (`#141417` Recent searches band, `border-zinc-800`) and `zinc-100` primary actions (synced with root `color-scheme: light dark` and `light-dark()` CSS tokens). Legacy `'orange'` stored preferences normalize safely to `'light'`.
+- **Sub-Feature 0.3 — Full-Width Civic Search Banner with 6 Pill Popovers & `Recent searches` (`JobSearchBanner.tsx`, `job-filters.ts`):**
+  - **Single-Row Search Inputs + 6 Pill Popovers:** `16px` mobile inputs (`text-base sm:text-sm`) prevent iOS Safari auto-zoom, followed by 6 horizontally scrollable `popover="auto"` filter pills (**Pay** with `Annually`/`Monthly`/`Hourly` tabs & market currency steps, **Type**, **Remote**, **Classification**, **Listing time** radio selector `Any time`–`Last 30 days`, and **Boards & More** for optional Company, 3-Board toggles, Target Roles, Pivot Mode, Applicable Exp, and Min Match %).
+  - **Collapsible `Recent searches` Strip:** Displays horizontally scrollable search cards with emerald new/total count badges (expanded by default on desktop with `^ Show less`, collapsed by default on mobile).
+- **Sub-Feature 0.4 — Container-Aware Discovery Feed, Mobile Switcher & Auto-Saved Applied Jobs (`JobDiscoveryFeed.tsx`, `DiscoveryJobCard.tsx`, `PleaseHireMeDashboard.tsx`):**
+  - **Recommended (Left) & Saved Jobs (Right) Split:** Desktop (`lg+`) shows Pic 1's 8/4 split; mobile/tablet (`< 1024px`) provides a 1-tap `Recommended (N) | Saved jobs (N)` switcher. Cards use `@container` (`discovery-card-container`) with fluid `clamp()` headings and `44px` coarse-pointer touch targets.
+  - **Auto-Saved Applied Jobs & Focused Mobile Explorer:** Every job marked `applied` is automatically included in **Saved jobs** (`isJobSaved`, individually removable via `unsavedAppliedJobIds` without losing Applied status). On `< 1024px`, `/jobs` switches cleanly between Job List and full-width `JobDetailPane` (`← Back to results`).
+  - **Supabase Cloud Sync (`profile_data` JSONB):** Persists `savedSearches` (cap 20), `recentSearches` (cap 8), `viewedJobIds` (cap 150), and `unsavedAppliedJobIds` (cap 200) inside existing RLS-protected `public.user_profiles.profile_data` via `free-tier-limits.ts`.
 
 ---
 

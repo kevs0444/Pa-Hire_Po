@@ -1,22 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
-  BookmarkCheck,
-  Building2,
+  ArrowUpDown,
+  Bookmark,
   CheckCircle2,
   ClipboardPaste,
-  Clock,
+  Edit3,
   ExternalLink,
   Eye,
+  EyeOff,
   FileText,
-  MapPin,
   Maximize2,
+  MoreVertical,
   Plus,
   RotateCcw,
   Search,
   Trash2,
-  Wallet,
 } from 'lucide-react';
 import type {
   ApplicationStage,
@@ -28,17 +28,15 @@ import type {
   TailoredResumeRecord,
   UserProfile,
 } from '@/types/job';
-import {
-  ATS_FONT_PRESETS,
-  PAGE_SIZE_PRESETS,
-} from '@/features/resume/components/A4ResumePreview';
+import { formatJobDateLabel } from '@/features/jobs/lib/job-date-utils';
+import { isJobSaved } from '@/features/jobs/lib/job-filters';
 import { SubmittedResumeModal } from '@/features/applications/components/SubmittedResumeModal';
 import { BoardLogo } from '@/components/ui/BrandLogos';
 import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-type CompilationSubView = 'applied' | 'saved' | 'hidden' | 'resumes';
+export type CompilationSubView = 'applied' | 'saved' | 'hidden' | 'resumes';
 type ResumeAppliedFilter = 'all' | 'sent' | 'drafts';
 
 interface ApplicationsCompilationViewProps {
@@ -47,11 +45,20 @@ interface ApplicationsCompilationViewProps {
   jobs: JobListing[];
   resumeRecords: TailoredResumeRecord[];
   loadingResumes: boolean;
+  initialSubView?: CompilationSubView;
+  unsavedAppliedJobIds?: string[];
+  nowMs?: number | null;
   onRefreshResumes: () => Promise<void>;
+  onToggleSaveJob?: (jobId: string) => void;
+  onOpenApplyModal?: (job: JobListing) => void;
   onUpdateJobApplication: (
     jobId: string,
     patch: {
       status?: JobStatus;
+      title?: string;
+      company?: string;
+      source?: JobSource;
+      appliedAt?: string | null;
       applicationStage?: ApplicationStage;
       applicationNotes?: string;
       tailoredResumeId?: string | null;
@@ -98,9 +105,34 @@ const STAGE_OPTIONS: { value: ApplicationStage; label: string }[] = [
 ];
 
 const WORK_SETUP_OPTIONS = ['Flexible', 'Remote', 'Hybrid', 'Onsite'];
+const ITEMS_PER_PAGE = 15;
 
 function getTodayDateString(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function isoToDateInput(iso?: string | null): string {
+  if (!iso) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(iso)) return iso.slice(0, 10);
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toISOString().slice(0, 10);
+}
+
+function formatAppliedDate(iso: string): string {
+  const parsed = new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return iso;
+  return parsed.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function getSourceBoardName(source: JobSource): string {
+  if (source === 'jobstreet') return 'JobStreet';
+  if (source === 'linkedin') return 'LinkedIn';
+  return 'Indeed';
 }
 
 function formatSlugWords(slug: string): string {
@@ -118,7 +150,9 @@ function inferJobInfoFromUrl(rawUrl: string): {
   const trimmed = rawUrl.trim();
   if (!trimmed) return {};
   try {
-    const parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    const parsed = new URL(
+      trimmed.startsWith('http') ? trimmed : `https://${trimmed}`
+    );
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname;
 
@@ -142,7 +176,10 @@ function inferJobInfoFromUrl(rawUrl: string): {
       const slugMatch = path.match(/\/job\/([a-z0-9-]+?)(?:-\d+)?\/?$/i);
       return {
         source: 'jobstreet',
-        title: slugMatch?.[1] && !/^\d+$/.test(slugMatch[1]) ? formatSlugWords(slugMatch[1]) : undefined,
+        title:
+          slugMatch?.[1] && !/^\d+$/.test(slugMatch[1])
+            ? formatSlugWords(slugMatch[1])
+            : undefined,
       };
     }
 
@@ -150,10 +187,28 @@ function inferJobInfoFromUrl(rawUrl: string): {
       return { source: 'indeed' };
     }
 
-    // Company career portal domain (e.g., careers.canva.com or jobs.gcash.com)
     const hostParts = host.replace(/^www\./, '').split('.');
     const filteredParts = hostParts.filter(
-      (p) => !['careers', 'jobs', 'apply', 'boards', 'greenhouse', 'lever', 'workday', 'myworkdayjobs', 'ashbyhq', 'com', 'io', 'co', 'ph', 'sg', 'my', 'net', 'org'].includes(p)
+      (p) =>
+        ![
+          'careers',
+          'jobs',
+          'apply',
+          'boards',
+          'greenhouse',
+          'lever',
+          'workday',
+          'myworkdayjobs',
+          'ashbyhq',
+          'com',
+          'io',
+          'co',
+          'ph',
+          'sg',
+          'my',
+          'net',
+          'org',
+        ].includes(p)
     );
     if (filteredParts[0]) {
       return { company: formatSlugWords(filteredParts[0]) };
@@ -180,13 +235,110 @@ function getSourceMethodLabel(record: TailoredResumeRecord): string {
   return 'Manual Edit';
 }
 
+interface CardOverflowMenuProps {
+  label: string;
+  tokens: ReturnType<typeof getThemeTokens>;
+  children: ReactNode;
+}
+
+function CardOverflowMenu({ label, tokens, children }: CardOverflowMenuProps) {
+  const popoverId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const popover = popoverRef.current;
+    const trigger = triggerRef.current;
+    if (!popover || !trigger) return;
+
+    const handleBeforeToggle = (event: Event) => {
+      const toggleEvent = event as ToggleEvent;
+      if (toggleEvent.newState !== 'open') return;
+      if (
+        typeof CSS !== 'undefined' &&
+        typeof CSS.supports === 'function' &&
+        CSS.supports('position-area: block-end')
+      ) {
+        return;
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      const width = Math.min(220, window.innerWidth - 24);
+      const rightOffset = Math.max(12, window.innerWidth - rect.right);
+      popover.style.position = 'fixed';
+      popover.style.margin = '0';
+      popover.style.top = `${Math.round(rect.bottom + 6)}px`;
+      popover.style.right = `${Math.round(rightOffset)}px`;
+      popover.style.left = 'auto';
+      popover.style.width = `${width}px`;
+    };
+
+    popover.addEventListener('beforetoggle', handleBeforeToggle);
+    return () => {
+      popover.removeEventListener('beforetoggle', handleBeforeToggle);
+    };
+  }, []);
+
+  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!(e.target instanceof Element)) return;
+    if (!e.target.closest('button, a')) return;
+    const el = popoverRef.current as (HTMLDivElement & {
+      hidePopover?: () => void;
+    }) | null;
+    if (el && typeof el.hidePopover === 'function') {
+      try {
+        el.hidePopover();
+      } catch {
+        // Already closed
+      }
+    }
+  };
+
+  return (
+    <div className="relative inline-flex shrink-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={label}
+        aria-controls={popoverId}
+        {...({ popoverTarget: popoverId } as Record<string, string>)}
+        className={cn(
+          'civic-touch-target inline-flex h-8 w-8 items-center justify-center rounded-lg transition-colors',
+          tokens.mutedText,
+          tokens.isDark ? 'hover:bg-zinc-800' : 'hover:bg-slate-100'
+        )}
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+
+      <div
+        id={popoverId}
+        ref={popoverRef}
+        onClick={handleContainerClick}
+        {...({ popover: 'auto' } as Record<string, string>)}
+        className={cn(
+          'civic-popover-panel w-[min(86dvw,220px)] overflow-hidden rounded-xl border py-1.5 shadow-xl',
+          tokens.cardSurface
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function ApplicationsCompilationView({
   theme,
   profile,
   jobs,
   resumeRecords,
   loadingResumes,
+  initialSubView = 'applied',
+  unsavedAppliedJobIds = [],
+  nowMs = null,
   onRefreshResumes,
+  onToggleSaveJob,
+  onOpenApplyModal,
   onUpdateJobApplication,
   onLogExternalApplication,
   onUpdateResumeRecord,
@@ -202,24 +354,28 @@ export function ApplicationsCompilationView({
     inputSurface,
     primaryBtn,
     secondaryBtn,
-    selectedCard,
     mutedText,
     strongText,
     borderSubtle,
-    activeBorder,
   } = tokens;
 
-  const [subView, setSubView] = useState<CompilationSubView>('applied');
+  const [subView, setSubView] = useState<CompilationSubView>(initialSubView);
   const [resumeFilter, setResumeFilter] = useState<ResumeAppliedFilter>('all');
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<'all' | ApplicationStage>('all');
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
+  const [appliedPage, setAppliedPage] = useState(1);
+  const [expandedEditKey, setExpandedEditKey] = useState<string | null>(null);
+  const [expandedNotesKeys, setExpandedNotesKeys] = useState<
+    Record<string, boolean>
+  >({});
   const [popoutModalData, setPopoutModalData] = useState<{
     company: string;
     jobTitle: string;
     methodLabel: string;
     submittedAt?: string | null;
     resume: StructuredResume;
+    job?: JobListing | null;
   } | null>(null);
   const [showLogForm, setShowLogForm] = useState(false);
   const [logging, setLogging] = useState(false);
@@ -243,6 +399,11 @@ export function ApplicationsCompilationView({
     resumeRecordId: 'base',
     notes: '',
   });
+
+  const unsavedAppliedSet = useMemo(
+    () => new Set(unsavedAppliedJobIds),
+    [unsavedAppliedJobIds]
+  );
 
   const applyUrlToLogForm = (nextUrl: string) => {
     const inferred = inferJobInfoFromUrl(nextUrl);
@@ -290,17 +451,17 @@ export function ApplicationsCompilationView({
   const savedJobs = useMemo(
     () =>
       jobs
-        .filter((j) => j.status === 'saved')
+        .filter((j) => isJobSaved(j, unsavedAppliedSet))
         .sort(
           (a, b) =>
             new Date(
-              b.savedAt || b.statusUpdatedAt || b.discoveredAt || 0
+              b.savedAt || b.appliedAt || b.statusUpdatedAt || b.discoveredAt || 0
             ).getTime() -
             new Date(
-              a.savedAt || a.statusUpdatedAt || a.discoveredAt || 0
+              a.savedAt || a.appliedAt || a.statusUpdatedAt || a.discoveredAt || 0
             ).getTime()
         ),
-    [jobs]
+    [jobs, unsavedAppliedSet]
   );
 
   const hiddenJobs = useMemo(
@@ -342,7 +503,6 @@ export function ApplicationsCompilationView({
     );
   };
 
-  // Combine applied jobs + standalone sent resume snapshots not linked to an existing job
   const appliedJobIds = useMemo(
     () => new Set(appliedJobs.map((j) => j.id)),
     [appliedJobs]
@@ -400,19 +560,22 @@ export function ApplicationsCompilationView({
         dateIso: rec.sentAt || rec.createdAt,
       }));
 
-    return [...jobEntries, ...standaloneEntries].sort(
-      (a, b) => new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime()
-    );
+    return [...jobEntries, ...standaloneEntries].sort((a, b) => {
+      const diff = new Date(b.dateIso).getTime() - new Date(a.dateIso).getTime();
+      return sortOrder === 'newest' ? diff : -diff;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appliedJobs, query, resumeRecords, stageFilter, standaloneSentRecords]);
+  }, [appliedJobs, query, resumeRecords, sortOrder, stageFilter, standaloneSentRecords]);
 
   const filteredSavedJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return savedJobs;
-    return savedJobs.filter((j) =>
-      `${j.company} ${j.title} ${j.location}`.toLowerCase().includes(q)
-    );
-  }, [query, savedJobs]);
+    const list = !q
+      ? savedJobs
+      : savedJobs.filter((j) =>
+          `${j.company} ${j.title} ${j.location}`.toLowerCase().includes(q)
+        );
+    return sortOrder === 'newest' ? list : [...list].reverse();
+  }, [query, savedJobs, sortOrder]);
 
   const filteredHiddenJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -424,7 +587,7 @@ export function ApplicationsCompilationView({
 
   const filteredResumeRecords = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return resumeRecords.filter((r) => {
+    const list = resumeRecords.filter((r) => {
       if (resumeFilter === 'sent' && !r.isSent) return false;
       if (resumeFilter === 'drafts' && r.isSent) return false;
       if (!q) return true;
@@ -432,13 +595,10 @@ export function ApplicationsCompilationView({
         .toLowerCase()
         .includes(q);
     });
-  }, [query, resumeFilter, resumeRecords]);
+    return sortOrder === 'newest' ? list : [...list].reverse();
+  }, [query, resumeFilter, resumeRecords, sortOrder]);
 
-  const sentResumeCount = useMemo(
-    () => resumeRecords.filter((r) => r.isSent).length,
-    [resumeRecords]
-  );
-
+  const totalAppliedCount = appliedJobs.length + standaloneSentRecords.length;
   const interviewingOrOfferCount = useMemo(
     () =>
       appliedJobs.filter(
@@ -448,46 +608,20 @@ export function ApplicationsCompilationView({
       ).length,
     [appliedJobs]
   );
+  const sentResumeCount = useMemo(
+    () => resumeRecords.filter((r) => r.isSent).length,
+    [resumeRecords]
+  );
 
-  const selectedApplied = useMemo(() => {
-    if (filteredAppliedItems.length === 0) return null;
-    return (
-      filteredAppliedItems.find((x) => x.key === selectedKey) ||
-      filteredAppliedItems[0]
-    );
-  }, [filteredAppliedItems, selectedKey]);
-
-  const selectedResume = useMemo(() => {
-    if (filteredResumeRecords.length === 0) return null;
-    return (
-      filteredResumeRecords.find((r) => `res:${r.id}` === selectedKey) ||
-      filteredResumeRecords[0]
-    );
-  }, [filteredResumeRecords, selectedKey]);
-
-  const activePreviewResume: StructuredResume | null =
-    subView === 'applied'
-      ? selectedApplied?.record?.resumeData ||
-        (selectedApplied?.job ? profile.structuredResume : null)
-      : subView === 'resumes'
-        ? selectedResume?.resumeData || null
-        : null;
-
-  const activeMethodLabel =
-    subView === 'applied'
-      ? selectedApplied?.record
-        ? getSourceMethodLabel(selectedApplied.record)
-        : 'Base Profile CV'
-      : selectedResume
-        ? getSourceMethodLabel(selectedResume)
-        : 'Base Profile CV';
-
-  const activeFontLabel =
-    (ATS_FONT_PRESETS[activePreviewResume?.fontFamily || 'calibri'] ||
-      ATS_FONT_PRESETS.calibri).shortLabel;
-  const activeSizeLabel =
-    (PAGE_SIZE_PRESETS[activePreviewResume?.pageSize || 'a4'] ||
-      PAGE_SIZE_PRESETS.a4).shortLabel;
+  const totalAppliedPages = Math.max(
+    1,
+    Math.ceil(filteredAppliedItems.length / ITEMS_PER_PAGE)
+  );
+  const currentAppliedPage = Math.min(appliedPage, totalAppliedPages);
+  const paginatedAppliedItems = filteredAppliedItems.slice(
+    (currentAppliedPage - 1) * ITEMS_PER_PAGE,
+    currentAppliedPage * ITEMS_PER_PAGE
+  );
 
   const handleSubmitExternal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -532,118 +666,569 @@ export function ApplicationsCompilationView({
     }
   };
 
-  return (
-    <div className="space-y-4 pb-8">
-      {/* HEADER + KPI STRIP */}
-      <section className={cn('no-print rounded-lg border p-5 space-y-4', cardSurface)}>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-bold tracking-tight">
-              Job Tracking &amp; Resume Applied
-            </h2>
-            <p className={cn('text-xs', mutedText)}>
-              Track every company you applied to, manage application stages, copy or open company job URLs, and inspect the exact resume applied for each role.
-            </p>
+  const overflowItemClass = cn(
+    'civic-touch-target flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium transition-colors',
+    isDark
+      ? 'text-zinc-200 hover:bg-zinc-800/80 hover:text-white'
+      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-950'
+  );
+
+  const renderNotesBlock = (job: JobListing, cardKey: string) => {
+    const notes = (job.applicationNotes || '').trim();
+    if (!notes) return null;
+    const isExpanded = Boolean(expandedNotesKeys[cardKey]);
+    const isLong = notes.length > 140 || notes.includes('\n');
+
+    return (
+      <div
+        className={cn(
+          'mt-2.5 rounded-lg border px-3 py-2 text-xs',
+          subSurface
+        )}
+      >
+        <div
+          className={cn(
+            'leading-relaxed',
+            isExpanded
+              ? 'max-h-60 overflow-y-auto whitespace-pre-line pr-1'
+              : 'line-clamp-2'
+          )}
+        >
+          <strong className={strongText}>Notes:</strong>{' '}
+          <span className={mutedText}>{notes}</span>
+        </div>
+        {isLong && (
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            onClick={() =>
+              setExpandedNotesKeys((prev) => ({
+                ...prev,
+                [cardKey]: !prev[cardKey],
+              }))
+            }
+            className={cn(
+              'mt-1 text-[11px] font-semibold underline-offset-2 hover:underline',
+              isDark ? 'text-zinc-200' : 'text-[#0a66c2]'
+            )}
+          >
+            {isExpanded ? 'Show less' : 'Show more'}
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const renderJobEditor = (job: JobListing) => (
+    <div
+      className={cn(
+        'mt-4 grid gap-3 rounded-lg border p-3.5 sm:grid-cols-12',
+        subSurface
+      )}
+    >
+      <div className="sm:col-span-6 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Job Title
+        </label>
+        <input
+          type="text"
+          value={job.title}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              title: e.target.value,
+            })
+          }
+          placeholder="e.g. Data Analyst"
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+            inputSurface
+          )}
+        />
+      </div>
+
+      <div className="sm:col-span-6 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Company Name
+        </label>
+        <input
+          type="text"
+          value={job.company}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              company: e.target.value,
+            })
+          }
+          placeholder="e.g. Medicare Plus"
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+            inputSurface
+          )}
+        />
+      </div>
+
+      <div className="sm:col-span-4 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Platform
+        </label>
+        <select
+          value={job.source}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              source: e.target.value as JobSource,
+            })
+          }
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2 py-1 text-xs focus:outline-none',
+            inputSurface
+          )}
+        >
+          <option value="linkedin">LinkedIn</option>
+          <option value="jobstreet">JobStreet</option>
+          <option value="indeed">Indeed</option>
+        </select>
+      </div>
+
+      {job.status === 'applied' && (
+        <>
+          <div className="sm:col-span-4 space-y-1">
+            <label className={cn('block text-[11px] font-medium', mutedText)}>
+              Stage
+            </label>
+            <select
+              value={job.applicationStage || 'applied'}
+              onChange={(e) =>
+                onUpdateJobApplication(job.id, {
+                  applicationStage: e.target.value as ApplicationStage,
+                })
+              }
+              className={cn(
+                'min-h-[36px] w-full rounded-lg border px-2 py-1 text-xs focus:outline-none',
+                inputSurface
+              )}
+            >
+              {STAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
+
+          <div className="sm:col-span-4 space-y-1">
+            <label className={cn('block text-[11px] font-medium', mutedText)}>
+              Date Applied
+            </label>
+            <input
+              type="date"
+              value={isoToDateInput(
+                job.appliedAt || job.statusUpdatedAt || job.discoveredAt
+              )}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                onUpdateJobApplication(job.id, {
+                  appliedAt: `${e.target.value}T12:00:00.000Z`,
+                });
+              }}
+              className={cn(
+                'min-h-[36px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+                inputSurface
+              )}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="sm:col-span-6 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Location
+        </label>
+        <input
+          type="text"
+          value={job.location}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              location: e.target.value,
+            })
+          }
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+            inputSurface
+          )}
+        />
+      </div>
+
+      <div className="sm:col-span-3 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Work Setup
+        </label>
+        <select
+          value={job.workType || 'Flexible'}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              workType: e.target.value,
+            })
+          }
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2 py-1 text-xs focus:outline-none',
+            inputSurface
+          )}
+        >
+          {WORK_SETUP_OPTIONS.map((opt) => (
+            <option key={opt} value={opt}>
+              {opt}
+            </option>
+          ))}
+          {job.workType && !WORK_SETUP_OPTIONS.includes(job.workType) && (
+            <option value={job.workType}>{job.workType}</option>
+          )}
+        </select>
+      </div>
+
+      <div className="sm:col-span-3 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Salary / Offer
+        </label>
+        <input
+          type="text"
+          value={job.salary || ''}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              salary: e.target.value || null,
+            })
+          }
+          placeholder="e.g. ₱50k/mo"
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+            inputSurface
+          )}
+        />
+      </div>
+
+      <div className="sm:col-span-6 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Resume Version Applied
+        </label>
+        <select
+          value={job.tailoredResumeId || 'base'}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              tailoredResumeId: e.target.value === 'base' ? null : e.target.value,
+            })
+          }
+          className={cn(
+            'min-h-[36px] w-full rounded-lg border px-2 py-1 text-xs focus:outline-none',
+            inputSurface
+          )}
+        >
+          <option value="base">Base Profile CV</option>
+          {resumeRecords.map((rec) => (
+            <option key={rec.id} value={rec.id}>
+              {rec.versionName || rec.company || 'Saved Resume'} —{' '}
+              {rec.jobTitle || rec.resumeData.targetHeadline}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="sm:col-span-6 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Company / Job Posting URL
+        </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="url"
+            value={job.url === '#' ? '' : job.url}
+            onChange={(e) =>
+              onUpdateJobApplication(job.id, {
+                url: e.target.value.trim() || '#',
+              })
+            }
+            placeholder="https://..."
+            className={cn(
+              'min-h-[36px] min-w-0 flex-1 rounded-lg border px-2.5 py-1 text-base focus:outline-none sm:text-xs',
+              inputSurface
+            )}
+          />
+          <CopyUrlButton url={job.url} theme={theme} compact />
+        </div>
+      </div>
+
+      <div className="sm:col-span-12 space-y-1">
+        <label className={cn('block text-[11px] font-medium', mutedText)}>
+          Notes (saved automatically)
+        </label>
+        <textarea
+          rows={4}
+          value={job.applicationNotes || ''}
+          onChange={(e) =>
+            onUpdateJobApplication(job.id, {
+              applicationNotes: e.target.value,
+            })
+          }
+          placeholder="Recruiter contact, interview date, salary quoted, key notes..."
+          className={cn(
+            'w-full resize-y rounded-lg border px-3 py-2 text-base leading-relaxed focus:outline-none sm:text-xs',
+            inputSurface
+          )}
+        />
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="mx-auto max-w-[920px] space-y-5 pb-10">
+      {/* ACTIVITY HEADER + CLEAN JOBSTREET UNDERLINE TABS (Pics 1 & 2) */}
+      <div className="no-print space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2
+            className={cn(
+              'font-display text-2xl font-bold tracking-tight',
+              strongText
+            )}
+          >
+            Activity
+          </h2>
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => void onRefreshResumes()}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                 secondaryBtn
               )}
             >
-              <RotateCcw className={cn('h-3.5 w-3.5', loadingResumes && 'animate-spin')} />
-              Sync Tracking
+              <RotateCcw
+                className={cn('h-3.5 w-3.5', loadingResumes && 'animate-spin')}
+              />
+              <span>Sync</span>
             </button>
             <button
               type="button"
               onClick={() => setShowLogForm((v) => !v)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors',
+                'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs transition-colors',
                 primaryBtn
               )}
             >
               <Plus className="h-3.5 w-3.5" />
-              Add Job Application
+              <span>Add Job Application</span>
             </button>
           </div>
         </div>
 
-        {/* 5 Tabular KPI Ledger Strip */}
-        <div
+        {/* Clean Underline Tab Bar */}
+        <nav
+          aria-label="Activity sections"
           className={cn(
-            'grid grid-cols-2 divide-y overflow-hidden rounded-lg border sm:grid-cols-5 sm:divide-x sm:divide-y-0',
-            borderSubtle,
+            'no-scrollbar flex flex-nowrap items-center gap-5 overflow-x-auto border-b',
+            borderSubtle
+          )}
+        >
+          {(
+            [
+              {
+                key: 'saved',
+                label: 'Saved',
+                icon: Bookmark,
+                count: savedJobs.length,
+              },
+              {
+                key: 'applied',
+                label: 'Applied',
+                icon: CheckCircle2,
+                count: totalAppliedCount,
+              },
+              {
+                key: 'resumes',
+                label: 'Resume Applied',
+                icon: FileText,
+                count: resumeRecords.length,
+              },
+              {
+                key: 'hidden',
+                label: 'Hidden',
+                icon: EyeOff,
+                count: hiddenJobs.length,
+              },
+            ] as const
+          ).map((tab) => {
+            const Icon = tab.icon;
+            const active = subView === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => {
+                  setSubView(tab.key);
+                  setAppliedPage(1);
+                }}
+                aria-current={active ? 'page' : undefined}
+                className={cn(
+                  'civic-touch-target inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 pb-2.5 pt-1 text-sm transition-colors',
+                  active
+                    ? isDark
+                      ? 'border-zinc-100 font-semibold text-zinc-50'
+                      : 'border-[#0a66c2] font-semibold text-[#0a66c2]'
+                    : cn(
+                        'border-transparent font-medium',
+                        mutedText,
+                        isDark ? 'hover:text-zinc-200' : 'hover:text-slate-900'
+                      )
+                )}
+              >
+                <Icon className="h-4 w-4" aria-hidden="true" />
+                <span>{tab.label}</span>
+                {tab.count > 0 && (
+                  <span className="font-mono text-xs tabular-nums opacity-75">
+                    ({tab.count})
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Compact Civic Pipeline Summary & Filter Strip */}
+        <section
+          className={cn(
+            'flex flex-col gap-3 rounded-xl border p-3.5 sm:flex-row sm:items-center sm:justify-between',
             subSurface
           )}
         >
-          {[
-            {
-              label: 'Applied Jobs',
-              value: appliedJobs.length + standaloneSentRecords.length,
-              view: 'applied' as CompilationSubView,
-            },
-            {
-              label: 'Saved Jobs',
-              value: savedJobs.length,
-              view: 'saved' as CompilationSubView,
-            },
-            {
-              label: 'Hidden Jobs',
-              value: hiddenJobs.length,
-              view: 'hidden' as CompilationSubView,
-            },
-            {
-              label: 'Resume Applied',
-              value: resumeRecords.length,
-              view: 'resumes' as CompilationSubView,
-            },
-            {
-              label: 'Interview / Offer',
-              value: interviewingOrOfferCount,
-              view: 'applied' as CompilationSubView,
-            },
-          ].map((kpi) => (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span>
+              <strong className={cn('font-mono tabular-nums', strongText)}>
+                {savedJobs.length}
+              </strong>{' '}
+              <span className={mutedText}>Saved</span>
+            </span>
+            <span>
+              <strong className={cn('font-mono tabular-nums', strongText)}>
+                {totalAppliedCount}
+              </strong>{' '}
+              <span className={mutedText}>Applied</span>
+            </span>
+            <span>
+              <strong className={cn('font-mono tabular-nums', strongText)}>
+                {interviewingOrOfferCount}
+              </strong>{' '}
+              <span className={mutedText}>Interview / Offer</span>
+            </span>
+            <span>
+              <strong className={cn('font-mono tabular-nums', strongText)}>
+                {sentResumeCount}
+              </strong>{' '}
+              <span className={mutedText}>Resumes Sent</span>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 sm:w-48 sm:flex-none">
+              <Search
+                className={cn(
+                  'pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5',
+                  mutedText
+                )}
+              />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setAppliedPage(1);
+                }}
+                placeholder="Search title, company..."
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border py-1.5 pl-8 pr-3 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
+              />
+            </div>
+
+            {subView === 'applied' && (
+              <select
+                value={stageFilter}
+                onChange={(e) => {
+                  setStageFilter(e.target.value as 'all' | ApplicationStage);
+                  setAppliedPage(1);
+                }}
+                aria-label="Filter by application stage"
+                className={cn(
+                  'min-h-[38px] rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none',
+                  inputSurface
+                )}
+              >
+                <option value="all">All Stages</option>
+                {STAGE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {subView === 'resumes' && (
+              <select
+                value={resumeFilter}
+                onChange={(e) =>
+                  setResumeFilter(e.target.value as ResumeAppliedFilter)
+                }
+                aria-label="Filter saved resumes"
+                className={cn(
+                  'min-h-[38px] rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none',
+                  inputSurface
+                )}
+              >
+                <option value="all">All Versions ({resumeRecords.length})</option>
+                <option value="sent">✓ Applied ({sentResumeCount})</option>
+                <option value="drafts">
+                  Saved Drafts ({resumeRecords.length - sentResumeCount})
+                </option>
+              </select>
+            )}
+
             <button
-              key={kpi.label}
               type="button"
-              onClick={() => setSubView(kpi.view)}
+              onClick={() =>
+                setSortOrder((prev) => (prev === 'newest' ? 'oldest' : 'newest'))
+              }
+              title={
+                sortOrder === 'newest'
+                  ? 'Sorted newest first — click to reverse'
+                  : 'Sorted oldest first — click to reverse'
+              }
               className={cn(
-                'p-3 text-left transition-colors',
-                subView === kpi.view
-                  ? cn('border-b-2', activeBorder, isDark ? 'bg-zinc-800/70' : 'bg-white')
-                  : isDark
-                    ? 'hover:bg-zinc-800/40'
-                    : 'hover:bg-white/70'
+                'civic-touch-target inline-flex h-[38px] items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+                secondaryBtn
               )}
             >
-              <div className="font-mono text-xl font-semibold tabular-nums">
-                {kpi.value}
-              </div>
-              <div className={cn('text-xs font-medium', mutedText)}>
-                {kpi.label}
-              </div>
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">
+                {sortOrder === 'newest' ? 'Newest' : 'Oldest'}
+              </span>
             </button>
-          ))}
-        </div>
+          </div>
+        </section>
 
-        {/* Add Job Application Form (Common Info + Company/Job URL Auto-Detect) */}
+        {/* Add Job Application Form (URL Auto-Detect + Resume Snapshot Link) */}
         {showLogForm && (
           <form
             onSubmit={handleSubmitExternal}
-            className={cn('grid gap-3 rounded-lg border p-4 sm:grid-cols-12', subSurface)}
+            className={cn(
+              'grid gap-3 rounded-xl border p-4 sm:grid-cols-12',
+              cardSurface
+            )}
           >
             <div className="sm:col-span-12 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-semibold">
-                Add Job Application (save common company &amp; role details, copy/paste URL, and link the resume you applied with)
+                Add Job Application (paste URL to auto-detect platform, company &amp; role)
               </span>
             </div>
 
             <div className="sm:col-span-12 space-y-1">
               <label className={cn('block text-[11px] font-medium', mutedText)}>
-                Company or Job Posting URL (paste to auto-detect platform, company &amp; role)
+                Company or Job Posting URL
               </label>
               <div className="flex flex-wrap items-center gap-2">
                 <input
@@ -651,13 +1236,16 @@ export function ApplicationsCompilationView({
                   value={logForm.url}
                   onChange={(e) => applyUrlToLogForm(e.target.value)}
                   placeholder="https://www.linkedin.com/jobs/view/... or https://company.com/careers"
-                  className={cn('min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                  className={cn(
+                    'min-h-[40px] min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                    inputSurface
+                  )}
                 />
                 <button
                   type="button"
                   onClick={() => void handlePasteUrlIntoForm()}
                   className={cn(
-                    'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                     secondaryBtn
                   )}
                 >
@@ -680,7 +1268,10 @@ export function ApplicationsCompilationView({
                   setLogForm({ ...logForm, company: e.target.value })
                 }
                 placeholder="e.g. Canva, GCash, Accenture"
-                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -696,7 +1287,10 @@ export function ApplicationsCompilationView({
                   setLogForm({ ...logForm, title: e.target.value })
                 }
                 placeholder="e.g. Data Analyst"
-                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -709,7 +1303,10 @@ export function ApplicationsCompilationView({
                 onChange={(e) =>
                   setLogForm({ ...logForm, source: e.target.value as JobSource })
                 }
-                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                  inputSurface
+                )}
               >
                 <option value="linkedin">LinkedIn</option>
                 <option value="jobstreet">JobStreet</option>
@@ -724,9 +1321,15 @@ export function ApplicationsCompilationView({
               <select
                 value={logForm.stage}
                 onChange={(e) =>
-                  setLogForm({ ...logForm, stage: e.target.value as ApplicationStage })
+                  setLogForm({
+                    ...logForm,
+                    stage: e.target.value as ApplicationStage,
+                  })
                 }
-                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                  inputSurface
+                )}
               >
                 {STAGE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
@@ -747,7 +1350,10 @@ export function ApplicationsCompilationView({
                   setLogForm({ ...logForm, location: e.target.value })
                 }
                 placeholder="e.g. Taguig City / Remote"
-                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -760,7 +1366,10 @@ export function ApplicationsCompilationView({
                 onChange={(e) =>
                   setLogForm({ ...logForm, workType: e.target.value })
                 }
-                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                  inputSurface
+                )}
               >
                 {WORK_SETUP_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
@@ -772,7 +1381,7 @@ export function ApplicationsCompilationView({
 
             <div className="sm:col-span-2 space-y-1">
               <label className={cn('block text-[11px] font-medium', mutedText)}>
-                Salary / Offer (Optional)
+                Salary / Offer
               </label>
               <input
                 type="text"
@@ -780,8 +1389,11 @@ export function ApplicationsCompilationView({
                 onChange={(e) =>
                   setLogForm({ ...logForm, salary: e.target.value })
                 }
-                placeholder="e.g. PHP 45k - 60k"
-                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                placeholder="e.g. ₱45k - ₱60k"
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -795,7 +1407,10 @@ export function ApplicationsCompilationView({
                 onChange={(e) =>
                   setLogForm({ ...logForm, appliedDate: e.target.value })
                 }
-                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -808,7 +1423,10 @@ export function ApplicationsCompilationView({
                 onChange={(e) =>
                   setLogForm({ ...logForm, resumeRecordId: e.target.value })
                 }
-                className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none',
+                  inputSurface
+                )}
               >
                 <option value="base">
                   Base Profile CV ({profile.structuredResume.targetHeadline || 'Master'})
@@ -833,7 +1451,10 @@ export function ApplicationsCompilationView({
                   setLogForm({ ...logForm, notes: e.target.value })
                 }
                 placeholder="e.g. Sent tailored A4 CV via recruiter email; follow up Friday"
-                className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
+                className={cn(
+                  'min-h-[38px] w-full rounded-lg border px-3 py-1.5 text-base focus:outline-none sm:text-xs',
+                  inputSurface
+                )}
               />
             </div>
 
@@ -841,308 +1462,471 @@ export function ApplicationsCompilationView({
               <button
                 type="button"
                 onClick={() => setShowLogForm(false)}
-                className={cn('rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
+                className={cn(
+                  'civic-touch-target rounded-lg border px-3 py-1.5 text-xs font-medium',
+                  secondaryBtn
+                )}
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={logging}
-                className={cn('rounded-lg px-4 py-1.5 text-xs disabled:opacity-50', primaryBtn)}
+                className={cn(
+                  'civic-touch-target rounded-lg px-4 py-1.5 text-xs disabled:opacity-50',
+                  primaryBtn
+                )}
               >
                 {logging ? 'Saving...' : 'Save Application'}
               </button>
             </div>
           </form>
         )}
+      </div>
 
-        {/* Sub-View Switcher + Search Bar */}
-        <div className={cn('flex flex-wrap items-center justify-between gap-2.5 border-t pt-3', borderSubtle)}>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {(
-              [
-                {
-                  id: 'applied',
-                  label: `Applied Jobs (${appliedJobs.length + standaloneSentRecords.length})`,
-                },
-                { id: 'resumes', label: `Resume Applied (${resumeRecords.length})` },
-                { id: 'saved', label: `Saved Jobs (${savedJobs.length})` },
-                { id: 'hidden', label: `Hidden Jobs (${hiddenJobs.length})` },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setSubView(tab.id)}
-                className={cn(
-                  'rounded-md border px-3 py-1.5 text-xs font-medium transition-colors',
-                  subView === tab.id ? primaryBtn : secondaryBtn
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+      {/* SUBVIEW 1: SAVED JOBS (Pic 1 Clean Single-Column Layout + Auto-Saved Applied Jobs) */}
+      {subView === 'saved' && (
+        <section className="no-print space-y-3">
+          <p className={cn('text-xs font-medium', mutedText)}>
+            {filteredSavedJobs.length}{' '}
+            {filteredSavedJobs.length === 1 ? 'job' : 'jobs'}
+          </p>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {subView === 'applied' && (
-              <select
-                value={stageFilter}
-                onChange={(e) =>
-                  setStageFilter(e.target.value as 'all' | ApplicationStage)
-                }
-                aria-label="Filter by application stage"
-                className={cn('rounded-lg border px-2.5 py-1.5 text-xs focus:outline-none', inputSurface)}
-              >
-                <option value="all">All Stages</option>
-                {STAGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            {subView === 'resumes' && (
-              <div className="flex items-center gap-1">
-                {(
-                  [
-                    { id: 'all', label: `All (${resumeRecords.length})` },
-                    { id: 'sent', label: `✓ Applied (${sentResumeCount})` },
-                    {
-                      id: 'drafts',
-                      label: `Saved (${Math.max(0, resumeRecords.length - sentResumeCount)})`,
-                    },
-                  ] as const
-                ).map((pill) => (
-                  <button
-                    key={pill.id}
-                    type="button"
-                    onClick={() => setResumeFilter(pill.id)}
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      resumeFilter === pill.id ? primaryBtn : secondaryBtn
-                    )}
-                  >
-                    {pill.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="relative">
-              <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search company, role, URL..."
-                className={cn('w-52 rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none', inputSurface)}
-              />
+          {filteredSavedJobs.length === 0 ? (
+            <div
+              className={cn(
+                'space-y-2 rounded-xl border border-dashed p-10 text-center',
+                cardSurface
+              )}
+            >
+              <Bookmark className={cn('mx-auto h-7 w-7', mutedText)} />
+              <p className="text-sm font-semibold">No saved jobs yet</p>
+              <p className={cn('text-xs', mutedText)}>
+                Bookmark any listing or apply to a job and it will appear here automatically.
+              </p>
             </div>
-          </div>
-        </div>
-      </section>
+          ) : (
+            <div className="space-y-3">
+              {filteredSavedJobs.map((job) => {
+                const savedKey = `saved:${job.id}`;
+                const isEditingSaved = expandedEditKey === savedKey;
+                const linkedRecord = findLinkedResume(job);
+                const resumeForJob =
+                  linkedRecord?.resumeData || profile.structuredResume;
+                const snippet = job.description
+                  ? job.description.replace(/\s+/g, ' ').trim()
+                  : '';
 
-      {/* SUBVIEW 1: APPLIED JOBS */}
-      {subView === 'applied' && (
-        <section className="grid items-start gap-5 lg:grid-cols-12">
-          <div className="no-print space-y-2 lg:col-span-5">
-            {filteredAppliedItems.length === 0 ? (
-              <div className={cn('rounded-lg border border-dashed p-10 text-center space-y-2', cardSurface)}>
-                <CheckCircle2 className={cn('mx-auto h-7 w-7', mutedText)} />
-                <p className="text-sm font-semibold">No tracked applications yet</p>
-                <p className={cn('text-xs', mutedText)}>
-                  Mark jobs as Applied in Find Jobs, save a tailored resume in Resume Studio, or click &ldquo;Add Job Application&rdquo; above.
-                </p>
-              </div>
-            ) : (
-              filteredAppliedItems.map((item) => {
-                const isSelected = selectedApplied?.key === item.key;
-                const stageLabel =
-                  STAGE_OPTIONS.find((s) => s.value === item.stage)?.label ||
-                  'Applied';
                 return (
                   <article
-                    key={item.key}
-                    onClick={() => setSelectedKey(item.key)}
+                    key={job.id}
                     className={cn(
-                      'cursor-pointer space-y-2 rounded-lg border p-3.5 transition-colors',
-                      isSelected ? selectedCard : cardSurface
+                      'rounded-xl border p-4 transition-colors sm:p-5',
+                      cardSurface
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {item.job ? (
-                          <BoardLogo source={item.job.source} theme={theme} size="sm" />
-                        ) : (
-                          <span className={cn('rounded border px-2 py-0.5 text-[11px] font-medium', subSurface)}>
-                            Direct / Logged
-                          </span>
-                        )}
-                        <span
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        <button
+                          type="button"
+                          onClick={() => onOpenJobInExplorer(job.id)}
                           className={cn(
-                            'rounded border px-2 py-0.5 text-[11px] font-semibold',
-                            item.stage === 'offer'
-                              ? isDark
-                                ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                              : item.stage === 'interviewing'
-                                ? isDark
-                                  ? 'border-blue-500/40 bg-blue-950/50 text-blue-300'
-                                  : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
-                                : subSurface
+                            'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
+                            strongText
                           )}
                         >
-                          {stageLabel}
-                        </span>
+                          {job.title}
+                        </button>
+                        <p className={cn('text-sm font-medium', mutedText)}>
+                          {job.company}
+                        </p>
                       </div>
-                      <span className={cn('font-mono text-[11px]', mutedText)}>
-                        {new Date(item.dateIso).toLocaleDateString()}
-                      </span>
+
+                      <CardOverflowMenu
+                        label={`More actions for ${job.title}`}
+                        tokens={tokens}
+                      >
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedEditKey((prev) =>
+                                prev === savedKey ? null : savedKey
+                              )
+                            }
+                            className={overflowItemClass}
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            <span>
+                              {isEditingSaved ? 'Close editor' : 'Edit details & notes'}
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenJobInExplorer(job.id)}
+                            className={overflowItemClass}
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>Open in Explorer</span>
+                          </button>
+                          {job.url && job.url !== '#' && (
+                            <a
+                              href={job.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={overflowItemClass}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              <span>Open Original</span>
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onToggleSaveJob) {
+                                onToggleSaveJob(job.id);
+                              } else {
+                                onUpdateJobApplication(job.id, {
+                                  status: 'suggested',
+                                });
+                              }
+                            }}
+                            className={overflowItemClass}
+                          >
+                            <Bookmark className="h-3.5 w-3.5" />
+                            <span>Remove from Saved</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateJobApplication(job.id, {
+                                status: 'hidden',
+                              })
+                            }
+                            className={overflowItemClass}
+                          >
+                            <EyeOff className="h-3.5 w-3.5" />
+                            <span>Hide job</span>
+                          </button>
+                        </>
+                      </CardOverflowMenu>
                     </div>
 
-                    <div>
-                      <h3 className={cn('text-[15px] font-semibold leading-snug', strongText)}>
-                        {item.company}
-                      </h3>
-                      <p className={cn('text-xs font-medium', mutedText)}>
-                        {item.title}
-                      </p>
-                      {item.job && (
-                        <p className={cn('mt-0.5 text-[11px]', mutedText)}>
-                          {item.job.location} • {item.job.workType}
-                          {item.job.salary ? ` • ${item.job.salary}` : ''}
+                    <div className={cn('mt-2.5 space-y-0.5 text-xs', mutedText)}>
+                      <p>Posted {formatJobDateLabel(job, nowMs ?? undefined)}</p>
+                      <p>{job.location}</p>
+                      {job.salary && (
+                        <p className={cn('font-mono font-medium', strongText)}>
+                          {job.salary}
                         </p>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <span className={cn('inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px]', subSurface)}>
-                        <FileText className="h-3 w-3" />
-                        {item.record
-                          ? getSourceMethodLabel(item.record)
-                          : 'Base Profile CV'}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <CopyUrlButton url={item.job?.url} theme={theme} compact />
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPopoutModalData({
-                              company: item.company,
-                              jobTitle: item.title,
-                              methodLabel: item.record
-                                ? getSourceMethodLabel(item.record)
-                                : 'Base Profile CV',
-                              submittedAt: item.dateIso,
-                              resume:
-                                item.record?.resumeData || profile.structuredResume,
-                            });
-                          }}
-                          className={cn(
-                            'civic-btn-motion inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
-                            secondaryBtn
-                          )}
-                        >
-                          <Maximize2 className="h-3 w-3" />
-                          Show Resume
-                        </button>
-                      </div>
-                    </div>
-                    {item.job?.applicationNotes && (
-                      <p className={cn('truncate text-[11px]', mutedText)}>
-                        Note: {item.job.applicationNotes}
+                    {snippet && !isEditingSaved && (
+                      <p
+                        className={cn(
+                          'mt-2.5 line-clamp-2 text-xs leading-relaxed',
+                          mutedText
+                        )}
+                      >
+                        {snippet}
                       </p>
                     )}
+
+                    {!isEditingSaved && renderNotesBlock(job, savedKey)}
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                      {job.status === 'applied' ? (
+                        <>
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold',
+                              tokens.badgeSuccess
+                            )}
+                          >
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Applied on {getSourceBoardName(job.source)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPopoutModalData({
+                                company: job.company,
+                                jobTitle: job.title,
+                                methodLabel: linkedRecord
+                                  ? getSourceMethodLabel(linkedRecord)
+                                  : 'Base Profile CV',
+                                submittedAt: job.appliedAt || job.statusUpdatedAt,
+                                resume: resumeForJob,
+                                job,
+                              })
+                            }
+                            className={cn(
+                              'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors',
+                              secondaryBtn
+                            )}
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                            <span>Show Resume</span>
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenApplyModal) {
+                              onOpenApplyModal(job);
+                            } else {
+                              onOpenJobInExplorer(job.id);
+                            }
+                          }}
+                          className={cn(
+                            'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
+                            primaryBtn
+                          )}
+                        >
+                          <span>Apply &amp; Tailor</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedEditKey((prev) =>
+                            prev === savedKey ? null : savedKey
+                          )
+                        }
+                        className={cn(
+                          'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                          isEditingSaved ? primaryBtn : secondaryBtn
+                        )}
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                        <span>{isEditingSaved ? 'Done Editing' : 'Edit Details'}</span>
+                      </button>
+
+                      <CopyUrlButton url={job.url} theme={theme} />
+                    </div>
+
+                    {isEditingSaved && renderJobEditor(job)}
                   </article>
                 );
-              })
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* SUBVIEW 2: APPLIED JOBS (Pic 2 Clean Single-Column Layout + Inline Edit & Show Resume) */}
+      {subView === 'applied' && (
+        <section className="no-print space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className={cn('text-xs font-medium', mutedText)}>
+              {filteredAppliedItems.length}{' '}
+              {filteredAppliedItems.length === 1 ? 'job' : 'jobs'}
+            </p>
+            {totalAppliedPages > 1 && (
+              <span className={cn('font-mono text-xs tabular-nums', mutedText)}>
+                Page {currentAppliedPage} of {totalAppliedPages}
+              </span>
             )}
           </div>
 
-          <div className="lg:col-span-7">
-            {selectedApplied ? (
-              <div className="space-y-4">
-                <div className={cn('no-print rounded-lg border p-5 space-y-4', cardSurface)}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        <h3 className="text-base font-bold">
-                          {selectedApplied.company}
-                        </h3>
-                      </div>
-                      <p className={cn('text-sm font-medium', mutedText)}>
-                        {selectedApplied.title}
-                      </p>
-                      <div className={cn('flex flex-wrap items-center gap-x-3 gap-y-1 text-xs', mutedText)}>
-                        {selectedApplied.job?.location && (
-                          <span className="inline-flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {selectedApplied.job.location}
-                          </span>
-                        )}
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Applied {new Date(selectedApplied.dateIso).toLocaleDateString()}
-                        </span>
-                        {selectedApplied.job?.salary && (
-                          <span className="inline-flex items-center gap-1 font-mono">
-                            <Wallet className="h-3 w-3" />
-                            {selectedApplied.job.salary}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+          {filteredAppliedItems.length === 0 ? (
+            <div
+              className={cn(
+                'space-y-2 rounded-xl border border-dashed p-10 text-center',
+                cardSurface
+              )}
+            >
+              <CheckCircle2 className={cn('mx-auto h-7 w-7', mutedText)} />
+              <p className="text-sm font-semibold">No applied jobs tracked yet</p>
+              <p className={cn('text-xs', mutedText)}>
+                Apply via Resume Studio, mark a job Applied, or click &ldquo;Add Job Application&rdquo; above.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {paginatedAppliedItems.map((item) => {
+                const job = item.job;
+                const isEditing = expandedEditKey === item.key;
+                const previewResume =
+                  item.record?.resumeData ||
+                  (job ? profile.structuredResume : null);
+                const methodLabel = item.record
+                  ? getSourceMethodLabel(item.record)
+                  : 'Base Profile CV';
+                const boardName = job
+                  ? getSourceBoardName(job.source)
+                  : 'Resume Studio';
+                const savedFlag = job
+                  ? isJobSaved(job, unsavedAppliedSet)
+                  : false;
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      {selectedApplied.job && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenJobInExplorer(selectedApplied.job!.id)
-                          }
-                          className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View Job
-                        </button>
-                      )}
-                      {selectedApplied.job?.url &&
-                        selectedApplied.job.url !== '#' && (
-                          <a
-                            href={selectedApplied.job.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
+                return (
+                  <article
+                    key={item.key}
+                    className={cn(
+                      'rounded-xl border p-4 transition-colors sm:p-5',
+                      cardSurface
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 space-y-1">
+                        {job ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenJobInExplorer(job.id)}
+                            className={cn(
+                              'text-left font-display text-base font-bold leading-snug underline underline-offset-4 hover:opacity-80',
+                              strongText
+                            )}
                           >
-                            Listing
-                            <ExternalLink className="h-3.5 w-3.5" />
-                          </a>
+                            {item.title}
+                          </button>
+                        ) : (
+                          <h3
+                            className={cn(
+                              'font-display text-base font-bold leading-snug',
+                              strongText
+                            )}
+                          >
+                            {item.title}
+                          </h3>
                         )}
-                      <CopyUrlButton
-                        url={selectedApplied.job?.url}
-                        theme={theme}
-                      />
-                    </div>
-                  </div>
+                        <p className={cn('text-sm font-medium', mutedText)}>
+                          {item.company}
+                        </p>
+                      </div>
 
-                  {selectedApplied.job && (
-                    <div className={cn('grid gap-3 border-t pt-3 sm:grid-cols-12', borderSubtle)}>
-                      <div className="sm:col-span-4">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Application Stage
-                        </label>
+                      <CardOverflowMenu
+                        label={`More actions for ${item.title}`}
+                        tokens={tokens}
+                      >
+                        <>
+                          {job && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedEditKey((prev) =>
+                                    prev === item.key ? null : item.key
+                                  )
+                                }
+                                className={overflowItemClass}
+                              >
+                                <Edit3 className="h-3.5 w-3.5" />
+                                <span>
+                                  {isEditing ? 'Close editor' : 'Edit details & notes'}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onOpenJobInExplorer(job.id)}
+                                className={overflowItemClass}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                <span>Open in Explorer</span>
+                              </button>
+                              {job.url && job.url !== '#' && (
+                                <a
+                                  href={job.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={overflowItemClass}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5" />
+                                  <span>Open Original</span>
+                                </a>
+                              )}
+                              {onToggleSaveJob && (
+                                <button
+                                  type="button"
+                                  onClick={() => onToggleSaveJob(job.id)}
+                                  className={overflowItemClass}
+                                >
+                                  <Bookmark className="h-3.5 w-3.5" />
+                                  <span>
+                                    {savedFlag
+                                      ? 'Remove from Saved'
+                                      : 'Save to Saved jobs'}
+                                  </span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateJobApplication(job.id, {
+                                    status: 'hidden',
+                                  })
+                                }
+                                className={overflowItemClass}
+                              >
+                                <EyeOff className="h-3.5 w-3.5" />
+                                <span>Move to Hidden</span>
+                              </button>
+                            </>
+                          )}
+                          {previewResume && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenInResumeStudio(previewResume, job)}
+                              className={overflowItemClass}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Open in Resume Studio</span>
+                            </button>
+                          )}
+                        </>
+                      </CardOverflowMenu>
+                    </div>
+
+                    {/* Location & Salary */}
+                    {job && (
+                      <div className={cn('mt-2 space-y-0.5 text-xs', mutedText)}>
+                        <p>
+                          {job.location}
+                          {job.workType ? ` (${job.workType})` : ''}
+                        </p>
+                        {job.salary && (
+                          <p className={cn('font-mono font-medium', strongText)}>
+                            {job.salary}
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Pic 2 Emerald Applied Line + Stage Selector */}
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <p
+                          className={cn(
+                            'inline-flex items-center gap-1.5 text-xs font-semibold',
+                            isDark ? 'text-emerald-300' : 'text-[#057642]'
+                          )}
+                        >
+                          <CheckCircle2 className="h-4 w-4 shrink-0" />
+                          <span>Applied on {boardName}</span>
+                        </p>
+                        <p className={cn('pl-5 text-xs', mutedText)}>
+                          {formatAppliedDate(item.dateIso)}
+                          {savedFlag ? ' • Auto-saved' : ''}
+                        </p>
+                      </div>
+
+                      {job && (
                         <select
-                          value={selectedApplied.job.applicationStage || 'applied'}
+                          value={item.stage}
                           onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
+                            onUpdateJobApplication(job.id, {
                               applicationStage: e.target.value as ApplicationStage,
                             })
                           }
-                          className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none', inputSurface)}
+                          aria-label={`Application stage for ${item.title}`}
+                          className={cn(
+                            'min-h-[36px] rounded-lg border px-2.5 py-1 text-xs font-semibold focus:outline-none',
+                            inputSurface
+                          )}
                         >
                           {STAGE_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>
@@ -1150,269 +1934,148 @@ export function ApplicationsCompilationView({
                             </option>
                           ))}
                         </select>
-                      </div>
+                      )}
+                    </div>
 
-                      <div className="sm:col-span-4">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Resume Applied
-                        </label>
-                        <select
-                          value={selectedApplied.job.tailoredResumeId || ''}
-                          onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
-                              tailoredResumeId: e.target.value || null,
+                    {job && !isEditing && renderNotesBlock(job, item.key)}
+
+                    {/* Action Buttons */}
+                    <div className="mt-3.5 flex flex-wrap items-center gap-2">
+                      {previewResume && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPopoutModalData({
+                              company: item.company,
+                              jobTitle: item.title,
+                              methodLabel,
+                              submittedAt: item.dateIso,
+                              resume: previewResume,
+                              job,
                             })
                           }
-                          className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none', inputSurface)}
-                        >
-                          <option value="">Base Profile CV</option>
-                          {resumeRecords.map((rec) => (
-                            <option key={rec.id} value={rec.id}>
-                              {rec.versionName || rec.company || 'Snapshot'} —{' '}
-                              {rec.jobTitle || rec.resumeData.targetHeadline}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="sm:col-span-4">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Work Setup
-                        </label>
-                        <select
-                          value={selectedApplied.job.workType || 'Flexible'}
-                          onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
-                              workType: e.target.value,
-                            })
-                          }
-                          className={cn('w-full rounded-lg border px-2.5 py-1.5 text-xs font-medium focus:outline-none', inputSurface)}
-                        >
-                          {WORK_SETUP_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>
-                              {opt}
-                            </option>
-                          ))}
-                          {!WORK_SETUP_OPTIONS.includes(selectedApplied.job.workType) && (
-                            <option value={selectedApplied.job.workType}>
-                              {selectedApplied.job.workType}
-                            </option>
+                          className={cn(
+                            'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors',
+                            secondaryBtn
                           )}
-                        </select>
-                      </div>
+                        >
+                          <Maximize2 className="h-3.5 w-3.5" />
+                          <span>Show Resume</span>
+                        </button>
+                      )}
 
-                      <div className="sm:col-span-6">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedApplied.job.location || ''}
-                          onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
-                              location: e.target.value,
-                            })
+                      {job && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedEditKey((prev) =>
+                              prev === item.key ? null : item.key
+                            )
                           }
-                          placeholder="City, Country or Remote"
-                          className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-                        />
-                      </div>
+                          className={cn(
+                            'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                            isEditing ? primaryBtn : secondaryBtn
+                          )}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          <span>{isEditing ? 'Done Editing' : 'Edit Details'}</span>
+                        </button>
+                      )}
 
-                      <div className="sm:col-span-6">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Salary / Offer
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedApplied.job.salary || ''}
-                          onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
-                              salary: e.target.value || null,
-                            })
-                          }
-                          placeholder="e.g. PHP 45,000 - 60,000/mo"
-                          className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-                        />
-                      </div>
-
-                      <div className="sm:col-span-12">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Company / Job Posting URL
-                        </label>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <input
-                            type="url"
-                            value={
-                              selectedApplied.job.url === '#'
-                                ? ''
-                                : selectedApplied.job.url
-                            }
-                            onChange={(e) =>
-                              onUpdateJobApplication(selectedApplied.job!.id, {
-                                url: e.target.value.trim() || '#',
-                              })
-                            }
-                            placeholder="https://company.com/careers or job posting URL"
-                            className={cn('min-w-0 flex-1 rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-                          />
-                          <CopyUrlButton
-                            url={selectedApplied.job.url}
-                            theme={theme}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-12">
-                        <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                          Application Notes (saved automatically)
-                        </label>
-                        <input
-                          type="text"
-                          value={selectedApplied.job.applicationNotes || ''}
-                          onChange={(e) =>
-                            onUpdateJobApplication(selectedApplied.job!.id, {
-                              applicationNotes: e.target.value,
-                            })
-                          }
-                          placeholder="Recruiter contact, interview date, salary quoted..."
-                          className={cn('w-full rounded-lg border px-3 py-1.5 text-xs focus:outline-none', inputSurface)}
-                        />
-                      </div>
+                      {job && <CopyUrlButton url={job.url} theme={theme} />}
                     </div>
-                  )}
 
-                  {activePreviewResume && (
-                    <div className={cn('rounded-lg border p-4 space-y-2.5', subSurface)}>
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs font-semibold">
-                              Resume Applied Snapshot
-                            </span>
-                            <span className={cn('rounded border px-2 py-0.5 font-mono text-[11px]', cardSurface)}>
-                              {activeMethodLabel}
-                            </span>
-                            <span className={cn('font-mono text-[11px]', mutedText)}>
-                              {activeSizeLabel} • {activeFontLabel}
-                            </span>
-                          </div>
-                          <p className={cn('text-xs', mutedText)}>
-                            Headline: {activePreviewResume.targetHeadline}
-                          </p>
-                        </div>
+                    {/* Inline Expandable Full-Detail Application Editor */}
+                    {job && isEditing && renderJobEditor(job)}
+                  </article>
+                );
+              })}
+            </div>
+          )}
 
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenInResumeStudio(
-                                activePreviewResume,
-                                selectedApplied.job
-                              )
-                            }
-                            className={cn('civic-btn-motion inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            Edit in Studio
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPopoutModalData({
-                                company: selectedApplied.company,
-                                jobTitle: selectedApplied.title,
-                                methodLabel: activeMethodLabel,
-                                submittedAt: selectedApplied.dateIso,
-                                resume: activePreviewResume,
-                              })
-                            }
-                            className={cn('civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
-                          >
-                            <Maximize2 className="h-3.5 w-3.5" />
-                            Show Resume
-                          </button>
-                        </div>
-                      </div>
-
-                      {activePreviewResume.tailorNotes &&
-                        activePreviewResume.tailorNotes.length > 0 && (
-                          <ul className={cn('list-disc space-y-0.5 pl-4 text-xs', mutedText)}>
-                            {activePreviewResume.tailorNotes.slice(0, 3).map((note, idx) => (
-                              <li key={idx}>{note}</li>
-                            ))}
-                          </ul>
-                        )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className={cn('no-print rounded-lg border border-dashed p-12 text-center', cardSurface)}>
-                <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
-                <p className="mt-2 text-sm font-semibold">
-                  Select a tracked application
-                </p>
-                <p className={cn('mt-1 text-xs', mutedText)}>
-                  Inspect the company details, copy its URL, update stage &amp; notes, and open the exact resume applied.
-                </p>
-              </div>
-            )}
-          </div>
+          {/* Clean Numbered Pagination (Pic 1 Footer) */}
+          {totalAppliedPages > 1 && (
+            <div className="flex items-center justify-center gap-1.5 pt-2">
+              {Array.from({ length: totalAppliedPages }, (_, idx) => idx + 1).map(
+                (pageNum) => (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    onClick={() => setAppliedPage(pageNum)}
+                    className={cn(
+                      'civic-touch-target inline-flex h-9 min-w-[36px] items-center justify-center rounded-lg border px-2.5 font-mono text-xs font-semibold tabular-nums transition-colors',
+                      pageNum === currentAppliedPage
+                        ? primaryBtn
+                        : secondaryBtn
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                )
+              )}
+            </div>
+          )}
         </section>
       )}
 
-      {/* SUBVIEW 2: RESUME APPLIED (SUBMITTED & EDITED RESUMES) */}
+      {/* SUBVIEW 3: RESUME APPLIED (CLEAN SINGLE-COLUMN) */}
       {subView === 'resumes' && (
-        <section className="grid items-start gap-5 lg:grid-cols-12">
-          <div className="no-print space-y-2 lg:col-span-5">
-            {filteredResumeRecords.length === 0 ? (
-              <div className={cn('rounded-lg border border-dashed p-10 text-center space-y-2', cardSurface)}>
-                <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
-                <p className="text-sm font-semibold">
-                  No matching resumes yet
-                </p>
-                <p className={cn('text-xs', mutedText)}>
-                  Tailor a resume with AI or click &ldquo;Save Version&rdquo; in Resume Studio to track resumes applied by company.
-                </p>
-              </div>
-            ) : (
-              filteredResumeRecords.map((rec) => {
-                const isSelected = selectedResume?.id === rec.id;
-                return (
-                  <article
-                    key={rec.id}
-                    onClick={() => setSelectedKey(`res:${rec.id}`)}
-                    className={cn(
-                      'cursor-pointer space-y-2 rounded-lg border p-3.5 transition-colors',
-                      isSelected ? selectedCard : cardSurface
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2">
+        <section className="no-print space-y-3">
+          <p className={cn('text-xs font-medium', mutedText)}>
+            {filteredResumeRecords.length}{' '}
+            {filteredResumeRecords.length === 1 ? 'resume' : 'resumes'}
+          </p>
+
+          {filteredResumeRecords.length === 0 ? (
+            <div
+              className={cn(
+                'space-y-2 rounded-xl border border-dashed p-10 text-center',
+                cardSurface
+              )}
+            >
+              <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
+              <p className="text-sm font-semibold">No matching resumes yet</p>
+              <p className={cn('text-xs', mutedText)}>
+                Tailor a resume with AI or click &ldquo;Save Version&rdquo; in Resume Studio to track resumes applied by company.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredResumeRecords.map((rec) => (
+                <article
+                  key={rec.id}
+                  className={cn(
+                    'space-y-2.5 rounded-xl border p-4 sm:p-5',
+                    cardSurface
+                  )}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className={cn('rounded border px-2 py-0.5 text-[11px] font-medium', subSurface)}>
+                        <span
+                          className={cn(
+                            'rounded border px-2 py-0.5 text-[11px] font-medium',
+                            subSurface
+                          )}
+                        >
                           {getSourceMethodLabel(rec)}
                         </span>
                         {rec.isSent && (
                           <span
                             className={cn(
                               'rounded border px-2 py-0.5 text-[11px] font-semibold',
-                              isDark
-                                ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                              tokens.badgeSuccess
                             )}
                           >
                             ✓ Applied / Sent
                           </span>
                         )}
                       </div>
-                      <span className={cn('font-mono text-[11px]', mutedText)}>
-                        {new Date(rec.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h3 className={cn('text-[15px] font-semibold', strongText)}>
-                        {rec.versionName || rec.resumeData?.versionName || rec.company || 'General Snapshot'}
+                      <h3 className={cn('font-display text-base font-bold', strongText)}>
+                        {rec.versionName ||
+                          rec.resumeData?.versionName ||
+                          rec.company ||
+                          'General Snapshot'}
                       </h3>
                       <p className={cn('text-xs font-medium', mutedText)}>
                         {rec.company ? `${rec.company} • ` : ''}
@@ -1420,214 +2083,95 @@ export function ApplicationsCompilationView({
                       </p>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2">
-                      {rec.notes ? (
-                        <p className={cn('truncate text-xs', mutedText)}>
-                          {rec.notes}
-                        </p>
-                      ) : (
-                        <span className={cn('text-[11px]', mutedText)}>
-                          Click Show Resume to view or print
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPopoutModalData({
-                            company: rec.company || 'General Snapshot',
-                            jobTitle:
-                              rec.jobTitle || rec.resumeData.targetHeadline,
-                            methodLabel: getSourceMethodLabel(rec),
-                            submittedAt: rec.sentAt || rec.createdAt,
-                            resume: rec.resumeData,
-                          });
-                        }}
-                        className={cn(
-                          'civic-btn-motion inline-flex shrink-0 items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-medium transition-colors',
-                          secondaryBtn
-                        )}
-                      >
-                        <Maximize2 className="h-3 w-3" />
-                        Show Resume
-                      </button>
-                    </div>
-                  </article>
-                );
-              })
-            )}
-          </div>
-
-          <div className="lg:col-span-7">
-            {selectedResume ? (
-              <div className="space-y-4">
-                <div className={cn('no-print flex flex-wrap items-center justify-between gap-2 rounded-lg border p-4', cardSurface)}>
-                  <div>
-                    <h3 className="text-sm font-bold">
-                      {selectedResume.company || 'General Resume Version'} —{' '}
-                      {selectedResume.jobTitle || selectedResume.resumeData.targetHeadline}
-                    </h3>
-                    <p className={cn('text-xs', mutedText)}>
-                      Saved {new Date(selectedResume.createdAt).toLocaleString()} •{' '}
-                      {getSourceMethodLabel(selectedResume)}
-                    </p>
+                    <span className={cn('font-mono text-xs', mutedText)}>
+                      {formatAppliedDate(rec.sentAt || rec.createdAt)}
+                    </span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void onUpdateResumeRecord(selectedResume.id, {
-                          isSent: !selectedResume.isSent,
-                        })
-                      }
-                      className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      {selectedResume.isSent ? 'Marked Applied' : 'Mark as Applied'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onOpenInResumeStudio(selectedResume.resumeData, null)
-                      }
-                      className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                    >
-                      <FileText className="h-3.5 w-3.5" />
-                      Load in Studio
-                    </button>
+
+                  {rec.notes && (
+                    <p className={cn('text-xs leading-relaxed', mutedText)}>
+                      {rec.notes}
+                    </p>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() =>
                         setPopoutModalData({
-                          company: selectedResume.company || 'General Snapshot',
+                          company: rec.company || 'General Snapshot',
                           jobTitle:
-                            selectedResume.jobTitle ||
-                            selectedResume.resumeData.targetHeadline,
-                          methodLabel: getSourceMethodLabel(selectedResume),
-                          submittedAt:
-                            selectedResume.sentAt || selectedResume.createdAt,
-                          resume: selectedResume.resumeData,
+                            rec.jobTitle || rec.resumeData.targetHeadline,
+                          methodLabel: getSourceMethodLabel(rec),
+                          submittedAt: rec.sentAt || rec.createdAt,
+                          resume: rec.resumeData,
                         })
                       }
-                      className={cn('civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs', primaryBtn)}
+                      className={cn(
+                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs',
+                        primaryBtn
+                      )}
                     >
                       <Maximize2 className="h-3.5 w-3.5" />
-                      Show Resume
+                      <span>Show Resume</span>
                     </button>
+
                     <button
                       type="button"
-                      onClick={() => void onDeleteResumeRecord(selectedResume.id)}
-                      className={cn('rounded-lg border p-1.5', secondaryBtn)}
-                      title="Delete snapshot"
-                      aria-label="Delete resume snapshot"
+                      onClick={() => onOpenInResumeStudio(rec.resumeData, null)}
+                      className={cn(
+                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                        secondaryBtn
+                      )}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                      <span>Load in Studio</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void onUpdateResumeRecord(rec.id, {
+                          isSent: !rec.isSent,
+                        })
+                      }
+                      className={cn(
+                        'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                        secondaryBtn
+                      )}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>{rec.isSent ? 'Marked Applied' : 'Mark Applied'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void onDeleteResumeRecord(rec.id)}
+                      className={cn(
+                        'civic-touch-target ml-auto inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium',
+                        secondaryBtn
+                      )}
+                      aria-label={`Delete ${rec.versionName || rec.company || 'resume'}`}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                </div>
-
-                <div className={cn('no-print rounded-lg border p-4 space-y-2', cardSurface)}>
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-semibold">Headline:</span>
-                    <span className={mutedText}>
-                      {selectedResume.resumeData.targetHeadline}
-                    </span>
-                  </div>
-                  {selectedResume.notes && (
-                    <p className={cn('text-xs', mutedText)}>
-                      Notes: {selectedResume.notes}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className={cn('no-print rounded-lg border border-dashed p-12 text-center', cardSurface)}>
-                <FileText className={cn('mx-auto h-7 w-7', mutedText)} />
-                <p className="mt-2 text-sm font-semibold">
-                  Select a resume applied version
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* SUBVIEW 3: SAVED JOBS */}
-      {subView === 'saved' && (
-        <section className={cn('no-print rounded-lg border p-5 space-y-3', cardSurface)}>
-          <h3 className="text-sm font-semibold">
-            Saved Jobs ({filteredSavedJobs.length})
-          </h3>
-          {filteredSavedJobs.length === 0 ? (
-            <p className={cn('text-xs', mutedText)}>
-              No saved jobs yet. Bookmark any job in Find Jobs to keep it synced here.
-            </p>
-          ) : (
-            <div className={cn('divide-y', borderSubtle)}>
-              {filteredSavedJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <BoardLogo source={job.source} theme={theme} size="sm" />
-                      <span className="font-mono text-xs font-semibold">
-                        {job.matchScore}%
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold">{job.title}</p>
-                    <p className={cn('text-xs', mutedText)}>
-                      {job.company} • {job.location}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CopyUrlButton url={job.url} theme={theme} />
-                    <button
-                      type="button"
-                      onClick={() => onOpenJobInExplorer(job.id)}
-                      className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUpdateJobApplication(job.id, { status: 'applied' })
-                      }
-                      className={cn('inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs', primaryBtn)}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Mark Applied
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onUpdateJobApplication(job.id, { status: 'suggested' })
-                      }
-                      className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                    >
-                      <BookmarkCheck className="h-3.5 w-3.5" />
-                      Unsave
-                    </button>
-                  </div>
-                </div>
+                </article>
               ))}
             </div>
           )}
         </section>
       )}
 
-      {/* SUBVIEW 4: HIDDEN JOBS (PERSISTED IN DB + RESTORABLE) */}
+      {/* SUBVIEW 4: HIDDEN JOBS */}
       {subView === 'hidden' && (
-        <section className={cn('no-print rounded-lg border p-5 space-y-3', cardSurface)}>
+        <section className={cn('no-print space-y-3 rounded-xl border p-5', cardSurface)}>
           <div>
             <h3 className="text-sm font-semibold">
               Hidden Jobs ({filteredHiddenJobs.length})
             </h3>
             <p className={cn('text-xs', mutedText)}>
-              Hidden listings stay saved in your database so they won&apos;t clutter Find Jobs again unless you restore them.
+              Hidden listings stay saved in your database so they won&apos;t clutter Job Search again unless you restore them.
             </p>
           </div>
           {filteredHiddenJobs.length === 0 ? (
@@ -1644,7 +2188,7 @@ export function ApplicationsCompilationView({
                       <BoardLogo source={job.source} theme={theme} size="sm" />
                       <span className={cn('text-xs', mutedText)}>
                         {job.hiddenAt
-                          ? `Hidden ${new Date(job.hiddenAt).toLocaleDateString()}`
+                          ? `Hidden ${formatAppliedDate(job.hiddenAt)}`
                           : 'Hidden'}
                       </span>
                     </div>
@@ -1658,7 +2202,10 @@ export function ApplicationsCompilationView({
                     onClick={() =>
                       onUpdateJobApplication(job.id, { status: 'suggested' })
                     }
-                    className={cn('inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium', secondaryBtn)}
+                    className={cn(
+                      'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                      secondaryBtn
+                    )}
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     Restore to Active
@@ -1682,10 +2229,7 @@ export function ApplicationsCompilationView({
         theme={theme}
         onClose={() => setPopoutModalData(null)}
         onEditInStudio={(resume) =>
-          onOpenInResumeStudio(
-            resume,
-            subView === 'applied' ? selectedApplied?.job : null
-          )
+          onOpenInResumeStudio(resume, popoutModalData?.job ?? null)
         }
       />
     </div>

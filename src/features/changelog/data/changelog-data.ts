@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.8',
+    date: 'November 24, 2026',
+    isoDate: '2026-11-24T00:00:00.000Z',
+    headline:
+      'JobStreet-inspired minimal UI with mobile bottom navigation, 6 pill filter popovers, Recent searches, single-column Activity workspace, and auto-saved applied jobs',
+    items: [
+      {
+        tag: 'New',
+        title: 'Clean 4-Tab Header, Mobile Bottom Bar & Account Menu',
+        description:
+          'Streamlined desktop navigation to Job Search, Resume Studio AI, Activity, and Analytics, added a thumb-friendly mobile bottom tab bar with safe-area padding, and moved Profile, Saved searches, Saved jobs, Settings, Appearance, and Sign out into an account popover menu.',
+      },
+      {
+        tag: 'New',
+        title: '6 Pill Filter Popovers & Collapsible Recent Searches',
+        description:
+          'Added Pay (Annually/Monthly/Hourly), Type, Remote, Classification, Listing time, and Boards & More pill popovers inside the Civic Search Banner alongside a collapsible Recent searches strip.',
+      },
+      {
+        tag: 'New',
+        title: 'Single-Column Activity Workspace & Auto-Saved Applied Jobs',
+        description:
+          'Redesigned Activity (Saved, Applied, Resume Applied, Hidden) with clean single-column cards, auto-saved applied jobs, clamped expandable Notes, and full inline editing for Title, Company, Platform, Stage, Date Applied, Location, Salary, URL, and Notes.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.7',
     date: 'November 22, 2026',
     isoDate: '2026-11-22T00:00:00.000Z',

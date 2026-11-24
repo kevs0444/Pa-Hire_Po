@@ -3,20 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Activity,
-  ArrowUp,
+  ArrowLeft,
   ArrowUpDown,
-  Bookmark,
   Briefcase,
-  Building2,
-  Calendar,
-  Clock,
-  Compass,
-  Filter,
-  Search,
-  SlidersHorizontal,
-  Trash2,
-  X,
 } from 'lucide-react';
 import {
   ActiveTab,
@@ -30,16 +19,20 @@ import {
   JobSortOption,
   JobSource,
   JobStatus,
+  RecentJobSearch,
+  SavedJobSearch,
   ScanSourceMeta,
   StructuredResume,
   TailoredResumeRecord,
   UserProfile,
 } from '@/types/job';
+import { sortJobs } from '@/features/jobs/lib/job-date-utils';
 import {
-  filterJobsByDate,
-  formatJobDateLabel,
-  sortJobs,
-} from '@/features/jobs/lib/job-date-utils';
+  applyBannerFilters,
+  DEFAULT_PAY_FILTER,
+  isJobSaved,
+  PayFilterConfig,
+} from '@/features/jobs/lib/job-filters';
 import {
   createBlankUserProfile,
   resumeToPlainText,
@@ -68,9 +61,12 @@ import { AdminDashboardView } from '@/features/admin/components/AdminDashboardVi
 import { createDefaultAutoApplyConfig } from '@/features/auto-apply/types';
 import { JobAnalyticsView } from '@/features/analytics/components/JobAnalyticsView';
 import { ApplyFlowModal } from '@/features/jobs/components/ApplyFlowModal';
+import { DiscoveryJobCard } from '@/features/jobs/components/DiscoveryJobCard';
 import { HowItWorksModal } from '@/features/jobs/components/HowItWorksModal';
 import { JobDetailPane } from '@/features/jobs/components/JobDetailPane';
-import { TopChoicesSpotlight } from '@/features/jobs/components/TopChoicesSpotlight';
+import { JobDiscoveryFeed } from '@/features/jobs/components/JobDiscoveryFeed';
+import { JobSearchBanner } from '@/features/jobs/components/JobSearchBanner';
+import { SavedSearchesDialog } from '@/features/jobs/components/SavedSearchesDialog';
 import { LinkedInProfileView } from '@/features/profile/components/LinkedInProfileView';
 import { ApplicationsCompilationView } from '@/features/applications/components/ApplicationsCompilationView';
 import {
@@ -84,10 +80,7 @@ import {
 } from '@/features/changelog/data/changelog-data';
 import type { ActivityNotification } from '@/features/notifications/types';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-import { LandingPageView } from '@/components/LandingPageView';
 import { AppTopNavbar } from '@/components/layout/AppTopNavbar';
-import { BoardLogo } from '@/components/ui/BrandLogos';
-import { CopyUrlButton } from '@/components/ui/CopyUrlButton';
 import { getThemeTokens } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
@@ -231,14 +224,20 @@ export function PleaseHireMeDashboard({
     'indeed',
   ]);
   const [boardMeta, setBoardMeta] = useState<ScanSourceMeta[]>([]);
-  const [lastSearchedRoles, setLastSearchedRoles] = useState<
-    { role: string; isPivot: boolean }[]
-  >([]);
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [savedSearchesOpen, setSavedSearchesOpen] = useState(false);
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+  const [payFilter, setPayFilter] = useState<PayFilterConfig>(DEFAULT_PAY_FILTER);
+  const [jobTypeFilters, setJobTypeFilters] = useState<string[]>([]);
+  const [remoteFilters, setRemoteFilters] = useState<string[]>([]);
+  const [classificationFilters, setClassificationFilters] = useState<string[]>([]);
+  const [applicationsSubView, setApplicationsSubView] = useState<{
+    view: 'applied' | 'saved' | 'hidden' | 'resumes';
+    seq: number;
+  }>({ view: 'applied', seq: 0 });
   const [countdown, setCountdown] = useState<number>(AUTO_REFRESH_INTERVAL_SECONDS);
 
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -331,8 +330,6 @@ export function PleaseHireMeDashboard({
   const broadcastRef = useRef<BroadcastChannel | null>(null);
   const storeRef = useRef<AppStoreState>(store);
   const activeSearchMetaRef = useRef(activeSearchMeta);
-  const detailPaneRef = useRef<HTMLDivElement | null>(null);
-  const jobListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     storeRef.current = store;
@@ -347,8 +344,11 @@ export function PleaseHireMeDashboard({
   }, [activeSearchMeta]);
 
   const handleSelectTab = useCallback((nextTab: ActiveTab) => {
-    if (nextTab === 'jobs') {
+    if (nextTab === 'jobs' || nextTab === 'home') {
       setCountdown(countdownRef.current);
+    }
+    if (nextTab === 'applications') {
+      setApplicationsSubView((prev) => ({ view: 'applied', seq: prev.seq + 1 }));
     }
     setActiveTab(nextTab);
   }, []);
@@ -522,7 +522,6 @@ export function PleaseHireMeDashboard({
           Array.isArray(data.searchedRoles) ? data.searchedRoles : [];
 
         setBoardMeta(meta);
-        setLastSearchedRoles(searchedRoles);
 
         // Read latest state from storeRef AFTER await so any Save/Applied/Hidden clicks
         // made while the scrape was in-flight are strictly preserved.
@@ -577,10 +576,60 @@ export function PleaseHireMeDashboard({
           });
 
         const scannedAt = data.scannedAt || new Date().toISOString();
+        const currentStoredUser =
+          prev.users.find((u) => u.id === targetProfile.id) || targetProfile;
+        let nextRecentSearches = currentStoredUser.recentSearches || [];
+
+        if (options?.replaceUnsavedSuggestions || options?.forceRefresh) {
+          const searchQueryText = (
+            explicitRoles?.[0] ||
+            targetProfile.primaryRole ||
+            ''
+          ).trim();
+          const companyText = (options?.companyQuery || '').trim();
+          const label = companyText
+            ? searchQueryText
+              ? `${searchQueryText} at ${companyText}`
+              : companyText
+            : searchQueryText;
+          if (label) {
+            const locationText = (
+              targetProfile.location ||
+              COUNTRY_CONFIGS[targetProfile.country]?.defaultLocation ||
+              ''
+            ).trim();
+            const entry: RecentJobSearch = {
+              id: `rec-${Date.now().toString(36)}`,
+              label,
+              query: searchQueryText,
+              company: companyText || undefined,
+              country: targetProfile.country,
+              location: locationText,
+              newCount: newAdded > 0 ? newAdded : incoming.length,
+              totalCount: incoming.length,
+              searchedAt: scannedAt,
+            };
+            const dedupedRecent = nextRecentSearches.filter(
+              (r) =>
+                !(
+                  r.label.toLowerCase() === label.toLowerCase() &&
+                  r.location.toLowerCase() === locationText.toLowerCase() &&
+                  r.country === targetProfile.country
+                )
+            );
+            nextRecentSearches = [entry, ...dedupedRecent].slice(0, 8);
+          }
+        }
+
+        const updatedTargetUser: UserProfile = {
+          ...targetProfile,
+          recentSearches: nextRecentSearches,
+        };
+
         const nextState: AppStoreState = {
           ...prev,
           users: prev.users.map((u) =>
-            u.id === targetProfile.id ? targetProfile : u
+            u.id === targetProfile.id ? updatedTargetUser : u
           ),
           jobs: mergedJobs,
           lastScannedAt: scannedAt,
@@ -628,7 +677,7 @@ export function PleaseHireMeDashboard({
         scanInFlightRef.current = false;
         setScanning(false);
         countdownRef.current = AUTO_REFRESH_INTERVAL_SECONDS;
-        if (activeTabRef.current === 'jobs') {
+        if (activeTabRef.current === 'jobs' || activeTabRef.current === 'home') {
           setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
         }
       }
@@ -879,7 +928,7 @@ export function PleaseHireMeDashboard({
       const nextTick = countdownRef.current - 1;
       if (nextTick <= 0) {
         countdownRef.current = AUTO_REFRESH_INTERVAL_SECONDS;
-        if (activeTabRef.current === 'jobs') {
+        if (activeTabRef.current === 'jobs' || activeTabRef.current === 'home') {
           setCountdown(AUTO_REFRESH_INTERVAL_SECONDS);
         }
         const currentSearch = activeSearchMetaRef.current;
@@ -898,7 +947,7 @@ export function PleaseHireMeDashboard({
       }
 
       countdownRef.current = nextTick;
-      if (activeTabRef.current === 'jobs') {
+      if (activeTabRef.current === 'jobs' || activeTabRef.current === 'home') {
         setCountdown(nextTick);
       }
     }, 1000);
@@ -906,7 +955,11 @@ export function PleaseHireMeDashboard({
     return () => clearInterval(timer);
   }, [hydrated, runJobScan]);
 
-  const handleExecuteJobSearch = (roleInput: string, companyInput: string) => {
+  const handleExecuteJobSearch = (
+    roleInput: string,
+    companyInput: string,
+    overrideProfile?: UserProfile
+  ) => {
     const trimmedRole = roleInput.trim();
     const trimmedCompany = companyInput.trim();
 
@@ -928,14 +981,117 @@ export function PleaseHireMeDashboard({
     if (!cleanRole && !cleanCompany) return;
 
     setActiveSearchMeta({ role: cleanRole, company: cleanCompany });
+    setMobileDetailOpen(false);
+    setActiveTab('jobs');
     void runJobScan(
-      activeProfile,
+      overrideProfile || activeProfile,
       cleanRole ? [cleanRole] : undefined,
       {
         companyQuery: cleanCompany || undefined,
         replaceUnsavedSuggestions: true,
         forceRefresh: true,
       }
+    );
+  };
+
+  const handleMarkJobViewed = useCallback(
+    (jobId: string) => {
+      if (!jobId) return;
+      const currentProfile = getActiveUser(storeRef.current);
+      const existing = currentProfile.viewedJobIds || [];
+      if (existing[0] === jobId) return;
+      const nextViewed = [jobId, ...existing.filter((id) => id !== jobId)].slice(
+        0,
+        150
+      );
+      updateActiveUserProfile(
+        {
+          ...currentProfile,
+          viewedJobIds: nextViewed,
+        },
+        false
+      );
+    },
+    [updateActiveUserProfile]
+  );
+
+  const handleSaveCurrentSearch = useCallback(() => {
+    const query = (roleDraft.trim() || activeProfile.primaryRole || '').trim();
+    const company = companyDraft.trim();
+    const location = (
+      activeProfile.location ||
+      COUNTRY_CONFIGS[activeProfile.country]?.defaultLocation ||
+      ''
+    ).trim();
+    if (!query && !company) return;
+
+    const label = company
+      ? query
+        ? `${query} at ${company}`
+        : `Company: ${company}`
+      : query;
+
+    const existing = activeProfile.savedSearches || [];
+    const deduped = existing.filter(
+      (item) =>
+        !(
+          item.query.toLowerCase() === query.toLowerCase() &&
+          (item.company || '').toLowerCase() === company.toLowerCase() &&
+          item.country === activeProfile.country &&
+          item.location.toLowerCase() === location.toLowerCase()
+        )
+    );
+
+    const nextEntry: SavedJobSearch = {
+      id: `srch-${Date.now().toString(36)}`,
+      label,
+      query,
+      company: company || undefined,
+      country: activeProfile.country,
+      location,
+      createdAt: new Date().toISOString(),
+    };
+
+    updateActiveUserProfile(
+      {
+        ...activeProfile,
+        savedSearches: [nextEntry, ...deduped].slice(0, 20),
+      },
+      false
+    );
+    pushNotification({
+      kind: 'settings',
+      title: 'Search saved',
+      detail: `${label}${location ? ` • ${location}` : ''}`,
+      targetTab: 'home',
+    });
+  }, [activeProfile, companyDraft, pushNotification, roleDraft, updateActiveUserProfile]);
+
+  const handleRunSavedSearch = (saved: SavedJobSearch | RecentJobSearch) => {
+    const nextProfile: UserProfile = {
+      ...activeProfile,
+      country: saved.country,
+      location:
+        saved.location ||
+        COUNTRY_CONFIGS[saved.country]?.defaultLocation ||
+        activeProfile.location,
+    };
+    setRoleDraft(saved.query);
+    setCompanyDraft(saved.company || '');
+    updateActiveUserProfile(nextProfile, false);
+    handleExecuteJobSearch(saved.query, saved.company || '', nextProfile);
+  };
+
+  const handleDeleteSavedSearch = (id: string) => {
+    const nextSaved = (activeProfile.savedSearches || []).filter(
+      (item) => item.id !== id
+    );
+    updateActiveUserProfile(
+      {
+        ...activeProfile,
+        savedSearches: nextSaved,
+      },
+      false
     );
   };
 
@@ -1005,7 +1161,8 @@ export function PleaseHireMeDashboard({
         ...j,
         status,
         statusUpdatedAt: nowIso,
-        savedAt: status === 'saved' ? j.savedAt || nowIso : null,
+        savedAt:
+          status === 'saved' || status === 'applied' ? j.savedAt || nowIso : null,
         appliedAt: status === 'applied' ? j.appliedAt || nowIso : null,
         hiddenAt: status === 'hidden' ? j.hiddenAt || nowIso : null,
         applicationStage:
@@ -1020,7 +1177,21 @@ export function PleaseHireMeDashboard({
       return updatedJob;
     });
 
-    const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+    const nextUsers =
+      status === 'applied'
+        ? prev.users.map((u) =>
+            u.id === prev.activeUserId
+              ? {
+                  ...u,
+                  unsavedAppliedJobIds: (u.unsavedAppliedJobIds || []).filter(
+                    (id) => id !== jobId
+                  ),
+                }
+              : u
+          )
+        : prev.users;
+
+    const nextState: AppStoreState = { ...prev, users: nextUsers, jobs: nextJobs };
     storeRef.current = nextState;
     setStore(nextState);
     saveLocalState(nextState, authUserIdRef.current);
@@ -1070,6 +1241,10 @@ export function PleaseHireMeDashboard({
     jobId: string,
     patch: {
       status?: JobStatus;
+      title?: string;
+      company?: string;
+      source?: JobSource;
+      appliedAt?: string | null;
       applicationStage?: ApplicationStage;
       applicationNotes?: string;
       tailoredResumeId?: string | null;
@@ -1091,14 +1266,32 @@ export function PleaseHireMeDashboard({
         ...patch,
         status: nextStatus,
         statusUpdatedAt: nowIso,
-        savedAt: nextStatus === 'saved' ? j.savedAt || nowIso : null,
-        appliedAt: nextStatus === 'applied' ? j.appliedAt || nowIso : null,
+        savedAt:
+          nextStatus === 'saved' || nextStatus === 'applied'
+            ? j.savedAt || nowIso
+            : null,
+        appliedAt:
+          nextStatus === 'applied' ? patch.appliedAt ?? j.appliedAt ?? nowIso : null,
         hiddenAt: nextStatus === 'hidden' ? j.hiddenAt || nowIso : null,
       };
       return updatedJob;
     });
 
-    const nextState: AppStoreState = { ...prev, jobs: nextJobs };
+    const nextUsers =
+      patch.status === 'applied'
+        ? prev.users.map((u) =>
+            u.id === prev.activeUserId
+              ? {
+                  ...u,
+                  unsavedAppliedJobIds: (u.unsavedAppliedJobIds || []).filter(
+                    (id) => id !== jobId
+                  ),
+                }
+              : u
+          )
+        : prev.users;
+
+    const nextState: AppStoreState = { ...prev, users: nextUsers, jobs: nextJobs };
     storeRef.current = nextState;
     setStore(nextState);
     saveLocalState(nextState, authUserIdRef.current);
@@ -1313,6 +1506,7 @@ export function PleaseHireMeDashboard({
         tailoringTips: [],
         status: 'applied',
         discoveredAt: appliedIso,
+        savedAt: nowIso,
         appliedAt: appliedIso,
         applicationStage: payload.stage || 'applied',
         applicationNotes: payload.notes,
@@ -1341,6 +1535,43 @@ export function PleaseHireMeDashboard({
     } finally {
       setDbSyncCount((c) => Math.max(0, c - 1));
     }
+  };
+
+  const handleToggleSaveJob = (jobId: string) => {
+    const prev = storeRef.current;
+    const target = prev.jobs.find((j) => j.id === jobId);
+    if (!target) return;
+
+    if (target.status === 'applied') {
+      const currentUser = getActiveUser(prev);
+      const currentUnsaved = currentUser.unsavedAppliedJobIds || [];
+      const isCurrentlyUnsaved = currentUnsaved.includes(jobId);
+      const nextUnsaved = isCurrentlyUnsaved
+        ? currentUnsaved.filter((id) => id !== jobId)
+        : [jobId, ...currentUnsaved.filter((id) => id !== jobId)].slice(0, 200);
+      const nowIso = new Date().toISOString();
+      const updatedJob: JobListing = {
+        ...target,
+        savedAt: isCurrentlyUnsaved ? target.savedAt || nowIso : null,
+        statusUpdatedAt: nowIso,
+      };
+      const nextUsers = prev.users.map((u) =>
+        u.id === currentUser.id
+          ? { ...u, unsavedAppliedJobIds: nextUnsaved }
+          : u
+      );
+      const nextJobs = prev.jobs.map((j) => (j.id === jobId ? updatedJob : j));
+      const nextState: AppStoreState = { ...prev, users: nextUsers, jobs: nextJobs };
+      storeRef.current = nextState;
+      setStore(nextState);
+      saveLocalStateDebounced(nextState, authUserIdRef.current);
+      patchPendingSyncJob(updatedJob);
+      void syncSingleJobToServer(updatedJob);
+      void syncStateToServer(nextState, 'profile-only');
+      return;
+    }
+
+    handleUpdateJobStatus(jobId, target.status === 'saved' ? 'suggested' : 'saved');
   };
 
   const handleUpdateResumeRecord = async (
@@ -1489,40 +1720,115 @@ export function PleaseHireMeDashboard({
     );
   };
 
+  const activeFilterCount = useMemo(
+    () =>
+      [
+        payFilter.min !== null || payFilter.max !== null,
+        jobTypeFilters.length > 0,
+        remoteFilters.length > 0,
+        classificationFilters.length > 0,
+        dateFilter !== 'all',
+        sourceFilter !== 'all',
+        fitFilter !== 'all',
+        minScore > 0,
+        Boolean(searchQuery.trim()),
+        Boolean(companyDraft.trim()),
+        enabledSources.length < 3,
+      ].filter(Boolean).length,
+    [
+      classificationFilters.length,
+      companyDraft,
+      dateFilter,
+      enabledSources.length,
+      fitFilter,
+      jobTypeFilters.length,
+      minScore,
+      payFilter.max,
+      payFilter.min,
+      remoteFilters.length,
+      searchQuery,
+      sourceFilter,
+    ]
+  );
+
+  const handleResetAllFilters = () => {
+    setPayFilter(DEFAULT_PAY_FILTER);
+    setJobTypeFilters([]);
+    setRemoteFilters([]);
+    setClassificationFilters([]);
+    setDateFilter('all');
+    setSourceFilter('all');
+    setFitFilter('all');
+    setMinScore(0);
+    setSearchQuery('');
+    setSortBy('match');
+    setEnabledSources(['linkedin', 'jobstreet', 'indeed']);
+  };
+
+  const filteredDiscoveryJobs = useMemo(
+    () =>
+      applyBannerFilters(
+        store.jobs.filter((j) => j.status !== 'hidden'),
+        {
+          sourceFilter,
+          fitFilter,
+          dateFilter,
+          minScore,
+          searchQuery,
+          payFilter,
+          jobTypeFilters,
+          remoteFilters,
+          classificationFilters,
+          referenceNow: clientNow ?? undefined,
+        }
+      ),
+    [
+      classificationFilters,
+      clientNow,
+      dateFilter,
+      fitFilter,
+      jobTypeFilters,
+      minScore,
+      payFilter,
+      remoteFilters,
+      searchQuery,
+      sourceFilter,
+      store.jobs,
+    ]
+  );
+
   const filteredJobs = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    const matched = store.jobs.filter((job) => {
-      if (statusFilter === 'active') {
-        if (job.status === 'hidden') return false;
-      } else if (job.status !== statusFilter) {
-        return false;
+    const statusMatched = store.jobs.filter((job) => {
+      if (statusFilter === 'active') return job.status !== 'hidden';
+      if (statusFilter === 'saved') {
+        return isJobSaved(job, activeProfile.unsavedAppliedJobIds);
       }
-
-      if (sourceFilter !== 'all' && job.source !== sourceFilter) return false;
-      if (fitFilter === 'applicable' && job.experienceFit === 'senior-warning') {
-        return false;
-      }
-      if (job.matchScore < minScore) return false;
-
-      if (q) {
-        const hay = `${job.title} ${job.company} ${job.location} ${job.searchedRole} ${job.experienceRequired} ${job.matchedSkills.join(' ')}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-
-      return true;
+      return job.status === statusFilter;
     });
 
-    const dateFiltered = filterJobsByDate(
-      matched,
+    const bannerFiltered = applyBannerFilters(statusMatched, {
+      sourceFilter,
+      fitFilter,
       dateFilter,
-      clientNow ?? undefined
-    );
-    return sortJobs(dateFiltered, sortBy, clientNow ?? undefined);
+      minScore,
+      searchQuery,
+      payFilter,
+      jobTypeFilters,
+      remoteFilters,
+      classificationFilters,
+      referenceNow: clientNow ?? undefined,
+    });
+    return sortJobs(bannerFiltered, sortBy, clientNow ?? undefined);
   }, [
+    activeProfile.unsavedAppliedJobIds,
+    classificationFilters,
     clientNow,
     dateFilter,
     fitFilter,
+    jobTypeFilters,
     minScore,
+    payFilter,
+    remoteFilters,
     searchQuery,
     sortBy,
     sourceFilter,
@@ -1563,11 +1869,16 @@ export function PleaseHireMeDashboard({
     [store.jobs]
   );
 
-  const applicableJobsCount = useMemo(
+  const savedJobsCount = useMemo(
     () =>
-      store.jobs.filter(
-        (j) => j.status !== 'hidden' && j.experienceFit !== 'senior-warning'
+      store.jobs.filter((j) =>
+        isJobSaved(j, activeProfile.unsavedAppliedJobIds)
       ).length,
+    [activeProfile.unsavedAppliedJobIds, store.jobs]
+  );
+
+  const appliedJobsCount = useMemo(
+    () => store.jobs.filter((j) => j.status === 'applied').length,
     [store.jobs]
   );
 
@@ -1576,14 +1887,11 @@ export function PleaseHireMeDashboard({
     isDark,
     pageBg,
     cardSurface,
-    subSurface,
     inputSurface,
     primaryBtn,
     secondaryBtn,
-    selectedCard,
     mutedText,
     strongText,
-    borderSubtle,
   } = getThemeTokens(theme);
 
   useEffect(() => {
@@ -1606,7 +1914,9 @@ export function PleaseHireMeDashboard({
         isDesktopApp={isDesktopApp}
         hydrated={hydrated}
         activeJobsCount={activeJobsCount}
-        appliedCount={store.jobs.filter((j) => j.status === 'applied').length}
+        savedCount={savedJobsCount}
+        savedSearchesCount={(activeProfile.savedSearches || []).length}
+        appliedCount={appliedJobsCount}
         dbSyncing={dbSyncCount > 0}
         notifications={notifications}
         unreadCount={notifications.filter((n) => !n.read).length}
@@ -1621,6 +1931,11 @@ export function PleaseHireMeDashboard({
         onOpenSettings={() => {
           setSettingsSection('personal');
           setSettingsOpen(true);
+        }}
+        onOpenSavedSearches={() => setSavedSearchesOpen(true)}
+        onOpenSavedJobs={() => {
+          setApplicationsSubView((prev) => ({ view: 'saved', seq: prev.seq + 1 }));
+          setActiveTab('applications');
         }}
         onOpenChangelog={() => {
           markChangelogSeen();
@@ -1657,7 +1972,85 @@ export function PleaseHireMeDashboard({
         }
       />
 
-      <main className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 print:m-0! print:max-w-none! print:p-0! print:bg-white!">
+      {hydrated && (activeTab === 'home' || activeTab === 'jobs') && (
+        <JobSearchBanner
+          theme={theme}
+          wideContainer={activeTab === 'jobs'}
+          activeProfile={activeProfile}
+          roleDraft={roleDraft}
+          companyDraft={companyDraft}
+          activeSearchMeta={activeSearchMeta}
+          scanning={scanning}
+          scanError={scanError}
+          countdown={countdown}
+          enabledSources={enabledSources}
+          boardMeta={boardMeta}
+          totalJobsCount={store.jobs.length}
+          sourceFilter={sourceFilter}
+          fitFilter={fitFilter}
+          dateFilter={dateFilter}
+          sortBy={sortBy}
+          minScore={minScore}
+          searchQuery={searchQuery}
+          payFilter={payFilter}
+          jobTypeFilters={jobTypeFilters}
+          remoteFilters={remoteFilters}
+          classificationFilters={classificationFilters}
+          activeFilterCount={activeFilterCount}
+          onChangeRoleDraft={setRoleDraft}
+          onChangeCompanyDraft={setCompanyDraft}
+          onUpdateProfile={(next, rescore = false) =>
+            updateActiveUserProfile(next, rescore)
+          }
+          onExecuteSearch={(role, company) =>
+            handleExecuteJobSearch(role, company)
+          }
+          onSaveCurrentSearch={handleSaveCurrentSearch}
+          onApplyPrimaryRole={(role, trigger) =>
+            handleApplyPrimaryRole(role, trigger)
+          }
+          onToggleSource={toggleSource}
+          onChangeSourceFilter={setSourceFilter}
+          onToggleFitFilter={() =>
+            setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
+          }
+          onChangeDateFilter={setDateFilter}
+          onChangeSortBy={setSortBy}
+          onChangeMinScore={setMinScore}
+          onChangeSearchQuery={setSearchQuery}
+          onChangePayFilter={setPayFilter}
+          onToggleJobTypeFilter={(val) =>
+            setJobTypeFilters((prev) =>
+              prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
+            )
+          }
+          onToggleRemoteFilter={(val) =>
+            setRemoteFilters((prev) =>
+              prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
+            )
+          }
+          onToggleClassificationFilter={(val) =>
+            setClassificationFilters((prev) =>
+              prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
+            )
+          }
+          onResetAllFilters={handleResetAllFilters}
+          onRunRecentSearch={(item) => handleRunSavedSearch(item)}
+          onClearUnsavedJobs={() => {
+            const queuedSet = new Set(queuedJobIds);
+            const kept = store.jobs.filter(
+              (j) =>
+                j.status === 'saved' ||
+                j.status === 'applied' ||
+                j.status === 'hidden' ||
+                queuedSet.has(j.id)
+            );
+            persistStore({ ...store, jobs: kept }, 'full', { immediate: true });
+          }}
+        />
+      )}
+
+      <main className="mx-auto max-w-[1440px] px-4 py-5 pb-24 sm:px-6 md:pb-8 print:m-0! print:max-w-none! print:p-0! print:bg-white!">
         {!hydrated ? (
           <div className="space-y-4">
             <div className={cn('flex items-center gap-3 rounded-lg border p-5', cardSurface)}>
@@ -1708,364 +2101,97 @@ export function PleaseHireMeDashboard({
           </div>
         )}
 
-        {/* TAB 0: OVERVIEW */}
+        {/* TAB 0: JOBSTREET-INSPIRED DISCOVERY FEED */}
         {activeTab === 'home' && (
-          <LandingPageView
+          <JobDiscoveryFeed
             theme={theme}
-            onChangeTheme={(nextTheme) =>
-              persistStore(
-                {
-                  ...store,
-                  theme: nextTheme,
-                },
-                'profile-only'
-              )
-            }
             activeProfile={activeProfile}
-            totalJobsCount={activeJobsCount}
-            applicableJobsCount={applicableJobsCount}
-            queuedCount={queuedJobIds.length}
+            jobs={filteredDiscoveryJobs}
+            allJobs={store.jobs}
+            activeFilterCount={activeFilterCount}
+            scanning={scanning}
             isDesktopApp={isDesktopApp}
-            onNavigateTab={(tab) => setActiveTab(tab)}
-            onSelectBoardAndLaunch={(board) => {
-              setSourceFilter(board);
+            nowMs={clientNow}
+            onSelectJob={(jobId) => {
+              handleMarkJobViewed(jobId);
+              setSelectedJobId(jobId);
+              setMobileDetailOpen(true);
+              setSourceFilter('all');
               setStatusFilter('active');
               setActiveTab('jobs');
             }}
-            onOpenSettingsSection={(sec) => {
-              setSettingsSection(sec);
+            onToggleSaveJob={handleToggleSaveJob}
+            onUpdateJobStatus={(jobId, status) =>
+              handleUpdateJobStatus(jobId, status)
+            }
+            onOpenExplorer={() => {
+              setSourceFilter('all');
+              setStatusFilter('active');
+              setMobileDetailOpen(false);
+              setActiveTab('jobs');
+            }}
+            onOpenSavedJobs={() => {
+              setApplicationsSubView((prev) => ({
+                view: 'saved',
+                seq: prev.seq + 1,
+              }));
+              setActiveTab('applications');
+            }}
+            onOpenPreferences={() => {
+              setSettingsSection('roles');
               setSettingsOpen(true);
             }}
+            onOpenDesktopSetup={() => {
+              setSettingsSection('desktop');
+              setSettingsOpen(true);
+            }}
+            onRunSavedSearch={handleRunSavedSearch}
+            onDeleteSavedSearch={handleDeleteSavedSearch}
+            onResetFilters={handleResetAllFilters}
+            onTriggerScan={() => void runJobScan()}
           />
         )}
 
-        {/* TAB 1: JOBSTREET-INSPIRED FIND JOBS VIEW */}
+        {/* TAB 1: SIMPLIFIED 2-COLUMN JOB EXPLORER */}
         {activeTab === 'jobs' && (
           <div className="no-print space-y-4">
-            {/* Search Banner */}
-            <section className={cn('space-y-3 rounded-lg border p-4', cardSurface)}>
-              <div className="grid gap-3 lg:grid-cols-12">
-                {/* WHAT — ROLE / TITLE */}
-                <div className="lg:col-span-4">
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    Job title or keyword
-                  </label>
-                  <div className="relative">
-                    <Search className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
-                    <input
-                      type="text"
-                      value={roleDraft}
-                      onChange={(e) => setRoleDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleExecuteJobSearch(roleDraft, companyDraft);
-                        }
-                      }}
-                      placeholder="Data Analyst, BI Analyst, or 'Role at Company'..."
-                      className={cn('w-full rounded-lg border py-2 pl-9 pr-3 text-xs font-medium focus:outline-none', inputSurface)}
-                    />
-                  </div>
-                </div>
-
-                {/* COMPANY (OPTIONAL) */}
-                <div className="lg:col-span-3">
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    Company name (optional)
-                  </label>
-                  <div className="relative">
-                    <Building2 className={cn('pointer-events-none absolute left-3 top-2.5 h-4 w-4', mutedText)} />
-                    <input
-                      type="text"
-                      value={companyDraft}
-                      onChange={(e) => setCompanyDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleExecuteJobSearch(roleDraft, companyDraft);
-                        }
-                      }}
-                      placeholder="Any company (e.g. Canva, GCash)"
-                      className={cn('w-full rounded-lg border py-2 pl-9 pr-8 text-xs font-medium focus:outline-none', inputSurface)}
-                    />
-                    {companyDraft && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCompanyDraft('');
-                          if (activeSearchMeta.company) {
-                            handleExecuteJobSearch(roleDraft, '');
-                          }
-                        }}
-                        aria-label="Clear company search"
-                        className={cn(
-                          'absolute right-2 top-2 rounded p-0.5 transition-colors',
-                          mutedText
-                        )}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* WHERE */}
-                <div className="lg:col-span-3">
-                  <label className={cn('mb-1 block text-xs font-medium', mutedText)}>
-                    Location
-                  </label>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <select
-                      value={activeProfile.country}
-                      onChange={(e) => {
-                        const code = e.target.value as keyof typeof COUNTRY_CONFIGS;
-                        updateActiveUserProfile({
-                          ...activeProfile,
-                          country: code,
-                          location: COUNTRY_CONFIGS[code].defaultLocation,
-                        });
-                      }}
-                      className={cn('w-full rounded-lg border px-2.5 py-2 text-xs font-medium focus:outline-none sm:w-auto', inputSurface)}
-                    >
-                      {Object.values(COUNTRY_CONFIGS).map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      value={activeProfile.location}
-                      onChange={(e) =>
-                        updateActiveUserProfile({
-                          ...activeProfile,
-                          location: e.target.value,
-                        })
-                      }
-                      placeholder="Taguig City, Metro Manila"
-                      className={cn('min-w-0 flex-1 rounded-lg border px-3 py-2 text-xs focus:outline-none', inputSurface)}
-                    />
-                  </div>
-                </div>
-
-                {/* SEARCH ACTION (Auto-refresh runs silently every 1m + on page load) */}
-                <div className="flex flex-col justify-end lg:col-span-2">
-                  <button
-                    type="button"
-                    disabled={scanning}
-                    onClick={() => handleExecuteJobSearch(roleDraft, companyDraft)}
-                    className={cn(
-                      'inline-flex w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors disabled:opacity-60',
-                      primaryBtn
-                    )}
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    {scanning ? 'Searching...' : 'Search Jobs'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Desired Role Quick Chips + Board Logo Statuses */}
-              <div className={cn('flex flex-col gap-3 border-t pt-3 lg:flex-row lg:items-center lg:justify-between', borderSubtle)}>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className={cn('mr-1 text-xs font-medium', mutedText)}>
-                    Target roles:
-                  </span>
-                  {activeProfile.preferredRoles.map((role) => {
-                    const isCurrent =
-                      role.toLowerCase() === activeProfile.primaryRole.toLowerCase();
-                    return (
-                      <button
-                        key={role}
-                        type="button"
-                        onClick={() => handleApplyPrimaryRole(role, true)}
-                        className={cn(
-                          'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                          isCurrent ? primaryBtn : secondaryBtn
-                        )}
-                      >
-                        {role}
-                      </button>
-                    );
-                  })}
-
-                  {roleDraft.trim() &&
-                    roleDraft.trim().toLowerCase() !==
-                      activeProfile.primaryRole.trim().toLowerCase() && (
-                      <button
-                        type="button"
-                        onClick={() => handleApplyPrimaryRole(roleDraft, false)}
-                        className={cn(
-                          'inline-flex items-center gap-1 rounded-full border border-dashed px-2.5 py-1 text-xs font-medium transition-colors',
-                          secondaryBtn
-                        )}
-                        title="Save this role as your Profile Primary Target Role"
-                      >
-                        <Bookmark className="h-3 w-3" />
-                        Save as Target Role
-                      </button>
-                    )}
-
-                  {activeSearchMeta.company && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCompanyDraft('');
-                        handleExecuteJobSearch(roleDraft, '');
-                      }}
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-                        primaryBtn
-                      )}
-                      title="Clear company filter"
-                    >
-                      <Building2 className="h-3 w-3" />
-                      <span>Company: {activeSearchMeta.company}</span>
-                      <X className="h-3 w-3" />
-                    </button>
-                  )}
-
-                  <label className={cn('ml-2 inline-flex cursor-pointer items-center gap-1.5 text-xs', mutedText)}>
-                    <input
-                      type="checkbox"
-                      checked={activeProfile.autoPivotRoles}
-                      onChange={(e) =>
-                        updateActiveUserProfile({
-                          ...activeProfile,
-                          autoPivotRoles: e.target.checked,
-                        })
-                      }
-                      className="h-3.5 w-3.5"
-                    />
-                    <span>Pivot Mode</span>
-                  </label>
-                </div>
-
-                {/* Official Board Logos + Live Counts */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((board) => {
-                    const enabled = enabledSources.includes(board);
-                    const meta = boardMeta.find((m) => m.source === board);
-                    return (
-                      <button
-                        key={board}
-                        type="button"
-                        onClick={() => toggleSource(board)}
-                        className={cn(
-                          'inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-xs transition-opacity',
-                          enabled ? secondaryBtn : 'border-slate-300 opacity-50'
-                        )}
-                        title="Toggle searching this board"
-                      >
-                        <BoardLogo source={board} theme={theme} size="sm" />
-                        {meta && (
-                          <span
-                            className={cn(
-                              'rounded px-1.5 py-0.5 font-mono text-[11px] font-medium',
-                              meta.status === 'live'
-                                ? isDark
-                                  ? 'bg-emerald-950/60 text-emerald-300'
-                                  : 'bg-emerald-50 text-emerald-800'
-                                : subSurface
-                            )}
-                          >
-                            {meta.count} {meta.status}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {(lastSearchedRoles.length > 0 || hydrated) && (
-                <div className={cn('flex flex-wrap items-center justify-between gap-2 text-xs', mutedText)}>
-                  <span className="inline-flex flex-wrap items-center gap-1.5">
-                    <Activity className="h-3.5 w-3.5 shrink-0" />
-                    {lastSearchedRoles.length > 0 && (
-                      <span>
-                        Last queried:{' '}
-                        {lastSearchedRoles
-                          .map((r) => `${r.role}${r.isPivot ? ' (Pivot)' : ''}`)
-                          .join(' • ')}
-                        {activeSearchMeta.company
-                          ? ` • Company: ${activeSearchMeta.company}`
-                          : ''}
-                      </span>
-                    )}
-                    <strong className="font-semibold">
-                      {lastSearchedRoles.length > 0 ? '• ' : ''}Auto-refreshes every 1m (next in {countdown}s)
-                    </strong>
-                  </span>
-                  {store.lastScannedAt && hydrated && (
-                    <span>
-                      Updated {new Date(store.lastScannedAt).toLocaleTimeString()} •{' '}
-                      {authUser?.isAdmin
-                        ? storageMode === 'supabase-cloud'
-                          ? 'Supabase Cloud'
-                          : storageMode === 'local-file'
-                            ? 'Local + Browser'
-                            : 'Browser'
-                        : 'Cloud Synced'}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {scanError && (
-                <p
+            {/* Compact Explorer Breadcrumb + Quick Status & Sort Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDetailOpen(false);
+                    setActiveTab('home');
+                  }}
                   className={cn(
-                    'rounded-lg border px-3 py-2 text-xs font-medium',
-                    isDark
-                      ? 'border-red-500/40 bg-red-950/50 text-red-300'
-                      : 'border-red-300 bg-red-50 text-red-700'
+                    'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
+                    secondaryBtn
                   )}
                 >
-                  {scanError}
-                </p>
-              )}
-            </section>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Back to Recommended</span>
+                </button>
+                <span className={cn('text-xs', mutedText)}>
+                  Showing <strong className={strongText}>{filteredJobs.length}</strong> of{' '}
+                  {store.jobs.length} jobs
+                </span>
+              </div>
 
-            {/* RECOMMENDED TOP 3 */}
-            <TopChoicesSpotlight
-              choices={top3Choices}
-              selectedJobId={selectedJob?.id || null}
-              activeProfileName={activeProfile.name}
-              experienceLevel={activeProfile.experienceLevel}
-              theme={theme}
-              queuedJobIds={queuedJobIds}
-              onSelectJob={(id) => {
-                setSelectedJobId(id);
-                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                  requestAnimationFrame(() => {
-                    detailPaneRef.current?.scrollIntoView({
-                      behavior: 'smooth',
-                      block: 'start',
-                    });
-                  });
-                }
-              }}
-              onOpenApplyModal={(job) => setApplyModalJob(job)}
-              onToggleQueueJob={handleToggleQueueJob}
-            />
-
-            {/* FILTER BAR */}
-            <section className={cn('space-y-2.5 rounded-lg border px-3 py-2.5', cardSurface)}>
-              {/* Row 1 (Always Visible): Status Tabs + Mobile Filter Toggle */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:pb-0">
+              <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+                <div className="no-scrollbar flex flex-nowrap items-center gap-1 overflow-x-auto">
                   {(
                     [
                       { key: 'active', label: 'All Active', count: activeJobsCount },
                       {
                         key: 'saved',
                         label: 'Saved',
-                        count: store.jobs.filter((j) => j.status === 'saved').length,
+                        count: savedJobsCount,
                       },
                       {
                         key: 'applied',
                         label: 'Applied',
-                        count: store.jobs.filter((j) => j.status === 'applied').length,
+                        count: appliedJobsCount,
                       },
                       {
                         key: 'hidden',
@@ -2077,9 +2203,12 @@ export function PleaseHireMeDashboard({
                     <button
                       key={t.key}
                       type="button"
-                      onClick={() => setStatusFilter(t.key)}
+                      onClick={() => {
+                        setStatusFilter(t.key);
+                        setMobileDetailOpen(false);
+                      }}
                       className={cn(
-                        'inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
+                        'civic-touch-target inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
                         statusFilter === t.key ? primaryBtn : secondaryBtn
                       )}
                     >
@@ -2093,193 +2222,39 @@ export function PleaseHireMeDashboard({
                   ))}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMobileFiltersOpen((v) => !v)}
-                  aria-expanded={mobileFiltersOpen}
-                  className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium sm:hidden',
-                    mobileFiltersOpen ||
-                      sourceFilter !== 'all' ||
-                      fitFilter !== 'all' ||
-                      dateFilter !== 'all' ||
-                      sortBy !== 'match' ||
-                      minScore > 0 ||
-                      searchQuery.trim()
-                      ? primaryBtn
-                      : secondaryBtn
-                  )}
-                >
-                  <SlidersHorizontal className="h-3.5 w-3.5" />
-                  <span>Filters</span>
-                </button>
-              </div>
-
-              {/* Row 2 (Collapsible on Mobile, Always Open on sm+) */}
-              <div
-                className={cn(
-                  'flex-col gap-2.5 border-t pt-2.5 lg:flex-row lg:items-center lg:justify-between',
-                  borderSubtle,
-                  mobileFiltersOpen ? 'flex' : 'hidden sm:flex'
-                )}
-              >
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setSourceFilter('all')}
+                <div className="relative flex items-center">
+                  <ArrowUpDown
                     className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      sourceFilter === 'all' ? primaryBtn : secondaryBtn
+                      'pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5',
+                      mutedText
+                    )}
+                  />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as JobSortOption)}
+                    aria-label="Sort jobs"
+                    className={cn(
+                      'min-h-[36px] rounded-lg border py-1.5 pl-8 pr-2.5 text-xs font-medium focus:outline-none',
+                      inputSurface
                     )}
                   >
-                    All Sites ({store.jobs.length})
-                  </button>
-                  {(['linkedin', 'jobstreet', 'indeed'] as JobSource[]).map((src) => (
-                    <button
-                      key={src}
-                      type="button"
-                      onClick={() => setSourceFilter(src)}
-                      className={cn(
-                        'inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                        sourceFilter === src ? primaryBtn : secondaryBtn
-                      )}
-                    >
-                      <BoardLogo source={src} theme={theme} size="sm" />
-                    </button>
-                  ))}
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setFitFilter((f) => (f === 'all' ? 'applicable' : 'all'))
-                    }
-                    className={cn(
-                      'rounded-md border px-2.5 py-1 text-xs font-medium transition-colors',
-                      fitFilter === 'applicable' ? primaryBtn : secondaryBtn
-                    )}
-                  >
-                    {fitFilter === 'applicable'
-                      ? '✓ Applicable Exp Only'
-                      : 'Entry / Applicable Exp'}
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
-                  <div className="relative">
-                    <Search className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Filter results..."
-                      className={cn('w-full rounded-lg border py-1.5 pl-8 pr-3 text-xs focus:outline-none sm:w-44', inputSurface)}
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-                    {/* DATE RECENCY FILTER */}
-                    <div className="relative flex items-center">
-                      <Calendar className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                      <select
-                        value={dateFilter}
-                        onChange={(e) => setDateFilter(e.target.value as DateFilterOption)}
-                        aria-label="Filter jobs by date posted"
-                        className={cn(
-                          'w-full rounded-lg border py-1.5 pl-8 pr-2 text-xs font-medium focus:outline-none sm:w-auto',
-                          inputSurface
-                        )}
-                      >
-                        <option value="all">All Dates</option>
-                        <option value="24h">Past 24 Hours / Today</option>
-                        <option value="7d">Past Week</option>
-                        <option value="30d">Past Month</option>
-                      </select>
-                    </div>
-
-                    {/* SORT STRATEGY */}
-                    <div className="relative flex items-center">
-                      <ArrowUpDown className={cn('pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5', mutedText)} />
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as JobSortOption)}
-                        aria-label="Sort jobs"
-                        className={cn(
-                          'w-full rounded-lg border py-1.5 pl-8 pr-2 text-xs font-medium focus:outline-none sm:w-auto',
-                          inputSurface
-                        )}
-                      >
-                        <option value="match">Sort: Best Match</option>
-                        <option value="newest">Sort: Newest First</option>
-                        <option value="oldest">Sort: Oldest First</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-                    <label className={cn('flex flex-1 items-center gap-1.5 text-xs', mutedText)}>
-                      <Filter className="h-3.5 w-3.5 shrink-0" />
-                      <span className="font-mono text-[11px] tabular-nums">Min {minScore}%</span>
-                      <input
-                        type="range"
-                        min={0}
-                        max={80}
-                        step={5}
-                        value={minScore}
-                        onChange={(e) => setMinScore(Number(e.target.value))}
-                        className="w-full max-w-[140px] sm:w-20"
-                      />
-                    </label>
-
-                    {store.jobs.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const queuedSet = new Set(queuedJobIds);
-                          const kept = store.jobs.filter(
-                            (j) =>
-                              j.status === 'saved' ||
-                              j.status === 'applied' ||
-                              j.status === 'hidden' ||
-                              queuedSet.has(j.id)
-                          );
-                          persistStore({ ...store, jobs: kept }, 'full', {
-                            immediate: true,
-                          });
-                        }}
-                        className={cn('inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium', secondaryBtn)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Clear
-                      </button>
-                    )}
-                  </div>
+                    <option value="match">Sort: Best Match</option>
+                    <option value="newest">Sort: Newest First</option>
+                    <option value="oldest">Sort: Oldest First</option>
+                  </select>
                 </div>
               </div>
-            </section>
+            </div>
 
-            {/* JOBSTREET 2-COLUMN MASTER-DETAIL EXPLORER */}
+            {/* 2-COLUMN MASTER-DETAIL EXPLORER (Focused Switch on < 1024px) */}
             <section className="grid items-start gap-5 lg:grid-cols-12">
               {/* LEFT COLUMN: JOB LIST */}
-              <div ref={jobListRef} className="space-y-2 lg:col-span-5">
-                {store.jobs.length > 0 && (
-                  <div className={cn('flex items-center justify-between px-1 text-xs', mutedText)}>
-                    <span>
-                      Showing <strong className={strongText}>{filteredJobs.length}</strong> of{' '}
-                      {store.jobs.length} jobs
-                    </span>
-                    <span className="font-mono text-[11px]">
-                      {sortBy === 'newest'
-                        ? 'Newest first'
-                        : sortBy === 'oldest'
-                          ? 'Oldest first'
-                          : 'Best match'}
-                      {dateFilter !== 'all' && (
-                        <> • {dateFilter === '24h' ? 'Past 24h' : dateFilter === '7d' ? 'Past week' : 'Past month'}</>
-                      )}
-                    </span>
-                  </div>
+              <div
+                className={cn(
+                  'space-y-2 lg:col-span-5',
+                  mobileDetailOpen && 'hidden lg:block'
                 )}
-
+              >
                 {scanning && store.jobs.length === 0 ? (
                   <div className="space-y-2">
                     {[1, 2, 3, 4].map((n) => (
@@ -2294,169 +2269,58 @@ export function PleaseHireMeDashboard({
                     <Briefcase className={cn('mx-auto h-7 w-7', mutedText)} />
                     <p className="text-sm font-semibold">No matching jobs yet</p>
                     <p className={cn('text-xs', mutedText)}>
-                      Click &ldquo;Search Jobs&rdquo; to search LinkedIn, JobStreet, and Indeed.
+                      Try adjusting filters or click Search to scan LinkedIn, JobStreet, and Indeed.
                     </p>
                     <button
                       type="button"
                       onClick={() => void runJobScan()}
-                      className={cn('rounded-lg px-4 py-2 text-xs', primaryBtn)}
+                      className={cn('min-h-[42px] rounded-lg px-4 py-2 text-xs', primaryBtn)}
                     >
                       Search Jobs
                     </button>
                   </div>
                 ) : (
-                  filteredJobs.map((job) => {
-                    const isSelected = selectedJob?.id === job.id;
-                    const matchBadgeTone =
-                      job.matchScore >= 75
-                        ? isDark
-                          ? 'border-zinc-700 bg-zinc-800 text-zinc-100 font-semibold'
-                          : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : job.matchScore >= 55
-                          ? isDark
-                            ? 'border-zinc-800 bg-zinc-800/60 text-zinc-300'
-                            : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
-                          : isDark
-                            ? 'border-zinc-800 bg-zinc-900 text-zinc-400'
-                            : 'border-slate-200 bg-slate-100 text-slate-700';
-
-                    return (
-                      <article
-                        key={job.id}
-                        onClick={() => {
-                          setSelectedJobId(job.id);
-                          if (
-                            typeof window !== 'undefined' &&
-                            window.innerWidth < 1024
-                          ) {
-                            requestAnimationFrame(() => {
-                              detailPaneRef.current?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start',
-                              });
-                            });
-                          }
-                        }}
-                        className={cn(
-                          'cursor-pointer space-y-2 rounded-lg border p-3.5 transition-colors',
-                          isSelected ? selectedCard : cardSurface
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <BoardLogo source={job.source} theme={theme} size="sm" />
-                            {job.isPivotSuggestion && (
-                              <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium', secondaryBtn)}>
-                                <Compass className="h-3 w-3" />
-                                Pivot
-                              </span>
-                            )}
-                            {job.status === 'saved' && (
-                              <span
-                                className={cn(
-                                  'rounded border px-1.5 py-0.5 text-[11px] font-semibold',
-                                  isDark
-                                    ? 'border-blue-700/70 bg-blue-950/60 text-blue-300'
-                                    : 'border-blue-200 bg-blue-50 text-[#0a66c2]'
-                                )}
-                              >
-                                Saved
-                              </span>
-                            )}
-                            {job.status === 'applied' && (
-                              <span
-                                className={cn(
-                                  'rounded border px-1.5 py-0.5 text-[11px] font-semibold',
-                                  isDark
-                                    ? 'border-emerald-700/70 bg-emerald-950/60 text-emerald-300'
-                                    : 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                                )}
-                              >
-                                Applied
-                              </span>
-                            )}
-                          </div>
-                          <span className={cn('rounded border px-2 py-0.5 font-mono text-xs font-medium tabular-nums', matchBadgeTone)}>
-                            {job.matchScore >= 75 ? `✓ ${job.matchScore}%` : `${job.matchScore}%`}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h3 className={cn('text-[15px] font-semibold leading-snug', strongText)}>
-                            {job.title}
-                          </h3>
-                          <p className={cn('mt-0.5 text-xs font-medium', mutedText)}>
-                            {job.company} • {job.location}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span
-                            className={cn(
-                              'rounded border px-2 py-0.5 text-[11px] font-medium',
-                              job.experienceFit === 'senior-warning'
-                                ? cn('border-dashed', borderSubtle, mutedText)
-                                : subSurface
-                            )}
-                          >
-                            Exp: {job.experienceRequired}
-                          </span>
-                          {job.salary && (
-                            <span className={cn('font-mono text-[11px] font-medium', mutedText)}>
-                              {job.salary}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
-                          <div className="flex flex-wrap gap-1">
-                            {job.matchedSkills.slice(0, 3).map((s) => (
-                              <span
-                                key={s}
-                                className={cn('rounded border px-1.5 py-0.5 text-[11px] font-medium', subSurface)}
-                              >
-                                ✓ {s}
-                              </span>
-                            ))}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <CopyUrlButton url={job.url} theme={theme} compact />
-                            <span
-                              className={cn('inline-flex items-center gap-1 font-mono text-[11px]', mutedText)}
-                              title={`Posted: ${job.postedAt}`}
-                            >
-                              <Clock className="h-3 w-3 opacity-70" />
-                              {formatJobDateLabel(job, clientNow ?? undefined)}
-                            </span>
-                          </div>
-                        </div>
-                      </article>
-                    );
-                  })
+                  filteredJobs.map((job) => (
+                    <DiscoveryJobCard
+                      key={job.id}
+                      job={job}
+                      theme={theme}
+                      variant="explorer"
+                      isSelected={selectedJob?.id === job.id}
+                      isSaved={isJobSaved(job, activeProfile.unsavedAppliedJobIds)}
+                      isViewed={(activeProfile.viewedJobIds || []).includes(job.id)}
+                      nowMs={clientNow}
+                      onSelect={() => {
+                        handleMarkJobViewed(job.id);
+                        setSelectedJobId(job.id);
+                        setMobileDetailOpen(true);
+                      }}
+                      onToggleSave={() => handleToggleSaveJob(job.id)}
+                      onHide={() => handleUpdateJobStatus(job.id, 'hidden')}
+                      onUnhide={() => handleUpdateJobStatus(job.id, 'suggested')}
+                    />
+                  ))
                 )}
               </div>
 
               {/* RIGHT COLUMN: STICKY JOB DETAILS PANE */}
               <div
-                ref={detailPaneRef}
-                className="scroll-mt-20 space-y-2 lg:sticky lg:top-16 lg:col-span-7"
+                className={cn(
+                  'scroll-mt-20 space-y-2 lg:sticky lg:top-16 lg:col-span-7',
+                  !mobileDetailOpen && 'hidden lg:block'
+                )}
               >
-                <div className="flex justify-end lg:hidden">
+                <div className="flex items-center justify-between lg:hidden">
                   <button
                     type="button"
-                    onClick={() =>
-                      jobListRef.current?.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                      })
-                    }
+                    onClick={() => setMobileDetailOpen(false)}
                     className={cn(
-                      'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
+                      'civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium',
                       secondaryBtn
                     )}
                   >
-                    <ArrowUp className="h-3.5 w-3.5" />
-                    Back to Job List
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Back to results
                   </button>
                 </div>
                 <JobDetailPane
@@ -2466,6 +2330,14 @@ export function PleaseHireMeDashboard({
                   isQueued={
                     selectedJob ? queuedJobIds.includes(selectedJob.id) : false
                   }
+                  isSaved={
+                    selectedJob
+                      ? isJobSaved(selectedJob, activeProfile.unsavedAppliedJobIds)
+                      : false
+                  }
+                  onToggleSave={() => {
+                    if (selectedJob) handleToggleSaveJob(selectedJob.id);
+                  }}
                   onOpenApplyModal={(job) => setApplyModalJob(job)}
                   onToggleQueueJob={handleToggleQueueJob}
                   onUpdateStatus={handleUpdateJobStatus}
@@ -2475,15 +2347,21 @@ export function PleaseHireMeDashboard({
           </div>
         )}
 
-        {/* TAB 1B: APPLIED COMPANIES & EDITED RESUMES COMPILATION */}
+        {/* TAB 1B: ACTIVITY (SAVED, APPLIED, RESUME APPLIED, HIDDEN) */}
         {activeTab === 'applications' && (
           <ApplicationsCompilationView
+            key={`${applicationsSubView.view}-${applicationsSubView.seq}`}
+            initialSubView={applicationsSubView.view}
             theme={store.theme}
             profile={activeProfile}
             jobs={store.jobs}
             resumeRecords={resumeRecords}
             loadingResumes={loadingResumes}
+            unsavedAppliedJobIds={activeProfile.unsavedAppliedJobIds || []}
+            nowMs={clientNow}
             onRefreshResumes={loadResumeHistory}
+            onToggleSaveJob={handleToggleSaveJob}
+            onOpenApplyModal={(job) => setApplyModalJob(job)}
             onUpdateJobApplication={handleUpdateJobApplication}
             onLogExternalApplication={handleLogExternalApplication}
             onUpdateResumeRecord={handleUpdateResumeRecord}
@@ -2495,6 +2373,7 @@ export function PleaseHireMeDashboard({
             }}
             onOpenJobInExplorer={(jobId) => {
               setSelectedJobId(jobId);
+              setMobileDetailOpen(true);
               setSourceFilter('all');
               setStatusFilter('active');
               setActiveTab('jobs');
@@ -2668,6 +2547,20 @@ export function PleaseHireMeDashboard({
         isOpen={changelogOpen}
         theme={store.theme}
         onClose={() => setChangelogOpen(false)}
+      />
+
+      {/* SAVED SEARCHES DIALOG */}
+      <SavedSearchesDialog
+        isOpen={savedSearchesOpen}
+        theme={store.theme}
+        savedSearches={activeProfile.savedSearches || []}
+        currentQueryLabel={`${roleDraft.trim() || activeProfile.primaryRole}${
+          companyDraft.trim() ? ` at ${companyDraft.trim()}` : ''
+        } • ${activeProfile.location || COUNTRY_CONFIGS[activeProfile.country]?.defaultLocation || ''}`}
+        onClose={() => setSavedSearchesOpen(false)}
+        onSaveCurrentSearch={handleSaveCurrentSearch}
+        onRunSearch={handleRunSavedSearch}
+        onDeleteSearch={handleDeleteSavedSearch}
       />
     </div>
   );

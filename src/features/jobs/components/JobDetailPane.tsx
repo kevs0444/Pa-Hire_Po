@@ -27,6 +27,8 @@ interface JobDetailPaneProps {
   activeProfileName: string;
   theme: MonochromeTheme;
   isQueued: boolean;
+  isSaved?: boolean;
+  onToggleSave?: () => void;
   onOpenApplyModal: (job: JobListing) => void;
   onToggleQueueJob: (jobId: string) => void;
   onUpdateStatus: (jobId: string, status: JobStatus) => void;
@@ -43,6 +45,8 @@ export function JobDetailPane({
   activeProfileName,
   theme,
   isQueued,
+  isSaved: isSavedProp,
+  onToggleSave,
   onOpenApplyModal,
   onToggleQueueJob,
   onUpdateStatus,
@@ -88,8 +92,10 @@ export function JobDetailPane({
           ? 'border-zinc-800 bg-zinc-900 text-zinc-400'
           : 'border-slate-300 bg-slate-100 text-slate-700';
 
+  const effectiveSaved = isSavedProp ?? job.status === 'saved';
+
   return (
-    <div className={cn('rounded-lg border p-5 sm:p-6 space-y-5', cardSurface)}>
+    <div className={cn('space-y-5 rounded-lg border p-4 sm:p-6', cardSurface)}>
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1 space-y-2">
@@ -169,7 +175,7 @@ export function JobDetailPane({
           type="button"
           onClick={() => onOpenApplyModal(job)}
           className={cn(
-            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
+            'civic-btn-motion inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors sm:min-h-0 sm:w-auto',
             primaryBtn
           )}
         >
@@ -180,7 +186,7 @@ export function JobDetailPane({
           type="button"
           onClick={() => onToggleQueueJob(job.id)}
           className={cn(
-            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            'civic-btn-motion civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
             isQueued ? primaryBtn : secondaryBtn
           )}
         >
@@ -194,21 +200,25 @@ export function JobDetailPane({
 
         <button
           type="button"
-          onClick={() =>
-            onUpdateStatus(job.id, job.status === 'saved' ? 'suggested' : 'saved')
-          }
+          onClick={() => {
+            if (onToggleSave) {
+              onToggleSave();
+            } else {
+              onUpdateStatus(job.id, effectiveSaved ? 'suggested' : 'saved');
+            }
+          }}
           className={cn(
-            'civic-btn-motion inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
-            job.status === 'saved' ? primaryBtn : secondaryBtn
+            'civic-btn-motion civic-touch-target inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors',
+            effectiveSaved ? primaryBtn : secondaryBtn
           )}
-          aria-pressed={job.status === 'saved'}
+          aria-pressed={effectiveSaved}
         >
-          {job.status === 'saved' ? (
+          {effectiveSaved ? (
             <BookmarkCheck key="saved-check" className="civic-confirm-pop h-3.5 w-3.5" />
           ) : (
             <Bookmark className="h-3.5 w-3.5" />
           )}
-          {job.status === 'saved' ? 'Saved' : 'Save'}
+          {effectiveSaved ? 'Saved' : 'Save'}
         </button>
 
         <button
@@ -335,7 +345,7 @@ export function JobDetailPane({
       {/* Job Description */}
       <div className={cn('space-y-2 border-t pt-4', borderSubtle)}>
         <h3 className="text-sm font-semibold">Job Description</h3>
-        <div className="max-h-[360px] overflow-y-auto whitespace-pre-line pr-2 text-sm leading-relaxed">
+        <div className="whitespace-pre-line text-sm leading-relaxed lg:max-h-[420px] lg:overflow-y-auto lg:pr-2">
           {job.description}
         </div>
       </div>

@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.7
-commit_ref: "74f6835"
+milestone: v1.0.8
+commit_ref: "local-unpushed"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-22
+updated: 2026-11-24
 tags:
   - pahirepo
   - timeline
@@ -123,6 +123,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 |---|---|---|---|
 | `db3b4ea` (`v1.0.7`) | 2026-11-22 | `feat(release): v1.0.7 dynamic certification rows/columns in Resume Studio AI and Obsidian AGENTS.md folder` | Added `ResumeCertificationColumns` (`1 | 2 | 3`) & `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`), and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md` |
 | `74f6835` (`v1.0.7`) | 2026-11-22 | `fix(resume): match A4 preview 1:1 on PDF export with Fit-to-1-Page scaling and modal parity` | Created `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, `computePrintLayoutSummary`, `buildResumePrintStyles`), removed `9.5pt` print font inflation and added `.resume-sheet-containment` print reset in `globals.css`, added `[data-resume-content="true"]` height observer + Page 1 boundary line + Edit-Mode print guard in `A4ResumePreview.tsx`, added `Fit 1 Page` toggle + live page status pill in `ResumeFormatToolbar.tsx`, and unified `ApplyFlowModal.tsx` & `SubmittedResumeModal.tsx` |
+
+---
+
+## Phase 12 — JobStreet-Inspired Minimal UI & Civic Discovery Feed (`v1.0.8`, Nov 24, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `local` (`v1.0.8`) | 2026-11-24 | JobStreet-inspired minimal UI, mobile bottom bar & `@container` cards, 6 pill filter popovers, `Recent searches`, single-column `Activity` workspace with full-detail inline editing, and auto-saved applied jobs | Streamlined `AppTopNavbar.tsx` (4 tabs + fixed mobile bottom nav) & `UserAvatarMenu.tsx` (`popover="auto"`); added `viewport-fit=cover`, safe-area `scroll-padding`, and `44px` coarse-pointer targets (`layout.tsx`, `globals.css`); rebuilt `JobSearchBanner.tsx` with 6 `popover="auto"` filter pills (`Pay`, `Type`, `Remote`, `Classification`, `Listing time`, `Boards & More`), `job-filters.ts`, and collapsible `Recent searches`; launched `@container` `DiscoveryJobCard.tsx`, mobile `Recommended | Saved jobs` switcher (`JobDiscoveryFeed.tsx`), focused mobile Explorer switch (`mobileDetailOpen`), and auto-saved applied jobs (`isJobSaved` + `unsavedAppliedJobIds`); redesigned `ApplicationsCompilationView.tsx` into single-column `Activity` (`Saved`, `Applied`, `Resume Applied`, `Hidden`) with `⋮` menus, clamped expandable Notes, and full-detail inline editing; synced `savedSearches` (20), `recentSearches` (8), `viewedJobIds` (150), and `unsavedAppliedJobIds` (200) via Supabase JSONB |
 
 ---
 

@@ -16,6 +16,28 @@ export interface RoleLibraryEntry {
   skills?: string[];
 }
 
+export interface SavedJobSearch {
+  id: string;
+  label: string;
+  query: string;
+  company?: string;
+  country: CountryCode;
+  location: string;
+  createdAt: string;
+}
+
+export interface RecentJobSearch {
+  id: string;
+  label: string;
+  query: string;
+  company?: string;
+  country: CountryCode;
+  location: string;
+  newCount: number;
+  totalCount: number;
+  searchedAt: string;
+}
+
 export interface UserProfile {
   id: string;
   name: string;
@@ -41,6 +63,10 @@ export interface UserProfile {
   autoScanIntervalMinutes: number;
   careerJourneyMarkdown: string;
   structuredResume: StructuredResume;
+  savedSearches?: SavedJobSearch[];
+  recentSearches?: RecentJobSearch[];
+  viewedJobIds?: string[];
+  unsavedAppliedJobIds?: string[];
 }
 
 export interface DynamicRoleSuggestion {

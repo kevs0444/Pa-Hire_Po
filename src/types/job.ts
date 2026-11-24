@@ -10,7 +10,7 @@ export type WorkType = 'any' | 'remote' | 'hybrid' | 'onsite';
 
 export type ExperienceLevel = 'any' | 'entry' | 'mid' | 'senior';
 
-export type DateFilterOption = 'all' | '24h' | '7d' | '30d';
+export type DateFilterOption = 'all' | '24h' | '3d' | '7d' | '14d' | '30d';
 
 export type JobSortOption = 'match' | 'newest' | 'oldest';
 

@@ -1,6 +1,17 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.7`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.8`).
+
+## v1.0.8 — November 24, 2026
+
+### JobStreet-Inspired Minimal UI, Pill Filters, Mobile Navigation & `Activity` Workspace
+- **Clean 4-Tab Header, Mobile Bottom Bar & Account Avatar Popover (`AppTopNavbar.tsx`, `UserAvatarMenu.tsx`):** Streamlined desktop navigation to **Job Search**, **Resume Studio AI**, **Activity**, and **Analytics**, paired with a 1-row mobile top bar + thumb-friendly fixed mobile bottom tab bar (`env(safe-area-inset-bottom)` safe-area padding) and a viewport-aware `popover="auto"` account menu (**My Profile**, **Saved searches**, **Saved jobs**, **Activity (Applied)**, **Settings**, **How It Works**, **Admin Control Center**, inline **Light / Dark** toggle, and **Sign out**).
+- **Full-Width Civic Search Banner with 6 Pill Popovers & `Recent searches` (`JobSearchBanner.tsx`, `job-filters.ts`):** Added native `popover="auto"` filter pills (**Pay** with Annually/Monthly/Hourly tabs, **Type**, **Remote**, **Classification**, **Listing time** radio selector, and **Boards & More**), `16px` mobile inputs to prevent Safari auto-zoom, and a collapsible **Recent searches** card strip (`bg-[#062d57]` Light / `bg-[#141417]` Dark).
+- **Recommended Feed, Mobile Switcher & Auto-Saved Applied Jobs (`JobDiscoveryFeed.tsx`, `DiscoveryJobCard.tsx`, `PleaseHireMeDashboard.tsx`):** Turned Home (`/`) into a container-aware 2-column feed with a mobile `Recommended | Saved jobs` 1-tap switcher, focused mobile Master-Detail switch on `/jobs`, and automatic inclusion of every applied job in **Saved jobs** (individually removable via `unsavedAppliedJobIds` without losing Applied status).
+- **Single-Column `Activity` Workspace with Full-Detail Editing & Clamped Notes (`ApplicationsCompilationView.tsx`):** Redesigned `/applications` into a clean **Activity** workspace (**Saved**, **Applied**, **Resume Applied**, **Hidden**) featuring `⋮` overflow menus, **Show Resume** pop-outs, `line-clamp-2` + **Show more / Show less** Notes previews, and full-detail inline editing (**Job Title**, **Company**, **Platform**, **Stage**, **Date Applied**, **Location**, **Work Setup**, **Salary**, **Resume Version**, **URL**, and multi-line **Notes**).
+- **Supabase Cloud Persistence (`profile.ts`, `free-tier-limits.ts`):** Syncs `savedSearches` (cap 20), `recentSearches` (cap 8), `viewedJobIds` (cap 150), and `unsavedAppliedJobIds` (cap 200) inside your RLS-protected `user_profiles.profile_data` JSONB profile.
+
+---
 
 ## v1.0.7 — November 22, 2026
 

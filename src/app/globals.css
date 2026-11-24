@@ -44,13 +44,52 @@ body {
   min-width: 0;
 }
 
+html {
+  scroll-padding-top: calc(4rem + env(safe-area-inset-top, 0px));
+}
+
+@media (max-width: 767px) {
+  html {
+    scroll-padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+body {
+  overflow-wrap: break-word;
+}
+
 h1,
 h2,
 h3,
 .font-display {
   font-family: var(--font-display), var(--font-sans), sans-serif;
   overflow-wrap: anywhere;
+  text-wrap: balance;
   min-width: 0;
+}
+
+p,
+li {
+  text-wrap: pretty;
+}
+
+.discovery-card-container {
+  container: job-card / inline-size;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .civic-touch-target {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
 }
 
 dialog:modal {
@@ -344,21 +383,56 @@ progress.loading-spinner:indeterminate {
   }
 }
 
+[popover].civic-popover-panel,
+[popover].civic-popover-panel-start {
+  max-inline-size: calc(100dvw - 1.5rem);
+  max-block-size: calc(100dvh - 5.5rem);
+  overflow-y: auto;
+}
+
 @supports (position-area: block-end) {
-  [popover].notification-popover {
+  [popover].notification-popover,
+  [popover].civic-popover-panel {
     inset: auto;
     margin: 0;
+    margin-block-start: 0.5rem;
     position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
+  }
+
+  [popover].civic-popover-panel-start {
+    inset: auto;
+    margin: 0;
+    margin-block-start: 0.5rem;
+    position-area: block-end span-inline-end;
     position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline;
   }
 }
 
-[popover].notification-popover:is(:popover-open, .\:popover-open) {
+@supports not (position-area: block-end) {
+  [popover].civic-popover-panel,
+  [popover].civic-popover-panel-start {
+    position: fixed;
+    margin: 0;
+  }
+}
+
+@supports not selector(:popover-open) {
+  [popover]:not(.\:popover-open) {
+    display: none;
+  }
+}
+
+[popover].notification-popover:is(:popover-open, .\:popover-open),
+[popover].civic-popover-panel:is(:popover-open, .\:popover-open),
+[popover].civic-popover-panel-start:is(:popover-open, .\:popover-open) {
   animation: popover-fade-in 140ms ease-out both;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [popover].notification-popover:is(:popover-open, .\:popover-open) {
+  [popover].notification-popover:is(:popover-open, .\:popover-open),
+  [popover].civic-popover-panel:is(:popover-open, .\:popover-open),
+  [popover].civic-popover-panel-start:is(:popover-open, .\:popover-open) {
     animation:
       popover-grow 240ms ease-out both,
       popover-fade-in 140ms ease-out both;

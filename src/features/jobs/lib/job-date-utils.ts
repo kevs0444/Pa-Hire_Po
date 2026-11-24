@@ -7,7 +7,7 @@
  * an optional `referenceNow` timestamp rather than evaluating `Date.now()` during render.
  */
 
-export type DateFilterOption = 'all' | '24h' | '7d' | '30d';
+export type DateFilterOption = 'all' | '24h' | '3d' | '7d' | '14d' | '30d';
 export type SortOption = 'match' | 'newest' | 'oldest';
 export type JobSortOption = SortOption;
 
@@ -166,8 +166,12 @@ export function filterJobsByDate<T extends JobDateInput>(
   let windowMs = MS_PER_DAY;
   if (filter === '24h') {
     windowMs = MS_PER_DAY;
+  } else if (filter === '3d') {
+    windowMs = 3 * MS_PER_DAY;
   } else if (filter === '7d') {
     windowMs = 7 * MS_PER_DAY;
+  } else if (filter === '14d') {
+    windowMs = 14 * MS_PER_DAY;
   } else if (filter === '30d') {
     windowMs = 30 * MS_PER_DAY;
   }

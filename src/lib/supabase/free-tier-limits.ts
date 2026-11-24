@@ -11,6 +11,10 @@ export const FREE_TIER_LIMITS = {
   maxScanLogsPerUser: 25,
   maxTailoredSnapshotsPerUser: 50,
   maxHiddenJobsPerUser: 500,
+  maxSavedSearchesPerUser: 20,
+  maxRecentSearchesPerUser: 8,
+  maxViewedJobIdsPerUser: 150,
+  maxUnsavedAppliedIdsPerUser: 200,
   maxResumeUploadBytes: Math.floor(4.5 * 1024 * 1024),
   keepAliveCron: '0 8 */4 * *',
 } as const;
@@ -84,9 +88,27 @@ export function pruneStateForFreeTier(state: AppStoreState): AppStoreState {
   const prunedScans = Array.isArray(state.scanHistory)
     ? state.scanHistory.slice(0, FREE_TIER_LIMITS.maxScanLogsPerUser)
     : [];
+  const prunedUsers = Array.isArray(state.users)
+    ? state.users.map((user) => ({
+        ...user,
+        savedSearches: Array.isArray(user.savedSearches)
+          ? user.savedSearches.slice(0, FREE_TIER_LIMITS.maxSavedSearchesPerUser)
+          : user.savedSearches,
+        recentSearches: Array.isArray(user.recentSearches)
+          ? user.recentSearches.slice(0, FREE_TIER_LIMITS.maxRecentSearchesPerUser)
+          : user.recentSearches,
+        viewedJobIds: Array.isArray(user.viewedJobIds)
+          ? user.viewedJobIds.slice(0, FREE_TIER_LIMITS.maxViewedJobIdsPerUser)
+          : user.viewedJobIds,
+        unsavedAppliedJobIds: Array.isArray(user.unsavedAppliedJobIds)
+          ? user.unsavedAppliedJobIds.slice(0, FREE_TIER_LIMITS.maxUnsavedAppliedIdsPerUser)
+          : user.unsavedAppliedJobIds,
+      }))
+    : state.users;
 
   return {
     ...state,
+    users: prunedUsers,
     jobs: prunedJobs,
     scanHistory: prunedScans,
   };
