@@ -4,7 +4,7 @@ status: verified
 priority: p0-now
 area: product
 milestone: v1.0.10
-commit_ref: "pending"
+commit_ref: "9e74f78"
 files:
   - context.md
   - CHANGELOG.md
@@ -146,7 +146,7 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
-| `pending` (`v1.0.10`) | 2026-11-27 | `feat(jobs): add New to me filter pill with cross-board applied deduplication (v1.0.10)` | Added `UserProfile.newToMeOnly` (`src/types/profile.ts`, ON by default), `normalizeCompanyTitleKey` + `buildAppliedRoleKeys` + `isJobNewToMe` (`src/features/jobs/lib/job-filters.ts`), 1-click **`New to me`** banner toggle pill (`JobSearchBanner.tsx`), Home Discovery & `/jobs` `All Active` filtering + Saved-sidebar tab routing (`PleaseHireMeDashboard.tsx`), and 1-click **Show applied & saved jobs** empty-state recovery (`JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`) |
+| `9e74f78` (`v1.0.10`) | 2026-11-27 | `feat(jobs): add New to me filter pill with cross-board applied deduplication (v1.0.10)` | Added `UserProfile.newToMeOnly` (`src/types/profile.ts`, ON by default), `normalizeCompanyTitleKey` + `buildAppliedRoleKeys` + `isJobNewToMe` (`src/features/jobs/lib/job-filters.ts`), 1-click **`New to me`** banner toggle pill (`JobSearchBanner.tsx`), Home Discovery & `/jobs` `All Active` filtering + Saved-sidebar tab routing (`PleaseHireMeDashboard.tsx`), and 1-click **Show applied & saved jobs** empty-state recovery (`JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`); live on Vercel (`pa-hire-o9rdpdmwu-kevs0444s-projects.vercel.app` Ready in `30s`; `/` -> `200`, `/login` -> `200`) |
 
 ---
 

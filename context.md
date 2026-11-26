@@ -1,6 +1,6 @@
 # Pa-Hire Po — Complete Feature & Context Breakdown
 
-**Last Updated:** November 27, 2026 (`v1.0.10` — 1-Click **"New to me"** Job Search Filter Pill with Cross-Board Applied Deduplication & Profile Sync on top of `v1.0.9`)
+**Last Updated:** November 27, 2026 (`v1.0.10` / `9e74f78` — 1-Click **"New to me"** Job Search Filter Pill with Cross-Board Applied Deduplication & Profile Sync on top of `v1.0.9`, live on Vercel `pa-hire-o9rdpdmwu`)
 
 Here is the complete breakdown of **Pa-Hire Po** (`pa-hire-po`) features, design rules, and system architecture, organized into **Main Features**, **Sub-Features**, and **Anti-AI-Slop UI Guardrails**:
 

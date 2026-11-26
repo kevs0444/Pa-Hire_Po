@@ -4,7 +4,7 @@ status: active
 priority: p0-now
 area: infra
 milestone: v1.0.10
-commit_ref: "pending"
+commit_ref: "9e74f78"
 files:
   - context.md
   - package.json
@@ -28,7 +28,7 @@ tags:
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
 | **AI Model** | `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` → `gemini-2.5-flash` → local fallback |
 | **Email Templates Catalog** | 13 Civic Career Utility Templates (6 Auth + 7 Security alerts) in `supabase/email-templates/` & Step 3 Admin Dialog |
-| **Latest Verified Commit** | `15d6161` (`feat(release): v1.0.9 tabbed executive Analytics dashboard, expandable Activity cards, and cloud-synced Pinning`) — live on Vercel production (`pa-hire-3aa4mwhg1-kevs0444s-projects.vercel.app` Ready in 38s; `/` -> `200`, `/login` -> `200`) |
+| **Latest Verified Commit** | `9e74f78` (`feat(jobs): add New to me filter pill with cross-board applied deduplication (v1.0.10)`) — live on Vercel production (`pa-hire-o9rdpdmwu-kevs0444s-projects.vercel.app` Ready in 30s; `/` -> `200`, `/login` -> `200`) |
 | **Production URL** | `https://pa-hire-po.vercel.app` |
 
 ---
@@ -84,7 +84,7 @@ tags:
 - [x] `v1.0.7` Dynamic Certifications Row & Column Controls + 1:1 A4 Print & `Fit 1 Page` PDF Fix + Dedicated `AGENTS.md` Obsidian Folder: Added `ResumeCertificationColumns` (`1 | 2 | 3`) and `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`); eliminated `9.5pt` print font inflation via shared `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, true `[data-resume-content="true"]` height measurement, Page 1 boundary line, Edit-Mode print safeguard, and `ApplyFlowModal` / `SubmittedResumeModal` parity); and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md`
 - [x] `v1.0.8` JobStreet-Inspired Minimal UI, Mobile Bottom Navigation & 6 Pill Filter Popovers (`a069c9c`)
 - [x] `v1.0.9` Tabbed Executive Analytics Dashboard (`Overview` | `Skill Gaps` | `Apply Queue`), Unified Expandable Cards + `Resume Applied` Inline Editor & Cloud-Synced Priority Pinning (`Pin` + `Pinned (N)` filter pill, up to `25` pins in `pinnedActivityIds`) (`15d6161`)
-- [x] `v1.0.10` **"New to me"** Job Search Filter Pill (`JobSearchBanner.tsx`, `job-filters.ts`, `profile.ts`, `JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`): 1-click toggle pill ON by default (`newToMeOnly`), hiding `applied`/`saved`/`hidden`/`queued` + cross-board normalized `company + title` applied duplicates, with Explorer status-tab bypass, Saved-sidebar direct tab routing, and 1-click `"Show applied & saved jobs"` empty-state recovery
+- [x] `v1.0.10` **"New to me"** Job Search Filter Pill (`JobSearchBanner.tsx`, `job-filters.ts`, `profile.ts`, `JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`): 1-click toggle pill ON by default (`newToMeOnly`), hiding `applied`/`saved`/`hidden`/`queued` + cross-board normalized `company + title` applied duplicates, with Explorer status-tab bypass, Saved-sidebar direct tab routing, and 1-click `"Show applied & saved jobs"` empty-state recovery (`9e74f78`)
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes
