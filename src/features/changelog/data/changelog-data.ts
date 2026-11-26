@@ -18,6 +18,33 @@ export const CHANGELOG_SEEN_STORAGE_KEY = 'pahirepo_seen_changelog_version';
 
 export const USER_CHANGELOG_RELEASES: ChangelogRelease[] = [
   {
+    version: 'v1.0.10',
+    date: 'November 27, 2026',
+    isoDate: '2026-11-27T00:00:00.000Z',
+    headline:
+      '1-click "New to me" job search filter (ON by default) that hides Applied, Saved, Queued, Hidden, and cross-board duplicate applied roles',
+    items: [
+      {
+        tag: 'New',
+        title: '"New to me" Filter Pill in Job Search Banner',
+        description:
+          'Added a 1-click "New to me" toggle pill at the front of the Search Banner filter row (ON by default, saved per user) so Recommended and All Active results stay clean.',
+      },
+      {
+        tag: 'New',
+        title: 'Automatic Status & Cross-Board Applied Role Deduplication',
+        description:
+          'Excludes jobs you already Applied to, Saved, Queued, or Hid—along with matching Company + Title listings from other job boards where you already applied—while keeping merely viewed jobs.',
+      },
+      {
+        tag: 'Improved',
+        title: 'Saved Sidebar Routing & 1-Click Empty State Toggle',
+        description:
+          'Clicking a Saved or Applied role from the Home Saved jobs sidebar opens the right tab in /jobs Explorer directly, and empty feeds provide a 1-click "Show applied & saved jobs" toggle.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.9',
     date: 'November 25, 2026',
     isoDate: '2026-11-25T00:00:00.000Z',

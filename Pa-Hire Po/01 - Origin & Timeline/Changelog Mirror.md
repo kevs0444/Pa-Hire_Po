@@ -3,16 +3,16 @@ type: timeline
 status: active
 priority: p0-now
 area: product
-milestone: v1.0.9
-version: "1.0.9"
-commit_ref: "15d6161"
+milestone: v1.0.10
+version: "1.0.10"
+commit_ref: "pending"
 files:
   - CHANGELOG.md
   - package.json
   - src/features/changelog/data/changelog-data.ts
   - src/features/changelog/components/ChangelogModal.tsx
   - src/features/notifications/components/NotificationBell.tsx
-updated: 2026-11-25
+updated: 2026-11-27
 tags:
   - pahirepo
   - changelog
@@ -20,7 +20,14 @@ tags:
 
 # Changelog Mirror
 
-Mirrors day-based customer releases (`v1.0.0` → `v1.0.9`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+Mirrors day-based customer releases (`v1.0.0` → `v1.0.10`) from [`CHANGELOG.md`](file:///d:/Dev/Pa-Hire%20Po/CHANGELOG.md), surfaced inside the app via `ChangelogModal.tsx` from `NotificationBell.tsx` (`localStorage` read tracking via `pahirepo_seen_changelog_version`).
+
+---
+
+## `v1.0.10` — November 27, 2026 (`pending`)
+- **1-Click `New to me` Toggle Pill (`JobSearchBanner.tsx`, `profile.ts`):** Added a 1-click **`New to me`** toggle pill (`aria-pressed`, emerald active dot + `Check` icon, `civic-touch-target`) at the start of Row 2's filter bar, ON by default and persisted in `UserProfile.newToMeOnly` (local storage + Supabase `user_profiles.profile_data`).
+- **Status & Cross-Board Applied Role Deduplication (`job-filters.ts`, `PleaseHireMeDashboard.tsx`):** Added `normalizeCompanyTitleKey`, `buildAppliedRoleKeys`, and `isJobNewToMe` so Home `Recommended` and `/jobs` `All Active` hide `applied`, `saved`, `hidden`, and `queued` jobs plus cross-board listings matching a normalized `company + title` already applied to, while retaining merely viewed jobs (`viewedJobIds`).
+- **Explicit Status Tab Bypass & Empty-State Recovery (`JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`):** Kept `Saved`, `Applied`, and `Hidden` tabs unfiltered by `New to me`, routed clicks on Home's **Saved jobs** sidebar directly to `applied` or `saved` tabs, and added a 1-click **Show applied & saved jobs** recovery button in empty feeds.
 
 ---
 

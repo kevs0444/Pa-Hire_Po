@@ -3,13 +3,13 @@ type: moc
 status: active
 priority: p0-now
 area: infra
-milestone: v1.0.9
-commit_ref: "15d6161"
+milestone: v1.0.10
+commit_ref: "pending"
 files:
   - context.md
   - package.json
   - vercel.json
-updated: 2026-11-25
+updated: 2026-11-27
 tags:
   - pahirepo
   - ledger
@@ -22,7 +22,7 @@ tags:
 
 | Dimension | Current Value |
 |---|---|
-| **App Name / Package** | `pa-hire-po` (`1.0.9` — day-based releases `v1.0.0` → `v1.0.9`) |
+| **App Name / Package** | `pa-hire-po` (`1.0.10` — day-based releases `v1.0.0` → `v1.0.10`) |
 | **Framework** | Next.js `16.4.6` (App Router, Turbopack), React `19.3.0`, Tailwind CSS `4.3.3` |
 | **Desktop Shell** | Electron `45.3.2` + `electron-builder` (NSIS + Portable `.exe`) + PWA `manifest.ts` |
 | **Database & Auth** | Supabase (`Pa-Hire Po`, ref `muftcprpqnzuzfosvftz`), RLS enabled, centered always-on-top `520×680` OAuth popout (`oauth-popup.ts` & Electron `pa_hire_po_oauth`) |
@@ -84,6 +84,7 @@ tags:
 - [x] `v1.0.7` Dynamic Certifications Row & Column Controls + 1:1 A4 Print & `Fit 1 Page` PDF Fix + Dedicated `AGENTS.md` Obsidian Folder: Added `ResumeCertificationColumns` (`1 | 2 | 3`) and `certificationColumns` (`src/types/resume.ts`), `clampCertificationColumns` + `swapCertificationUrls` (`resume-links.ts`), explicit `CERTIFICATION_GRID_CLASS` tracks + `+ Add Row` / `+ Add Column` / `- Col` / `Add Certification` controls + `Cols × Rows` readout + `↑`/`↓` item reordering (`A4ResumePreview.tsx`); eliminated `9.5pt` print font inflation via shared `resume-print.ts` (`fitOnePage?: boolean` default ON for A4/Letter/Legal, true `[data-resume-content="true"]` height measurement, Page 1 boundary line, Edit-Mode print safeguard, and `ApplyFlowModal` / `SubmittedResumeModal` parity); and created `Pa-Hire Po/07 - Agent Rules & Guidelines/` linked from `00 - Home MOC.md`
 - [x] `v1.0.8` JobStreet-Inspired Minimal UI, Mobile Bottom Navigation & 6 Pill Filter Popovers (`a069c9c`)
 - [x] `v1.0.9` Tabbed Executive Analytics Dashboard (`Overview` | `Skill Gaps` | `Apply Queue`), Unified Expandable Cards + `Resume Applied` Inline Editor & Cloud-Synced Priority Pinning (`Pin` + `Pinned (N)` filter pill, up to `25` pins in `pinnedActivityIds`) (`15d6161`)
+- [x] `v1.0.10` **"New to me"** Job Search Filter Pill (`JobSearchBanner.tsx`, `job-filters.ts`, `profile.ts`, `JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`): 1-click toggle pill ON by default (`newToMeOnly`), hiding `applied`/`saved`/`hidden`/`queued` + cross-board normalized `company + title` applied duplicates, with Explorer status-tab bypass, Saved-sidebar direct tab routing, and 1-click `"Show applied & saved jobs"` empty-state recovery
 - [ ] **Next P0:** Custom domain (`pahirepo.com`) connection + Google OAuth public verification + Supabase Email Template `{{ .Token }}` & Manual Linking toggle (see [[Roadmap P0 - Core Function Polish & Public OAuth Launch]])
 
 ## Related Notes

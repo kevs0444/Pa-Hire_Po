@@ -29,7 +29,9 @@ import {
 import { sortJobs } from '@/features/jobs/lib/job-date-utils';
 import {
   applyBannerFilters,
+  buildAppliedRoleKeys,
   DEFAULT_PAY_FILTER,
+  isJobNewToMe,
   isJobSaved,
   PayFilterConfig,
 } from '@/features/jobs/lib/job-filters';
@@ -1804,10 +1806,35 @@ export function PleaseHireMeDashboard({
     setEnabledSources(['linkedin', 'jobstreet', 'indeed']);
   };
 
+  const newToMeOnly = activeProfile.newToMeOnly ?? true;
+  const queuedJobSet = useMemo(() => new Set(queuedJobIds), [queuedJobIds]);
+  const appliedRoleKeys = useMemo(
+    () => buildAppliedRoleKeys(store.jobs),
+    [store.jobs]
+  );
+
+  const handleToggleNewToMe = () => {
+    updateActiveUserProfile(
+      { ...activeProfile, newToMeOnly: !newToMeOnly },
+      false
+    );
+  };
+
+  const handleDisableNewToMe = () => {
+    updateActiveUserProfile(
+      { ...activeProfile, newToMeOnly: false },
+      false
+    );
+  };
+
   const filteredDiscoveryJobs = useMemo(
     () =>
       applyBannerFilters(
-        store.jobs.filter((j) => j.status !== 'hidden'),
+        store.jobs.filter(
+          (j) =>
+            j.status !== 'hidden' &&
+            (!newToMeOnly || isJobNewToMe(j, queuedJobSet, appliedRoleKeys))
+        ),
         {
           sourceFilter,
           fitFilter,
@@ -1822,13 +1849,16 @@ export function PleaseHireMeDashboard({
         }
       ),
     [
+      appliedRoleKeys,
       classificationFilters,
       clientNow,
       dateFilter,
       fitFilter,
       jobTypeFilters,
       minScore,
+      newToMeOnly,
       payFilter,
+      queuedJobSet,
       remoteFilters,
       searchQuery,
       sourceFilter,
@@ -1838,7 +1868,12 @@ export function PleaseHireMeDashboard({
 
   const filteredJobs = useMemo(() => {
     const statusMatched = store.jobs.filter((job) => {
-      if (statusFilter === 'active') return job.status !== 'hidden';
+      if (statusFilter === 'active') {
+        return (
+          job.status !== 'hidden' &&
+          (!newToMeOnly || isJobNewToMe(job, queuedJobSet, appliedRoleKeys))
+        );
+      }
       if (statusFilter === 'saved') {
         return isJobSaved(job, activeProfile.unsavedAppliedJobIds);
       }
@@ -1860,13 +1895,16 @@ export function PleaseHireMeDashboard({
     return sortJobs(bannerFiltered, sortBy, clientNow ?? undefined);
   }, [
     activeProfile.unsavedAppliedJobIds,
+    appliedRoleKeys,
     classificationFilters,
     clientNow,
     dateFilter,
     fitFilter,
     jobTypeFilters,
     minScore,
+    newToMeOnly,
     payFilter,
+    queuedJobSet,
     remoteFilters,
     searchQuery,
     sortBy,
@@ -1904,8 +1942,13 @@ export function PleaseHireMeDashboard({
   }, [filteredJobs, selectedJobId]);
 
   const activeJobsCount = useMemo(
-    () => store.jobs.filter((j) => j.status !== 'hidden').length,
-    [store.jobs]
+    () =>
+      store.jobs.filter(
+        (j) =>
+          j.status !== 'hidden' &&
+          (!newToMeOnly || isJobNewToMe(j, queuedJobSet, appliedRoleKeys))
+      ).length,
+    [appliedRoleKeys, newToMeOnly, queuedJobSet, store.jobs]
   );
 
   const savedJobsCount = useMemo(
@@ -2035,6 +2078,7 @@ export function PleaseHireMeDashboard({
           jobTypeFilters={jobTypeFilters}
           remoteFilters={remoteFilters}
           classificationFilters={classificationFilters}
+          newToMeOnly={newToMeOnly}
           activeFilterCount={activeFilterCount}
           onChangeRoleDraft={setRoleDraft}
           onChangeCompanyDraft={setCompanyDraft}
@@ -2073,6 +2117,7 @@ export function PleaseHireMeDashboard({
               prev.includes(val) ? prev.filter((x) => x !== val) : [...prev, val]
             )
           }
+          onToggleNewToMe={handleToggleNewToMe}
           onResetAllFilters={handleResetAllFilters}
           onRunRecentSearch={(item) => handleRunSavedSearch(item)}
           onClearUnsavedJobs={() => {
@@ -2148,15 +2193,26 @@ export function PleaseHireMeDashboard({
             jobs={filteredDiscoveryJobs}
             allJobs={store.jobs}
             activeFilterCount={activeFilterCount}
+            newToMeOnly={newToMeOnly}
             scanning={scanning}
             isDesktopApp={isDesktopApp}
             nowMs={clientNow}
             onSelectJob={(jobId) => {
+              const clickedJob = store.jobs.find((j) => j.id === jobId);
               handleMarkJobViewed(jobId);
               setSelectedJobId(jobId);
               setMobileDetailOpen(true);
               setSourceFilter('all');
-              setStatusFilter('active');
+              if (clickedJob?.status === 'applied') {
+                setStatusFilter('applied');
+              } else if (
+                clickedJob &&
+                isJobSaved(clickedJob, activeProfile.unsavedAppliedJobIds)
+              ) {
+                setStatusFilter('saved');
+              } else {
+                setStatusFilter('active');
+              }
               setActiveTab('jobs');
             }}
             onToggleSaveJob={handleToggleSaveJob}
@@ -2186,6 +2242,7 @@ export function PleaseHireMeDashboard({
             }}
             onRunSavedSearch={handleRunSavedSearch}
             onDeleteSavedSearch={handleDeleteSavedSearch}
+            onDisableNewToMe={handleDisableNewToMe}
             onResetFilters={handleResetAllFilters}
             onTriggerScan={() => void runJobScan()}
           />
@@ -2306,17 +2363,47 @@ export function PleaseHireMeDashboard({
                 ) : filteredJobs.length === 0 ? (
                   <div className={cn('space-y-3 rounded-lg border border-dashed p-10 text-center', cardSurface)}>
                     <Briefcase className={cn('mx-auto h-7 w-7', mutedText)} />
-                    <p className="text-sm font-semibold">No matching jobs yet</p>
-                    <p className={cn('text-xs', mutedText)}>
-                      Try adjusting filters or click Search to scan LinkedIn, JobStreet, and Indeed.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => void runJobScan()}
-                      className={cn('min-h-[42px] rounded-lg px-4 py-2 text-xs', primaryBtn)}
-                    >
-                      Search Jobs
-                    </button>
+                    {(() => {
+                      const hiddenByNewToMeOnly =
+                        statusFilter === 'active' &&
+                        newToMeOnly &&
+                        store.jobs.some((j) => j.status !== 'hidden');
+                      return (
+                        <>
+                          <p className="text-sm font-semibold">
+                            {hiddenByNewToMeOnly
+                              ? 'All loaded jobs are already applied, saved, or queued'
+                              : 'No matching jobs yet'}
+                          </p>
+                          <p className={cn('text-xs', mutedText)}>
+                            {hiddenByNewToMeOnly
+                              ? 'Turn off "New to me" to show applied, saved, or queued listings, or scan for new openings.'
+                              : 'Try adjusting filters or click Search to scan LinkedIn, JobStreet, and Indeed.'}
+                          </p>
+                          <div className="flex flex-wrap items-center justify-center gap-2">
+                            {hiddenByNewToMeOnly && (
+                              <button
+                                type="button"
+                                onClick={handleDisableNewToMe}
+                                className={cn(
+                                  'min-h-[42px] rounded-lg border px-4 py-2 text-xs font-semibold transition-colors',
+                                  secondaryBtn
+                                )}
+                              >
+                                Show applied &amp; saved jobs
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => void runJobScan()}
+                              className={cn('min-h-[42px] rounded-lg px-4 py-2 text-xs', primaryBtn)}
+                            >
+                              Search Jobs
+                            </button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 ) : (
                   filteredJobs.map((job) => (

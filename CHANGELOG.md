@@ -1,6 +1,15 @@
 # Pa-Hire Po Updates
 
-See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.9`).
+See what is new in your job search and resume workspace, from initial launch (`v1.0.0`) to today (`v1.0.10`).
+
+## v1.0.10 — November 27, 2026
+
+### "New to me" Job Search Filter & Cross-Board Applied Deduplication
+- **1-Click `New to me` Toggle Pill (`JobSearchBanner.tsx`, `profile.ts`):** Added a 1-click **`New to me`** pill at the front of the Search Banner filter bar (**ON by default**, synced via `UserProfile.newToMeOnly`) so your **Recommended** feed and **All Active** Explorer automatically surface only untouched listings.
+- **Excludes Applied, Saved, Queued, Hidden & Cross-Board Applied Duplicates (`job-filters.ts`, `PleaseHireMeDashboard.tsx`):** Hides any job already marked `applied`, `saved`, `hidden`, or `queued`—plus exact cross-board `company + title` duplicates of roles you already applied to—while keeping merely viewed openings visible.
+- **Explicit Status Tab Bypass & Recovery Action (`JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`):** Selecting `Saved`, `Applied`, or `Hidden` tabs in `/jobs` Explorer—or clicking a job in the Home **Saved jobs** sidebar—routes straight to that job even while `New to me` is ON, and empty states offer a 1-click **Show applied & saved jobs** toggle.
+
+---
 
 ## v1.0.9 — November 25, 2026
 

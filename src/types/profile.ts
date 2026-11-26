@@ -68,6 +68,7 @@ export interface UserProfile {
   viewedJobIds?: string[];
   unsavedAppliedJobIds?: string[];
   pinnedActivityIds?: string[];
+  newToMeOnly?: boolean;
 }
 
 export interface DynamicRoleSuggestion {

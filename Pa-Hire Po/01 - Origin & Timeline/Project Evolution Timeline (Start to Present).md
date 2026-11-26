@@ -3,13 +3,13 @@ type: timeline
 status: verified
 priority: p0-now
 area: product
-milestone: v1.0.9
-commit_ref: "15d6161"
+milestone: v1.0.10
+commit_ref: "pending"
 files:
   - context.md
   - CHANGELOG.md
   - README.md
-updated: 2026-11-25
+updated: 2026-11-27
 tags:
   - pahirepo
   - timeline
@@ -139,6 +139,14 @@ Complete git-verified chronology of **Pa-Hire Po** across all **20 commits** fro
 | Version / Commit | Date | Summary | Key Milestones |
 |---|---|---|---|
 | `15d6161` (`v1.0.9`) | 2026-11-25 | `feat(release): v1.0.9 tabbed executive Analytics dashboard, expandable Activity cards, and cloud-synced Pinning` | Redesigned `JobAnalyticsView.tsx` + `AutoApplyBlueprintPanel.tsx` + `globals.css` (`role="tablist"`, `hidden="until-found"`/`beforematch`, unified KPI ribbon, CSS `subgrid` boards, flat Role Demand, segmented Work Setup bar, Missing vs. Matched skills, native `<details>` Screening Answers); fixed unclamped notes on `Resume Applied` & standardized `Expand` / `Collapse` buttons + inline `Resume Applied` editing across `ApplicationsCompilationView.tsx` and `ResumeVersionsDrawer.tsx`; added `pinnedActivityIds` (cap `25`), `handleTogglePinActivity`, **`Pin`** (`aria-pressed`, `aria-live`), **`Pinned`** badge + Civic border accent, and **`Pinned (N)`** filter pill; live on Vercel (`pa-hire-3aa4mwhg1` Ready in `38s`) |
+
+---
+
+## Phase 14 — "New to me" Filter & Cross-Board Applied Deduplication (`v1.0.10`, Nov 27, 2026)
+
+| Version / Commit | Date | Summary | Key Milestones |
+|---|---|---|---|
+| `pending` (`v1.0.10`) | 2026-11-27 | `feat(jobs): add New to me filter pill with cross-board applied deduplication (v1.0.10)` | Added `UserProfile.newToMeOnly` (`src/types/profile.ts`, ON by default), `normalizeCompanyTitleKey` + `buildAppliedRoleKeys` + `isJobNewToMe` (`src/features/jobs/lib/job-filters.ts`), 1-click **`New to me`** banner toggle pill (`JobSearchBanner.tsx`), Home Discovery & `/jobs` `All Active` filtering + Saved-sidebar tab routing (`PleaseHireMeDashboard.tsx`), and 1-click **Show applied & saved jobs** empty-state recovery (`JobDiscoveryFeed.tsx`, `PleaseHireMeDashboard.tsx`) |
 
 ---
 

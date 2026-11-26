@@ -179,6 +179,45 @@ export function isJobSaved(
   return !unsavedAppliedIds.includes(job.id);
 }
 
+export function normalizeCompanyTitleKey(
+  company: string,
+  title: string
+): string {
+  const clean = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const c = clean(company || '');
+  const t = clean(title || '');
+  if (!c || !t) return '';
+  return `${c}::${t}`;
+}
+
+export function buildAppliedRoleKeys(jobs: JobListing[]): Set<string> {
+  const keys = new Set<string>();
+  for (const job of jobs) {
+    if (job.status !== 'applied') continue;
+    const key = normalizeCompanyTitleKey(job.company, job.title);
+    if (key) keys.add(key);
+  }
+  return keys;
+}
+
+export function isJobNewToMe(
+  job: JobListing,
+  queuedIds: Set<string>,
+  appliedRoleKeys: Set<string>
+): boolean {
+  if (job.status !== 'suggested') return false;
+  if (queuedIds.has(job.id)) return false;
+  const key = normalizeCompanyTitleKey(job.company, job.title);
+  if (key && appliedRoleKeys.has(key)) return false;
+  return true;
+}
+
 function parseSalaryRangeNormalized(
   rawSalary: string | null,
   targetPeriod: PayPeriod

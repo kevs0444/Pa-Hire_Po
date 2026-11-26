@@ -30,6 +30,7 @@ interface JobDiscoveryFeedProps {
   jobs: JobListing[];
   allJobs?: JobListing[];
   activeFilterCount?: number;
+  newToMeOnly?: boolean;
   scanning: boolean;
   isDesktopApp: boolean;
   nowMs?: number | null;
@@ -42,6 +43,7 @@ interface JobDiscoveryFeedProps {
   onOpenDesktopSetup: () => void;
   onRunSavedSearch: (saved: SavedJobSearch) => void;
   onDeleteSavedSearch: (id: string) => void;
+  onDisableNewToMe?: () => void;
   onResetFilters?: () => void;
   onTriggerScan: () => void;
 }
@@ -52,6 +54,7 @@ export function JobDiscoveryFeed({
   jobs,
   allJobs,
   activeFilterCount = 0,
+  newToMeOnly = false,
   scanning,
   isDesktopApp,
   nowMs = null,
@@ -64,6 +67,7 @@ export function JobDiscoveryFeed({
   onOpenDesktopSetup,
   onRunSavedSearch,
   onDeleteSavedSearch,
+  onDisableNewToMe,
   onResetFilters,
   onTriggerScan,
 }: JobDiscoveryFeedProps) {
@@ -285,40 +289,68 @@ export function JobDiscoveryFeed({
               )}
             >
               <Briefcase className={cn('mx-auto h-7 w-7', tokens.mutedText)} />
-              <p className="text-sm font-semibold">
-                {activeFilterCount > 0
-                  ? 'No jobs match your active filters'
-                  : 'No recommended jobs loaded yet'}
-              </p>
-              <p className={cn('mx-auto max-w-md text-xs', tokens.mutedText)}>
-                {activeFilterCount > 0
-                  ? 'Adjust or clear your banner filters to see all discovered matches.'
-                  : 'Run a search across LinkedIn, JobStreet, and Indeed or adjust your target roles in Preferences.'}
-              </p>
-              {activeFilterCount > 0 && onResetFilters ? (
-                <button
-                  type="button"
-                  onClick={onResetFilters}
-                  className={cn(
-                    'inline-flex min-h-[42px] items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
-                    tokens.primaryBtn
-                  )}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Clear Active Filters
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onTriggerScan}
-                  className={cn(
-                    'min-h-[42px] rounded-lg px-4 py-2 text-xs transition-colors',
-                    tokens.primaryBtn
-                  )}
-                >
-                  Search Jobs Now
-                </button>
-              )}
+              {(() => {
+                const hiddenByNewToMeOnly =
+                  activeFilterCount === 0 &&
+                  newToMeOnly &&
+                  savedSourceJobs.some((j) => j.status !== 'hidden');
+                return (
+                  <>
+                    <p className="text-sm font-semibold">
+                      {activeFilterCount > 0
+                        ? 'No jobs match your active filters'
+                        : hiddenByNewToMeOnly
+                          ? 'All loaded jobs are already applied, saved, or queued'
+                          : 'No recommended jobs loaded yet'}
+                    </p>
+                    <p className={cn('mx-auto max-w-md text-xs', tokens.mutedText)}>
+                      {activeFilterCount > 0
+                        ? 'Adjust or clear your banner filters to see all discovered matches.'
+                        : hiddenByNewToMeOnly
+                          ? 'Turn off "New to me" to view previously applied, saved, or queued listings, or run a fresh scan.'
+                          : 'Run a search across LinkedIn, JobStreet, and Indeed or adjust your target roles in Preferences.'}
+                    </p>
+                    {activeFilterCount > 0 && onResetFilters ? (
+                      <button
+                        type="button"
+                        onClick={onResetFilters}
+                        className={cn(
+                          'inline-flex min-h-[42px] items-center gap-1.5 rounded-lg px-4 py-2 text-xs transition-colors',
+                          tokens.primaryBtn
+                        )}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Clear Active Filters
+                      </button>
+                    ) : (
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {hiddenByNewToMeOnly && onDisableNewToMe && (
+                          <button
+                            type="button"
+                            onClick={onDisableNewToMe}
+                            className={cn(
+                              'min-h-[42px] rounded-lg border px-4 py-2 text-xs font-semibold transition-colors',
+                              tokens.secondaryBtn
+                            )}
+                          >
+                            Show applied &amp; saved jobs
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={onTriggerScan}
+                          className={cn(
+                            'min-h-[42px] rounded-lg px-4 py-2 text-xs transition-colors',
+                            tokens.primaryBtn
+                          )}
+                        >
+                          Search Jobs Now
+                        </button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <div className="space-y-3">

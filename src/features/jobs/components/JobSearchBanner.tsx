@@ -180,6 +180,7 @@ interface JobSearchBannerProps {
   jobTypeFilters: string[];
   remoteFilters: string[];
   classificationFilters: string[];
+  newToMeOnly: boolean;
   activeFilterCount: number;
   onChangeRoleDraft: (value: string) => void;
   onChangeCompanyDraft: (value: string) => void;
@@ -198,6 +199,7 @@ interface JobSearchBannerProps {
   onToggleJobTypeFilter: (value: string) => void;
   onToggleRemoteFilter: (value: string) => void;
   onToggleClassificationFilter: (value: string) => void;
+  onToggleNewToMe: () => void;
   onResetAllFilters: () => void;
   onClearUnsavedJobs: () => void;
   onRunRecentSearch: (item: RecentJobSearch) => void;
@@ -226,6 +228,7 @@ export function JobSearchBanner({
   jobTypeFilters,
   remoteFilters,
   classificationFilters,
+  newToMeOnly,
   activeFilterCount,
   onChangeRoleDraft,
   onChangeCompanyDraft,
@@ -244,6 +247,7 @@ export function JobSearchBanner({
   onToggleJobTypeFilter,
   onToggleRemoteFilter,
   onToggleClassificationFilter,
+  onToggleNewToMe,
   onResetAllFilters,
   onClearUnsavedJobs,
   onRunRecentSearch,
@@ -415,6 +419,42 @@ export function JobSearchBanner({
         {/* Row 2: JobStreet Outlined Filter Pills (Pics 2–6) + Save Search */}
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="no-scrollbar flex flex-1 flex-nowrap items-center gap-2 overflow-x-auto py-0.5">
+            {/* 0. NEW TO ME 1-CLICK TOGGLE PILL */}
+            <button
+              type="button"
+              aria-pressed={newToMeOnly}
+              onClick={onToggleNewToMe}
+              title="Hide applied, saved, queued, and duplicate applied roles"
+              className={cn(
+                'civic-touch-target inline-flex min-h-[38px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs transition-colors',
+                newToMeOnly
+                  ? isDark
+                    ? 'border-zinc-200 bg-zinc-100 font-semibold text-zinc-950'
+                    : 'border-[#3b82f6] bg-[#2563eb] font-semibold text-white'
+                  : isDark
+                    ? 'border-zinc-700 bg-zinc-900/60 font-medium text-zinc-200 hover:border-zinc-500 hover:bg-zinc-800'
+                    : 'border-white/30 bg-white/10 font-medium text-white hover:border-white/60 hover:bg-white/15'
+              )}
+            >
+              {newToMeOnly ? (
+                <span className="inline-flex items-center gap-1" aria-hidden="true">
+                  <span
+                    className={cn(
+                      'h-2 w-2 rounded-full',
+                      isDark ? 'bg-emerald-600' : 'bg-emerald-300'
+                    )}
+                  />
+                  <Check className="h-3.5 w-3.5" />
+                </span>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full border border-current opacity-65"
+                />
+              )}
+              <span>New to me</span>
+            </button>
+
             {/* 1. PAY PILL (Pic 2) */}
             <FilterPillPopover
               label={payPillLabel}
